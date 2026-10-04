@@ -45,6 +45,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
 ];
 
 export const LoginPage: React.FC = () => {
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
   const navigate = useNavigate();
   const location = useLocation();
   const { success } = useToast();
@@ -53,15 +54,23 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showDemoAccounts, setShowDemoAccounts] = useState(true);
+  const [initialOtp, setInitialOtp] = useState<string | null>(null);
 
   // Auto seed on initial load if not yet seeded
   useEffect(() => {
-    DatabaseSeeder.isSeeded().then((seeded) => {
+    DatabaseSeeder.isSeeded().then(async (seeded) => {
       if (!seeded) {
-        DatabaseSeeder.seed().catch(console.error);
+        await DatabaseSeeder.seed().catch(console.error);
+      }
+      // Check for one-time generated admin password in non-demo mode
+      if (!isDemoMode) {
+        const otpSetting = await db.settings.get('set-initial-admin-otp');
+        if (otpSetting && otpSetting.value) {
+          setInitialOtp(otpSetting.value);
+        }
       }
     });
-  }, []);
+  }, [isDemoMode]);
 
   const {
     register,
@@ -70,11 +79,17 @@ export const LoginPage: React.FC = () => {
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: 'admin',
-      password: 'Admin@123',
-      remember: true,
-    },
+    defaultValues: isDemoMode
+      ? {
+          username: 'admin',
+          password: 'Admin@123',
+          remember: true,
+        }
+      : {
+          username: '',
+          password: '',
+          remember: false,
+        },
   });
 
   const onSubmit = async (data: LoginFormData) => {
@@ -193,38 +208,59 @@ export const LoginPage: React.FC = () => {
             {t('login_btn')}
           </Button>
 
-          {/* Demo Roles Quick Picker (Spec Requirement) */}
-          <div className="pt-3 border-t border-[#E5EAF2] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#0FA37F]" />
-                حسابات الأدوار التجريبية (Demo Accounts)
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowDemoAccounts(!showDemoAccounts)}
-                className="text-[11px] text-[#2563EB] hover:underline cursor-pointer"
-              >
-                {showDemoAccounts ? 'إخفاء' : 'إظهار'}
-              </button>
-            </div>
-
-            {showDemoAccounts && (
-              <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-1 bg-[#F4F7FB] rounded-xl border border-[#E5EAF2]">
-                {DEMO_ACCOUNTS.map((acc) => (
-                  <button
-                    key={acc.username}
-                    type="button"
-                    onClick={() => selectDemoAccount(acc.username)}
-                    className="p-1.5 rounded-lg bg-white hover:bg-emerald-50 text-start border border-[#E5EAF2] hover:border-[#0FA37F]/50 transition-colors text-xs flex flex-col justify-between cursor-pointer"
-                  >
-                    <span className="font-bold text-[#0F172A] truncate">{acc.roleName}</span>
-                    <span className="text-[10px] font-mono text-[#64748B] truncate">{acc.username}</span>
-                  </button>
-                ))}
+          {/* Initial OTP Notification for First Boot in Non-Demo Mode */}
+          {!isDemoMode && initialOtp && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs text-amber-900">
+              <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <span>إطلاق النظام الأول: كلمة المرور المؤقتة لمدير النظام</span>
               </div>
-            )}
-          </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                اسم المستخدم: <strong className="font-mono text-slate-900">admin</strong> — كلمة المرور لمرة واحدة:{' '}
+                <code className="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono font-bold text-red-600 select-all">
+                  {initialOtp}
+                </code>
+              </p>
+              <p className="text-[10px] text-amber-600">
+                سيُطلب منك تغيير كلمة المرور فور تسجيل الدخول الأول وفق معايير الأمان المؤسسية.
+              </p>
+            </div>
+          )}
+
+          {/* Demo Roles Quick Picker (Spec Requirement: ONLY when VITE_DEMO_MODE is true) */}
+          {isDemoMode && (
+            <div className="pt-3 border-t border-[#E5EAF2] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#0FA37F]" />
+                  حسابات الأدوار التجريبية (Demo Accounts)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowDemoAccounts(!showDemoAccounts)}
+                  className="text-[11px] text-[#2563EB] hover:underline cursor-pointer"
+                >
+                  {showDemoAccounts ? 'إخفاء' : 'إظهار'}
+                </button>
+              </div>
+
+              {showDemoAccounts && (
+                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-1 bg-[#F4F7FB] rounded-xl border border-[#E5EAF2]">
+                  {DEMO_ACCOUNTS.map((acc) => (
+                    <button
+                      key={acc.username}
+                      type="button"
+                      onClick={() => selectDemoAccount(acc.username)}
+                      className="p-1.5 rounded-lg bg-white hover:bg-emerald-50 text-start border border-[#E5EAF2] hover:border-[#0FA37F]/50 transition-colors text-xs flex flex-col justify-between cursor-pointer"
+                    >
+                      <span className="font-bold text-[#0F172A] truncate">{acc.roleName}</span>
+                      <span className="text-[10px] font-mono text-[#64748B] truncate">{acc.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="p-3 rounded-xl bg-[#F4F7FB] border border-[#E5EAF2] flex items-center justify-between text-[11px] text-[#64748B]">
             <span className="flex items-center gap-1.5 font-medium">

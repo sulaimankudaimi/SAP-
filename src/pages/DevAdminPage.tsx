@@ -438,7 +438,7 @@ export const DevAdminPage: React.FC = () => {
             <tbody className="divide-y divide-[#E5EAF2]">
               {recentAuditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-[#F4F7FB]/60 font-mono text-[11px]">
-                  <td className="py-2.5 px-3 text-[#64748B]">{new Date(log.timestamp).toLocaleTimeString('ar-SA')}</td>
+                  <td className="py-2.5 px-3 text-[#64748B]">{new Date(log.timestamp).toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn')}</td>
                   <td className="py-2.5 px-3 font-sans font-semibold text-[#0F172A]">{log.userName}</td>
                   <td className="py-2.5 px-3">
                     <span

@@ -31,10 +31,10 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
   const [driverId, setDriverId] = useState('');
   const [date, setDate] = useState('');
   const [fuelType, setFuelType] = useState<'Diesel' | 'Gasoline95' | 'Gasoline91'>('Diesel');
-  const [quantityLiters, setQuantityLiters] = useState(350);
+  const [quantityLiters, setQuantityLiters] = useState(0);
   const [costPerLiter, setCostPerLiter] = useState(1.15);
-  const [odometer, setOdometer] = useState(120500);
-  const [stationName, setStationName] = useState('محطة بترومين - طريق الرياض الخرج');
+  const [odometer, setOdometer] = useState(0);
+  const [stationName, setStationName] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -59,7 +59,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
 
       if (targetV) {
         setVehicleId(targetV.id);
-        setOdometer((targetV.currentOdometer || 120000) + 450);
+        setOdometer(targetV.currentOdometer || 0);
         if (targetV.assignedDriverId) {
           setDriverId(targetV.assignedDriverId);
         } else if (dList.length > 0) {
@@ -75,6 +75,20 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
     e.preventDefault();
     if (!vehicleId || !driverId) {
       error('تنبيه', 'يرجى اختيار المركبة والسائق');
+      return;
+    }
+
+    if (quantityLiters <= 0) {
+      error('تنبيه', 'يرجى إدخال كمية الوقود باللتر بشكل صحيح');
+      return;
+    }
+
+    const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+    if (selectedVehicle && odometer <= selectedVehicle.currentOdometer) {
+      error(
+        'خطأ في قراءة العداد',
+        `قراءة العداد الحالية (${odometer} كم) يجب أن تكون أكبر من آخر قراءة مسجلة للمركبة (${selectedVehicle.currentOdometer} كم).`
+      );
       return;
     }
 
@@ -128,7 +142,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
               setVehicleId(e.target.value);
               const found = vehicles.find((v) => v.id === e.target.value);
               if (found) {
-                setOdometer((found.currentOdometer || 120000) + 400);
+                setOdometer(found.currentOdometer || 0);
                 if (found.assignedDriverId) setDriverId(found.assignedDriverId);
               }
             }}

@@ -468,7 +468,7 @@ export const ReportRunnerView: React.FC<ReportRunnerViewProps> = ({
               <div className="p-3 bg-slate-50 rounded-xl space-y-1 font-mono text-slate-700">
                 <div>التقرير: <span className="font-bold">{report.title}</span> ({report.code})</div>
                 <div>عدد السجلات: <span className="font-bold">{sortedRows.length}</span> سجل</div>
-                <div>التاريخ: <span className="font-bold">{new Date().toLocaleString('ar-SA')}</span></div>
+                <div>التاريخ: <span className="font-bold">{new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn')}</span></div>
               </div>
 
               <div className="space-y-1">

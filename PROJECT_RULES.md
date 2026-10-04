@@ -5,10 +5,11 @@ PRODUCT
 "Gulf Energy ERP" — a custom ERP for Oil & Gas / energy-logistics companies, structured like SAP (modules, master data, transaction documents, document flow, posting to accounting, authorization objects, change documents). It will ship as a Windows desktop app (Electron) and MUST work 100% offline.
 
 TECH STACK (fixed, do not deviate)
-- React 18 + TypeScript (strict) + Vite
+- React 19 + TypeScript (strict) + Vite
 - Tailwind CSS (with CSS variables for design tokens)
 - React Router using HashRouter (required for Electron file://)
 - Zustand for state; TanStack Table for grids; Recharts for charts; lucide-react for icons
+- @tanstack/react-virtual is allowed for table virtualization.
 - react-hook-form + zod for forms/validation
 - Dexie (IndexedDB) behind a Repository interface (so it can later be swapped for SQLite)
 - date handling: date-fns; numbers via Intl.NumberFormat('en-US') (use Western digits 0-9 everywhere)
@@ -19,6 +20,7 @@ LANGUAGE & LAYOUT
 - All UI text in Arabic; <html dir="rtl" lang="ar">. Use logical CSS properties (ms-/me-/ps-/pe-, start/end), never left/right.
 - Centralize all strings in /src/i18n/ar.ts (key → Arabic) and use a t() helper. Code, identifiers, comments in English.
 - Charts, tables, forms, and dropdowns must all be RTL-correct. Currency default: SAR (ريال), configurable.
+- Dates: Gregorian calendar with Western digits, i.e. toLocaleDateString('ar-SA-u-ca-gregory-nu-latn').
 
 DESIGN SYSTEM (strict)
 - Reference style: clean modern Arabic SaaS dashboards (white cards on very light blue-gray background).
@@ -35,6 +37,9 @@ ARCHITECTURE RULES
 - Every create/update/delete/status change writes an AuditLog entry (userId, action, entity, entityId, before, after, timestamp).
 - Every action is guarded by permission checks (RBAC) both in UI (hide/disable) and in services (throw).
 - Never use `any`. Never leave TODO/placeholder/pseudo code. Never mock a feature with a non-functional button.
+
+SECURITY RULES
+- No default/auto sessions; no password hashes outside the DB; session tokens must be HMAC-signed; every service method that mutates data must call requirePermission(); audit entries must always carry the real acting user; no hardcoded fallback user/cost-center IDs.
 
 WORKING PROTOCOL
 - Implement ONLY what the current prompt asks. Do not refactor unrelated files.

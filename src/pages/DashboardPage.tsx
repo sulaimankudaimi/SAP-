@@ -87,7 +87,7 @@ export const DashboardPage: React.FC = () => {
       setOperationalKPIs(opKpis);
 
       const now = new Date();
-      setLastUpdated(now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setLastUpdated(now.toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       error('خطأ في تحميل البيانات', 'تعذر جلب البيانات التشغيلية للوحة التحكم.');

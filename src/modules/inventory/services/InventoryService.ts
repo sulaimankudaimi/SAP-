@@ -3,6 +3,7 @@ import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { ValuationService } from './ValuationService';
 import { financePostingService } from './FinancePostingAdapter';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   MaterialDocument,
   MaterialDocumentItem,
@@ -180,6 +181,12 @@ export class InventoryService {
    * 8. Audit log recording.
    */
   static async postMaterialDocument(payload: PostMovementPayload): Promise<MaterialDocument> {
+    const totalAmt = payload.items.reduce((acc, it) => acc + (it.quantity * (it.unitPrice || 0)), 0);
+    requirePermission(
+      { module: 'WM', activity: 'post' },
+      { plant: payload.plantCode, costCenter: payload.items[0]?.costCenter, amount: totalAmt }
+    );
+
     const allowNegative = await this.isNegativeStockAllowed();
     const now = new Date().toISOString();
     const postingDate = payload.postingDate || now.split('T')[0];
@@ -655,6 +662,8 @@ export class InventoryService {
       throw new Error('تنبيه المخزون غير موجود');
     }
 
+    requirePermission({ module: 'MM', activity: 'create' }, { plant: alert.plantCode });
+
     const material = await db.materials.where('materialCode').equals(alert.materialCode).first();
     const prDocNumber = await NumberRangeService.getNextNumber('PR', '2026');
     const unitPrice = material?.standardPrice || 100;
@@ -826,6 +835,11 @@ export class InventoryService {
     condition: 'Fair' | 'Scrap' | 'UsedGood' | 'Obsolete';
     userId: string;
   }): Promise<AuctionRecord> {
+    requirePermission(
+      { module: 'WM', activity: 'create' },
+      { plant: params.plantCode, amount: params.startingPrice }
+    );
+
     const mat = await db.materials.where('materialCode').equals(params.materialCode).first();
     const num = await NumberRangeService.getNextNumber('AUC', '2026');
     const now = new Date().toISOString();

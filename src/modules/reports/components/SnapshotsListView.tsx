@@ -71,7 +71,7 @@ export const SnapshotsListView: React.FC<SnapshotsListViewProps> = ({ onOpenRepo
 
       ExportService.exportToExcel({
         fileName: `Snapshot_${snap.reportCode}_${snap.createdAt.substring(0, 10)}`,
-        title: `لقطة محفوظة: ${snap.reportTitle} (${new Date(snap.createdAt).toLocaleString('ar-SA')})`,
+        title: `لقطة محفوظة: ${snap.reportTitle} (${new Date(snap.createdAt).toLocaleString('ar-SA-u-ca-gregory-nu-latn')})`,
         columns,
         data: rows,
         totals,
@@ -135,7 +135,7 @@ export const SnapshotsListView: React.FC<SnapshotsListViewProps> = ({ onOpenRepo
                     {snap.reportCode}
                   </span>
                   <span className="text-[11px] font-mono text-slate-400">
-                    {new Date(snap.createdAt).toLocaleDateString('ar-SA')}
+                    {new Date(snap.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                   </span>
                 </div>
 

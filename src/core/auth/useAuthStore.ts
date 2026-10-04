@@ -1,39 +1,19 @@
 import { create } from 'zustand';
 import type { User, Role, AuthObject } from '../../types/models';
 import type { AuthSession } from '../services/AuthService';
-import { RbacService, SYSTEM_ROLES } from '../services/RbacService';
+import { RbacService } from '../services/RbacService';
+import { CryptoService } from '../services/crypto';
+import { userRepository, roleRepository } from '../repositories';
+import { SessionContext } from '../security/SessionContext';
 
 const SESSION_STORAGE_KEY = 'gulf_auth_session';
-const LOGGED_OUT_KEY = 'gulf_auth_logged_out';
 
-const DEFAULT_ADMIN_ROLE: Role = {
-  id: 'r-admin',
-  code: SYSTEM_ROLES.ADMIN,
-  name: 'مدير النظام (System Administrator)',
-  description: 'كامل الصلاحيات الفنية والتشغيلية لكافة الوحدات',
-  permissionCodes: ['*'],
-  isSystem: true,
-};
-
-const DEFAULT_ADMIN_USER: User = {
-  id: 'u-admin',
-  username: 'admin',
-  fullName: 'م. أحمد الشمري (المدير العام)',
-  email: 'admin@gulfenergy.sa',
-  roleId: 'r-admin',
-  roleCode: SYSTEM_ROLES.ADMIN,
-  roleName: 'مدير النظام',
-  companyCode: '1000',
-  plantCode: '1100',
-  passwordHash: '',
-  passwordSalt: '',
-  failedLoginAttempts: 0,
-  isLocked: false,
-  mustChangePassword: false,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-  isDeleted: false,
-};
+export interface StoredSessionPayload {
+  userId: string;
+  roleCode: string;
+  expiresAt: number;
+  token: string;
+}
 
 interface AuthState {
   user: User | null;
@@ -42,8 +22,10 @@ interface AuthState {
   expiresAt: number | null;
   isAuthenticated: boolean;
   isAutoLocked: boolean;
+  isBootRestoring: boolean;
   lastActivity: number;
 
+  restoreSession: () => Promise<boolean>;
   setSession: (session: AuthSession) => void;
   logout: () => void;
   recordActivity: () => void;
@@ -57,86 +39,118 @@ interface AuthState {
   ) => boolean;
 }
 
-function getInitialSession(): {
-  user: User | null;
-  role: Role | null;
-  token: string | null;
-  expiresAt: number | null;
-  isAuthenticated: boolean;
-} {
-  try {
-    if (typeof window === 'undefined') {
-      return {
-        user: DEFAULT_ADMIN_USER,
-        role: DEFAULT_ADMIN_ROLE,
-        token: 'default-admin-token',
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-        isAuthenticated: true,
-      };
-    }
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  role: null,
+  token: null,
+  expiresAt: null,
+  isAuthenticated: false,
+  isAutoLocked: false,
+  isBootRestoring: true,
+  lastActivity: Date.now(),
 
-    const isLoggedOut = localStorage.getItem(LOGGED_OUT_KEY) === 'true';
-    if (isLoggedOut) {
-      return {
+  restoreSession: async (): Promise<boolean> => {
+    try {
+      if (typeof window === 'undefined') {
+        set({ isAuthenticated: false, isBootRestoring: false });
+        SessionContext.clearActor();
+        return false;
+      }
+
+      const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) {
+        set({ isAuthenticated: false, isBootRestoring: false });
+        SessionContext.clearActor();
+        return false;
+      }
+
+      const parsed: StoredSessionPayload = JSON.parse(raw);
+      const { userId, roleCode, expiresAt, token } = parsed;
+
+      // 1. Verify existence of required session fields and expiry
+      if (!userId || !roleCode || !expiresAt || !token || expiresAt <= Date.now()) {
+        throw new Error('الجلسة منتهية الصلاحية أو غير مكتملة.');
+      }
+
+      // 2. Cryptographic Token Verification (HMAC-SHA256 signature over userId:roleCode:expiresAt)
+      const expectedPayload = `${userId}:${roleCode}:${expiresAt}`;
+      const isTokenValid = await CryptoService.verify(expectedPayload, token);
+      if (!isTokenValid) {
+        throw new Error('تم اكتشاف تلاعب أو عدم تطابق في توقيع رمز الجلسة الأمني (HMAC).');
+      }
+
+      // 3. Reload fresh User & Role directly from DB to confirm not locked/deleted
+      const user = await userRepository.getById(userId);
+      if (!user || user.isDeleted || user.isLocked) {
+        throw new Error('حساب المستخدم مقفل أو غير موجود بقاعدة البيانات.');
+      }
+
+      const role = await roleRepository.getById(user.roleId);
+      if (!role || role.code !== roleCode || role.isDeleted) {
+        throw new Error('الدور الوظيفي للمستخدم غير صالح أو تم حذفه.');
+      }
+
+      // 4. Session valid: update store & session context actor
+      set({
+        user,
+        role,
+        token,
+        expiresAt,
+        isAuthenticated: true,
+        isAutoLocked: false,
+        isBootRestoring: false,
+        lastActivity: Date.now(),
+      });
+
+      SessionContext.setActor({
+        userId: user.id,
+        username: user.username,
+        role,
+      });
+
+      return true;
+    } catch (err) {
+      console.warn('Boot session verification failed, redirecting to login:', err);
+      try {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
+      set({
         user: null,
         role: null,
         token: null,
         expiresAt: null,
         isAuthenticated: false,
-      };
+        isAutoLocked: false,
+        isBootRestoring: false,
+      });
+      SessionContext.clearActor();
+      return false;
     }
-
-    const saved = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved) as AuthSession;
-      if (parsed.expiresAt && parsed.expiresAt > Date.now() && parsed.user && parsed.role) {
-        return {
-          user: parsed.user,
-          role: parsed.role,
-          token: parsed.token,
-          expiresAt: parsed.expiresAt,
-          isAuthenticated: true,
-        };
-      }
-    }
-
-    // Default to admin session on first boot for smooth preview
-    return {
-      user: DEFAULT_ADMIN_USER,
-      role: DEFAULT_ADMIN_ROLE,
-      token: 'default-admin-token',
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      isAuthenticated: true,
-    };
-  } catch {
-    return {
-      user: DEFAULT_ADMIN_USER,
-      role: DEFAULT_ADMIN_ROLE,
-      token: 'default-admin-token',
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      isAuthenticated: true,
-    };
-  }
-}
-
-const initial = getInitialSession();
-
-export const useAuthStore = create<AuthState>((set, get) => ({
-  user: initial.user,
-  role: initial.role,
-  token: initial.token,
-  expiresAt: initial.expiresAt,
-  isAuthenticated: initial.isAuthenticated,
-  isAutoLocked: false,
-  lastActivity: Date.now(),
+  },
 
   setSession: (session: AuthSession) => {
     try {
-      localStorage.removeItem(LOGGED_OUT_KEY);
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      // Security: Persist ONLY { userId, roleCode, expiresAt, token }. Never user object, salt, or hash!
+      const payload: StoredSessionPayload = {
+        userId: session.user.id,
+        roleCode: session.role.code,
+        expiresAt: session.expiresAt,
+        token: session.token,
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // Ignore storage errors
     }
+
+    // Set actor context for audit and service-level permission enforcement
+    SessionContext.setActor({
+      userId: session.user.id,
+      username: session.user.username,
+      role: session.role,
+    });
+
     set({
       user: session.user,
       role: session.role,
@@ -144,6 +158,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       expiresAt: session.expiresAt,
       isAuthenticated: true,
       isAutoLocked: false,
+      isBootRestoring: false,
       lastActivity: Date.now(),
     });
   },
@@ -151,10 +166,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     try {
       localStorage.removeItem(SESSION_STORAGE_KEY);
-      localStorage.setItem(LOGGED_OUT_KEY, 'true');
     } catch {
-      // Ignore storage errors
+      // Ignore
     }
+
+    SessionContext.clearActor();
+
     set({
       user: null,
       role: null,
@@ -162,6 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       expiresAt: null,
       isAuthenticated: false,
       isAutoLocked: false,
+      isBootRestoring: false,
     });
   },
 
@@ -173,7 +191,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isAutoLocked: locked });
   },
 
-  unlock: async (_password: string) => {
+  unlock: async (password: string): Promise<boolean> => {
+    const currentUser = get().user;
+    if (!currentUser) return false;
+
+    // Reload fresh user from DB
+    const dbUser = await userRepository.getById(currentUser.id);
+    if (!dbUser || dbUser.isLocked || dbUser.isDeleted) {
+      get().logout();
+      return false;
+    }
+
+    // Verify password against stored salt and hash
+    const isValid = await CryptoService.verifyPassword(
+      password,
+      dbUser.passwordSalt,
+      dbUser.passwordHash
+    );
+
+    if (!isValid) {
+      const attempts = (dbUser.failedLoginAttempts || 0) + 1;
+      const isNowLocked = attempts >= 5;
+      const lockedUntil = isNowLocked
+        ? new Date(Date.now() + 15 * 60000).toISOString()
+        : undefined;
+
+      await userRepository.update(dbUser.id, {
+        failedLoginAttempts: attempts,
+        isLocked: isNowLocked,
+        lockedUntil,
+      });
+
+      if (isNowLocked) {
+        get().logout();
+      }
+      return false;
+    }
+
+    // Reset failed attempts on success
+    await userRepository.update(dbUser.id, {
+      failedLoginAttempts: 0,
+      isLocked: false,
+    });
+
+    const role = get().role || (await roleRepository.getById(dbUser.roleId));
+    if (role) {
+      SessionContext.setActor({
+        userId: dbUser.id,
+        username: dbUser.username,
+        role,
+      });
+    }
+
     set({ isAutoLocked: false, lastActivity: Date.now() });
     return true;
   },
@@ -188,3 +257,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return RbacService.hasPermission(role, required, plant, costCenter, amount);
   },
 }));
+
+// Automatically attempt session restoration upon module load in browser
+if (typeof window !== 'undefined') {
+  useAuthStore.getState().restoreSession().catch(console.error);
+}

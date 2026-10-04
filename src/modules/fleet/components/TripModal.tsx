@@ -86,7 +86,7 @@ export const TripModal: React.FC<TripModalProps> = ({
 
       if (vList.length > 0 && !selectedVehicleId) {
         setSelectedVehicleId(vList[0].id);
-        setStartOdometer(vList[0].currentOdometer || 120000);
+        setStartOdometer(vList[0].currentOdometer || 0);
       }
       if (dList.length > 0 && !selectedDriverId) {
         setSelectedDriverId(dList[0].id);
@@ -113,6 +113,15 @@ export const TripModal: React.FC<TripModalProps> = ({
     e.preventDefault();
     if (!selectedVehicleId || !selectedDriverId) {
       error('تنبيه', 'يرجى اختيار الشاحنة والسائق');
+      return;
+    }
+
+    const selectedV = vehicles.find((v) => v.id === selectedVehicleId);
+    if (selectedV && startOdometer < selectedV.currentOdometer) {
+      error(
+        'خطأ في قراءة العداد',
+        `عداد بداية الرحلة (${startOdometer} كم) لا يمكن أن يكون أقل من قراءة عداد المركبة الحالية (${selectedV.currentOdometer} كم).`
+      );
       return;
     }
 

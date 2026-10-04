@@ -46,7 +46,7 @@ export class ExportService {
     // Combine into sheet data
     const wsData = [
       [title], // Row 1: Title
-      [`تاريخ التصدير: ${new Date().toLocaleString('ar-SA')}`], // Row 2: Metadata
+      [`تاريخ التصدير: ${new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn')}`], // Row 2: Metadata
       [], // Empty row
       headerRow, // Row 4: Column Headers
       ...dataRows, // Data

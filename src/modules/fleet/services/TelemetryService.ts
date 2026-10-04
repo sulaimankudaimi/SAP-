@@ -350,7 +350,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
         fuelLevelPercentage: fuelLevel,
         engineTempC: 86 + Math.round(Math.abs(speedSine) * 4),
         status: speed > 5 ? 'moving' : 'idling',
-        lastPingTime: new Date(now - (idx * 2000)).toLocaleTimeString('ar-SA'),
+        lastPingTime: new Date(now - (idx * 2000)).toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn'),
         isSimulated: true, // Clearly marked per requirement
       };
     });

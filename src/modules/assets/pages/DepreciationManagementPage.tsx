@@ -191,7 +191,7 @@ export const DepreciationManagementPage: React.FC = () => {
               onChange={(e) => setPeriod(e.target.value)}
               options={Array.from({ length: 12 }, (_, i) => ({
                 value: String(i + 1),
-                label: `الفترة ${i + 1} (${new Date(2026, i).toLocaleString('ar-SA', { month: 'long' })})`,
+                label: `الفترة ${i + 1} (${new Date(2026, i).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { month: 'long' })})`,
               }))}
             />
           </div>

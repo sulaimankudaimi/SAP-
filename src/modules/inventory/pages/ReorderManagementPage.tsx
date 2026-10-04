@@ -278,7 +278,7 @@ export const ReorderManagementPage: React.FC = () => {
                         {alt.suggestedReorderQty} {alt.unit}
                       </td>
                       <td className="p-3 text-[11px] text-[#64748B]">
-                        {new Date(alt.createdAt).toLocaleDateString('ar-SA')}
+                        {new Date(alt.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                       </td>
                       <td className="p-3 text-center">
                         {alt.status === 'converted_to_pr' ? (

@@ -118,31 +118,42 @@ export class DashboardService {
   }
 
   /**
-   * Calculates purchase trends over selected time window (30, 90, or 365 days).
+   * Calculates real purchase trends grouped into time buckets (30, 90, or 365 days).
+   * Aggregates real PO totals and order counts by orderDate with zero for empty buckets.
    */
   static async getProcurementTrends(days: 30 | 90 | 365 = 30): Promise<TrendDataPoint[]> {
     const allPOs = await poRepository.list();
     const pointsCount = days === 30 ? 6 : days === 90 ? 8 : 12;
     const result: TrendDataPoint[] = [];
 
-    const totalSpend = allPOs.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
-    const avgPerPoint = totalSpend / (pointsCount || 1);
-
     const now = new Date();
-    for (let i = pointsCount - 1; i >= 0; i--) {
-      const pointDate = new Date(now.getTime() - i * (days / pointsCount) * 86400000);
-      const label = pointDate.toLocaleDateString('ar-SA', {
+    const windowStartMs = now.getTime() - days * 86400000;
+    const bucketDurationMs = (days / pointsCount) * 86400000;
+
+    for (let i = 0; i < pointsCount; i++) {
+      const bStartMs = windowStartMs + i * bucketDurationMs;
+      const bEndMs = i === pointsCount - 1 ? now.getTime() + 1000 : bStartMs + bucketDurationMs;
+
+      const bucketStart = new Date(bStartMs);
+      const bucketEnd = new Date(bEndMs);
+
+      // Group real purchase orders within this time interval
+      const matchingPOs = allPOs.filter((po) => {
+        if (!po.orderDate) return false;
+        const d = new Date(po.orderDate).getTime();
+        return d >= bucketStart.getTime() && d < bucketEnd.getTime();
+      });
+
+      const amount = matchingPOs.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
+      const orderCount = matchingPOs.length;
+
+      const label = bucketStart.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
         month: 'short',
         day: days <= 90 ? 'numeric' : undefined,
       });
 
-      // Realistic cyclical curve derived from PO dataset
-      const variance = Math.sin(i * 1.2) * 0.25 + 0.9;
-      const amount = Math.round(avgPerPoint * variance);
-      const orderCount = Math.max(3, Math.round((amount / 45000)));
-
       result.push({
-        date: pointDate.toISOString().split('T')[0],
+        date: bucketStart.toISOString().split('T')[0],
         label,
         amount,
         orderCount,

@@ -1,5 +1,6 @@
 import type { MaterialDocument, IFinancePostingService } from '../../../types/models';
 import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
+import { SessionContext } from '../../../core/security/SessionContext';
 
 /**
  * FinancePostingAdapter: Implementation of IFinancePostingService.
@@ -12,6 +13,11 @@ export class FinancePostingAdapter implements IFinancePostingService {
       return { success: true, jeDocNumber: '' };
     }
 
+    const actingUserId = SessionContext.getActor()?.userId || doc.createdBy;
+    if (!actingUserId) {
+      throw new Error('خطأ ترحيل محاسبي: لم يتم العثور على هوية المستخدم المنفذ لترحيل حركة المخزون.');
+    }
+
     try {
       if (doc.movementType.startsWith('1') || doc.movementType === '501') {
         // Goods Receipt (MIGO 101) -> Dr. Inventory / Cr. GR-IR Clearing
@@ -21,18 +27,23 @@ export class FinancePostingAdapter implements IFinancePostingService {
           plantCode: doc.plantCode,
           amount: totalAmount,
           postingDate: doc.postingDate,
-          createdBy: doc.createdBy || 'usr-admin-1',
+          createdBy: actingUserId,
           costCenter: doc.items[0]?.costCenter,
         });
         return res;
       } else if (doc.movementType.startsWith('2') || doc.movementType === '201') {
         // Goods Issue to Cost Center -> Dr. Consumption / Cr. Inventory
+        const costCenter = doc.items[0]?.costCenter;
+        if (!costCenter) {
+          throw new Error('خطأ ترحيل محاسبي: مركز التكلفة إلزامي لصرف المواد إلى مركز تكلفة (MIGO 201).');
+        }
+
         const res = await AutomaticPostingEngine.postGoodsIssue({
           giDocNumber: doc.docNumber,
-          costCenter: doc.items[0]?.costCenter || 'CC-1001',
+          costCenter,
           amount: totalAmount,
           postingDate: doc.postingDate,
-          createdBy: doc.createdBy || 'usr-admin-1',
+          createdBy: actingUserId,
         });
         return res;
       } else {
@@ -42,7 +53,7 @@ export class FinancePostingAdapter implements IFinancePostingService {
           plantCode: doc.plantCode,
           amount: totalAmount,
           postingDate: doc.postingDate,
-          createdBy: doc.createdBy || 'usr-admin-1',
+          createdBy: actingUserId,
           costCenter: doc.items[0]?.costCenter,
         });
         return res;
@@ -55,4 +66,3 @@ export class FinancePostingAdapter implements IFinancePostingService {
 }
 
 export const financePostingService = new FinancePostingAdapter();
-

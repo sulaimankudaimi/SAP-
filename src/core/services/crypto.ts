@@ -1,7 +1,72 @@
 /**
- * Web Crypto API Salted PBKDF2 Implementation
+ * Web Crypto API Salted PBKDF2 & HMAC-SHA256 Implementation
  * 100% offline, zero network, zero external dependencies
  */
+
+const IDB_KEY_DB = 'gulf_erp_keystore';
+const IDB_KEY_STORE = 'keys';
+const HMAC_KEY_ID = 'session_hmac_key';
+
+let cachedHmacKey: CryptoKey | null = null;
+
+function openKeyDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB not available in this environment'));
+      return;
+    }
+    const request = indexedDB.open(IDB_KEY_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IDB_KEY_STORE)) {
+        db.createObjectStore(IDB_KEY_STORE, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getOrGenerateHmacKey(): Promise<CryptoKey> {
+  if (cachedHmacKey) {
+    return cachedHmacKey;
+  }
+
+  const idb = await openKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(IDB_KEY_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_KEY_STORE);
+    const getReq = store.get(HMAC_KEY_ID);
+
+    getReq.onsuccess = async () => {
+      if (getReq.result && getReq.result.key) {
+        cachedHmacKey = getReq.result.key;
+        resolve(cachedHmacKey!);
+      } else {
+        try {
+          const generatedKey = await window.crypto.subtle.generateKey(
+            {
+              name: 'HMAC',
+              hash: { name: 'SHA-256' },
+            },
+            false, // non-extractable per security spec
+            ['sign', 'verify']
+          );
+
+          const putReq = store.put({ id: HMAC_KEY_ID, key: generatedKey });
+          putReq.onsuccess = () => {
+            cachedHmacKey = generatedKey;
+            resolve(generatedKey);
+          };
+          putReq.onerror = () => reject(putReq.error);
+        } catch (err) {
+          reject(err);
+        }
+      }
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
 
 export class CryptoService {
   private static ITERATIONS = 100000;
@@ -59,5 +124,55 @@ export class CryptoService {
   ): Promise<boolean> {
     const computedHash = await this.hashPassword(password, salt);
     return computedHash === storedHash;
+  }
+
+  /**
+   * Constant-time byte comparison to eliminate timing side-channels.
+   */
+  static constantTimeCompare(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff === 0;
+  }
+
+  /**
+   * Signs a payload with HMAC-SHA256 using the non-extractable installation key.
+   * Returns a hex-encoded signature.
+   */
+  static async sign(payload: string): Promise<string> {
+    const key = await getOrGenerateHmacKey();
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(payload);
+    const sigBuffer = await window.crypto.subtle.sign('HMAC', key, dataBuffer);
+    return Array.from(new Uint8Array(sigBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  /**
+   * Verifies an HMAC-SHA256 signature using constant-time comparison.
+   */
+  static async verify(payload: string, signatureHex: string): Promise<boolean> {
+    try {
+      if (!signatureHex || typeof signatureHex !== 'string') return false;
+      const expectedSigHex = await this.sign(payload);
+
+      // Convert hex strings to byte arrays for constant-time comparison
+      if (expectedSigHex.length !== signatureHex.length) return false;
+      const a = new Uint8Array(expectedSigHex.length / 2);
+      const b = new Uint8Array(signatureHex.length / 2);
+      for (let i = 0; i < a.length; i++) {
+        a[i] = parseInt(expectedSigHex.substr(i * 2, 2), 16);
+        b[i] = parseInt(signatureHex.substr(i * 2, 2), 16);
+      }
+
+      return this.constantTimeCompare(a, b);
+    } catch (err) {
+      console.warn('HMAC verification error:', err);
+      return false;
+    }
   }
 }

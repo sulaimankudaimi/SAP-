@@ -14,7 +14,21 @@ export class AuthService {
   private static LOCKOUT_MINUTES = 15;
 
   /**
+   * Validates strong password policy:
+   * Min 10 chars, uppercase, lowercase, digit, and special symbol.
+   */
+  static validatePasswordPolicy(password: string): boolean {
+    if (!password || password.length < 10) return false;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasDigit = /[0-9]/.test(password);
+    const hasSymbol = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password);
+    return hasUpper && hasLower && hasDigit && hasSymbol;
+  }
+
+  /**
    * Authenticates user against salted PBKDF2 hash with automatic lockout protection.
+   * Issues HMAC-SHA256 signed token.
    */
   static async login(username: string, password: string): Promise<AuthSession> {
     const cleanUsername = username.trim().toLowerCase();
@@ -90,15 +104,10 @@ export class AuthService {
       throw new Error(`الدور الوظيفي المحدد للمستخدم [${user.roleId}] غير موجود بالنظام.`);
     }
 
-    // Create session token (memory + local state)
+    // Create session token: HMAC-SHA256 signed over userId:roleCode:expiresAt
     const expiresAt = Date.now() + 12 * 60 * 60 * 1000; // 12 hours
-    const token = btoa(
-      JSON.stringify({
-        userId: user.id,
-        roleCode: role.code,
-        expiresAt,
-      })
-    );
+    const tokenPayload = `${user.id}:${role.code}:${expiresAt}`;
+    const token = await CryptoService.sign(tokenPayload);
 
     return {
       user: { ...user, lastLoginAt: now },
@@ -110,11 +119,18 @@ export class AuthService {
 
   /**
    * Updates user password and resets mustChangePassword flag.
+   * Enforces 10+ chars, upper, lower, digit, symbol.
    */
   static async changePassword(
     userId: string,
     newPlainPassword: string
   ): Promise<void> {
+    if (!this.validatePasswordPolicy(newPlainPassword)) {
+      throw new Error(
+        'كلمة المرور يجب أن لا تقل عن 10 خانات، وتحتوي على حرف كبير، حرف صغير، رقم، ورمز خاص واحد على الأقل.'
+      );
+    }
+
     const salt = CryptoService.generateSalt();
     const hash = await CryptoService.hashPassword(newPlainPassword, salt);
 
