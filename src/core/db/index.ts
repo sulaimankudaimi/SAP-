@@ -86,6 +86,14 @@ export class GulfErpDatabase extends Dexie {
   auctionRecords!: Table<import('../../types/models').AuctionRecord, string>;
   fuelAnomalyAlerts!: Table<import('../../types/models').FuelAnomalyAlert, string>;
   preventiveSchedules!: Table<import('../../types/models').PreventiveSchedule, string>;
+  assetValuations!: Table<import('../../types/models').AssetValuation, string>;
+  fiscalPeriods!: Table<import('../../types/models').FiscalPeriod, string>;
+  accountDeterminations!: Table<import('../../types/models').AccountDeterminationRule, string>;
+  customerInvoices!: Table<import('../../types/models').CustomerInvoice, string>;
+  customerReceipts!: Table<import('../../types/models').CustomerReceipt, string>;
+  costAllocationCycles!: Table<import('../../types/models').CostAllocationCycle, string>;
+  internalOrders!: Table<import('../../types/models').InternalOrder, string>;
+  reportSnapshots!: Table<import('../../types/models').ReportSnapshot, string>;
 
   constructor() {
     super('gulf_erp');
@@ -126,8 +134,9 @@ export class GulfErpDatabase extends Dexie {
       assets: 'id, assetNumber, category, plantCode, costCenter, status, isDeleted',
       assetTransfers: 'id, docNumber, assetNumber, fromPlant, toPlant, isDeleted',
       depreciationRuns: 'id, docNumber, fiscalYear, period, postedToGL, isDeleted',
-      journalEntries: 'id, docNumber, companyCode, fiscalYear, documentType, postingDate, isDeleted',
-      vendorInvoices: 'id, docNumber, vendorCode, poNumber, paymentStatus, isDeleted',
+      assetValuations: 'id, docNumber, assetId, assetNumber, inspectionDate, isDeleted',
+      journalEntries: 'id, docNumber, companyCode, fiscalYear, period, documentType, postingDate, isParked, isDeleted',
+      vendorInvoices: 'id, docNumber, vendorCode, poNumber, paymentStatus, isPaymentBlocked, isDeleted',
       payments: 'id, docNumber, invoiceId, vendorCode, isDeleted',
       budgets: 'id, costCenter, fiscalYear, [costCenter+fiscalYear], isDeleted',
       approvalRequests: 'id, documentType, documentId, documentNumber, status, requesterUserId, isDeleted',
@@ -136,6 +145,13 @@ export class GulfErpDatabase extends Dexie {
       numberRanges: 'id, docType, fiscalYear, [docType+fiscalYear], isDeleted',
       settings: 'id, key, category, isDeleted',
       attachments: 'id, entityType, entityId, fileName, createdAt, isDeleted',
+      fiscalPeriods: 'id, fiscalYear, period, status, [fiscalYear+period]',
+      accountDeterminations: 'id, transactionKey',
+      customerInvoices: 'id, docNumber, customerCode, paymentStatus, isDeleted',
+      customerReceipts: 'id, docNumber, customerCode, invoiceId, isDeleted',
+      costAllocationCycles: 'id, docNumber, cycleCode, fiscalYear, period, isDeleted',
+      internalOrders: 'id, orderNumber, responsibleCostCenter, status, isDeleted',
+      reportSnapshots: 'id, reportId, reportCode, category, createdBy, createdAt',
     });
   }
 }

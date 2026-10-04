@@ -29,6 +29,9 @@ import type {
   FuelLog,
   MaintenanceOrder,
   Asset,
+  AssetTransfer,
+  AssetValuation,
+  DepreciationRun,
   Budget,
   MaterialDocument,
   PhysicalInventoryDoc,
@@ -39,6 +42,7 @@ import type {
   PreventiveSchedule,
 } from '../types/models';
 import type { StatusVariant } from '../types';
+import { FinanceService } from '../modules/finance/services/FinanceService';
 
 export class DatabaseSeeder {
   /**
@@ -98,6 +102,12 @@ export class DatabaseSeeder {
       db.auditLogs,
       db.numberRanges,
       db.settings,
+      db.fiscalPeriods,
+      db.accountDeterminations,
+      db.customerInvoices,
+      db.customerReceipts,
+      db.costAllocationCycles,
+      db.internalOrders,
     ];
 
     for (const table of tableList) {
@@ -448,30 +458,189 @@ export class DatabaseSeeder {
       });
     }
 
-    // 13. 60 Fixed Assets
+    // 13. 60 Fixed Assets with AA-style numbers, barcodes, custodians, and lifecycle states
     const assets: Asset[] = [];
-    const assetCategories: ('StorageTanks' | 'Machinery' | 'Vehicles' | 'Buildings')[] = ['StorageTanks', 'Machinery', 'Vehicles', 'Buildings'];
+    const assetTransfers: AssetTransfer[] = [];
+    const assetValuations: AssetValuation[] = [];
+    const depreciationRuns: DepreciationRun[] = [];
+
+    const assetCategories: ('StorageTanks' | 'Machinery' | 'Vehicles' | 'Buildings' | 'Pipelines' | 'AuC')[] = [
+      'StorageTanks',
+      'Machinery',
+      'Vehicles',
+      'Buildings',
+      'Pipelines',
+      'StorageTanks',
+      'Machinery',
+      'AuC',
+    ];
+
+    const custodians = [
+      'م. أحمد الشمري',
+      'م. خالد الغامدي',
+      'م. فهد القحطاني',
+      'م. عبدالله الشهري',
+      'م. بدر الحربي',
+      'م. سلطان العنزي',
+    ];
+
+    const locations = [
+      'المستودع الرئيسي - الرياض',
+      'حظيرة الصهاريج رقم 2 - جدة',
+      'رصيف الشحن والتفريغ البحري - الدمام',
+      'محطة الضخ الهيدروليكية المركزية',
+      'مبنى الصيانة والورش المركزية',
+    ];
+
     for (let i = 1; i <= 60; i++) {
       const cat = assetCategories[(i - 1) % assetCategories.length];
-      const cost = 250000 + i * 35000;
-      const accDep = cost * 0.25;
+      const cost = 120000 + i * 25000;
+      const usefulLife = i % 2 === 0 ? 60 : 120;
+      const isAuC = cat === 'AuC' || i === 8 || i === 16;
+      const isDisposed = i === 12 || i === 24;
+      const isInTransfer = i === 5 || i === 15;
+      const isInDep = !isAuC && !isDisposed && !isInTransfer && i % 3 === 0;
+
+      const accDep = isAuC ? 0 : Math.round(cost * (i % 4 === 0 ? 0.45 : 0.22));
+      const salvage = Math.round(cost * 0.05);
+      const bookValue = isDisposed ? 0 : cost - accDep;
+
+      const assetNumber = `AA-2026-${String(i).padStart(6, '0')}`;
+      const barcode = `BC-AA2026${String(i).padStart(6, '0')}`;
+      const custodian = custodians[(i - 1) % custodians.length];
+      const location = locations[(i - 1) % locations.length];
+
       assets.push({
         id: `ast-${i}`,
-        assetNumber: `AST-${String(4000 + i)}`,
-        name: `أصل رأسمالي #${i} - ${cat === 'StorageTanks' ? 'خزان وقود استراتيجي' : cat === 'Machinery' ? 'مضخة هيدروليكية رئيسية' : cat === 'Vehicles' ? 'شاحنة صهريج نقل' : 'مستودع تخزين مركزي'}`,
+        assetNumber,
+        name: isAuC
+          ? `مشروع رأسمالي قيد التنفيذ #${i} - توسعة خطوط الضخ والتخزين`
+          : isDisposed
+          ? `مضخة توربينية قديمة #${i} (مُكهَّنة)`
+          : `أصل رأسمالي #${i} - ${
+              cat === 'StorageTanks'
+                ? 'خزان وقود ديزل استراتيجي 50,000L'
+                : cat === 'Machinery'
+                ? 'مضخة هيدروليكية عالية الضغط'
+                : cat === 'Vehicles'
+                ? 'شاحنة صهريج نقل وقود مرسيدس أكتروس'
+                : cat === 'Buildings'
+                ? 'مستودع تخزين مواد لوجستية مركزي'
+                : 'شبكة خطوط أنابيب الضخ السريع'
+            }`,
         category: cat,
-        acquisitionDate: '2023-01-15',
-        acquisitionCost: cost,
-        salvageValue: cost * 0.05,
-        usefulLifeMonths: 120,
-        accumulatedDepreciation: accDep,
-        netBookValue: cost - accDep,
+        serialNumber: `SN-GE-${20000 + i}`,
+        barcode,
         plantCode: i % 3 === 0 ? '1100' : i % 3 === 1 ? '1200' : '1300',
         costCenter: `CC-${1000 + ((i % 10) + 1)}`,
-        status: 'Active',
+        location,
+        custodian,
+        custodianEmployeeId: `EMP-${1000 + i}`,
+        acquisitionDate: isAuC ? '2025-11-01' : '2023-01-15',
+        acquisitionCost: cost,
+        acquisitionSource: i % 3 === 0 ? 'PO' : 'Manual',
+        sourceDocNumber: i % 3 === 0 ? `PO-2026-00000${(i % 5) + 1}` : undefined,
+        usefulLifeMonths: usefulLife,
+        depreciationMethod: i % 4 === 0 ? 'DecliningBalance' : 'StraightLine',
+        decliningBalanceRate: i % 4 === 0 ? 0.30 : undefined,
+        salvageValue: salvage,
+        accumulatedDepreciation: accDep,
+        netBookValue: bookValue,
+        status: isAuC
+          ? 'UnderConstruction'
+          : isDisposed
+          ? 'Disposed'
+          : isInTransfer
+          ? 'InTransfer'
+          : isInDep
+          ? 'InDepreciation'
+          : 'Active',
+        disposalDate: isDisposed ? '2026-02-15' : undefined,
+        disposalType: isDisposed ? (i === 12 ? 'Scrap' : 'Sale') : undefined,
+        disposalProceeds: isDisposed && i === 24 ? 35000 : 0,
+        disposalGainLoss: isDisposed && i === 24 ? -15000 : isDisposed ? -38000 : undefined,
+        disposalJeDocNumber: isDisposed ? `JE-2026-DISP0${i}` : undefined,
+        capitalizationJeDocNumber: `JE-2026-CAP0${i}`,
         isDeleted: false,
       });
+
+      // Seed sample transfers for transfer assets
+      if (isInTransfer || i % 6 === 0) {
+        assetTransfers.push({
+          id: `transfer-${i}`,
+          docNumber: `AST-2026-${String(i).padStart(6, '0')}`,
+          status: isInTransfer ? 'pending' : 'approved',
+          assetId: `ast-${i}`,
+          assetNumber,
+          assetName: assets[i - 1].name,
+          fromPlant: '1100',
+          toPlant: '1200',
+          fromCostCenter: 'CC-1001',
+          toCostCenter: 'CC-1002',
+          fromLocation: 'المستودع الرئيسي - الرياض',
+          toLocation: 'محطة ومستودعات جدة اللوجستية',
+          fromCustodian: 'م. أحمد الشمري',
+          toCustodian: custodian,
+          transferDate: '2026-03-01',
+          reason: 'إعادة توزيع المعدات والمضخات لدعم التوسعات التشغيلية في المنطقة الغربية',
+          acknowledgedByCustodian: !isInTransfer,
+          acknowledgedAt: !isInTransfer ? '2026-03-02T10:00:00Z' : undefined,
+          createdBy: 'usr-admin-1',
+          createdAt: '2026-03-01T08:00:00Z',
+          updatedBy: 'usr-admin-1',
+          updatedAt: '2026-03-02T10:00:00Z',
+          version: 1,
+          isDeleted: false,
+        });
+      }
+
+      // Seed sample valuations
+      if (i % 4 === 0) {
+        const score = 70 + (i % 25);
+        assetValuations.push({
+          id: `val-${i}`,
+          docNumber: `INSP-2026-${String(i).padStart(6, '0')}`,
+          assetId: `ast-${i}`,
+          assetNumber,
+          inspectionDate: '2026-02-20',
+          inspectorName: 'م. سامي الحربي (كبير مهندسي الفحص)',
+          conditionScore: score,
+          conditionGrade: score >= 85 ? 'Excellent' : score >= 70 ? 'Good' : 'Fair',
+          physicalConditionNotes: 'تم فحص منظومة الضخ وقياس الاهتزازات الميكانيكية، الحالة العامة جيدة ومطابقة للمواصفات القياسية.',
+          estimatedMarketValue: Math.round(bookValue * 1.05),
+          recommendedAction: 'Continue',
+          attachments: [{ name: `تقرير_فحص_${assetNumber}.pdf`, size: '2.1 MB', type: 'PDF' }],
+          createdBy: 'usr-admin-1',
+          createdAt: '2026-02-20T11:00:00Z',
+          updatedAt: '2026-02-20T11:00:00Z',
+          isDeleted: false,
+        });
+      }
     }
+
+    // Seed sample historical depreciation run
+    depreciationRuns.push({
+      id: 'dep-run-sample-1',
+      docNumber: 'DEP-2026-000001',
+      status: 'approved',
+      companyCode: '1000',
+      fiscalYear: '2026',
+      period: 9,
+      runDate: '2026-09-30T16:00:00Z',
+      runType: 'Monthly',
+      isSimulation: false,
+      totalDepreciationAmount: 185400,
+      assetCount: 42,
+      postedToGL: true,
+      journalEntryDocNumber: 'JE-2026-000101',
+      items: [],
+      createdBy: 'usr-admin-1',
+      createdAt: '2026-09-30T16:00:00Z',
+      updatedBy: 'usr-admin-1',
+      updatedAt: '2026-09-30T16:00:00Z',
+      version: 1,
+      isDeleted: false,
+    });
 
     // 14. 80 Purchase Orders (spanning draft, in_review, approved, in_progress, completed, rejected)
     const statuses: StatusVariant[] = ['approved', 'completed', 'in_progress', 'in_review', 'draft', 'rejected'];
@@ -581,6 +750,7 @@ export class DatabaseSeeder {
           poNumber: docNumber,
           vendorInvoiceNumber: `VINV-${vendor.vendorCode}-${400 + i}`,
           invoiceDate: '2026-09-22',
+          postingDate: '2026-09-22',
           dueDate: '2026-10-22',
           totalAmount: netAmt + vatAmt,
           vatAmount: vatAmt,
@@ -1119,6 +1289,9 @@ export class DatabaseSeeder {
         db.fuelAnomalyAlerts,
         db.maintenanceOrders,
         db.preventiveSchedules,
+        db.assetTransfers,
+        db.assetValuations,
+        db.depreciationRuns,
         db.budgets,
       ],
       async () => {
@@ -1138,6 +1311,9 @@ export class DatabaseSeeder {
         await db.vehicles.bulkAdd(vehicles);
         await db.drivers.bulkAdd(drivers);
         await db.assets.bulkAdd(assets);
+        await db.assetTransfers.bulkAdd(assetTransfers);
+        await db.assetValuations.bulkAdd(assetValuations);
+        await db.depreciationRuns.bulkAdd(depreciationRuns);
         await db.purchaseOrders.bulkAdd(purchaseOrders);
         await db.goodsReceipts.bulkAdd(goodsReceipts);
         await db.vendorInvoices.bulkAdd(vendorInvoices);
@@ -1155,6 +1331,9 @@ export class DatabaseSeeder {
         await db.budgets.bulkAdd(budgets);
       }
     );
+
+    // 21. Seed Financial Accounting & Controlling (Periods, GL entries, account rules)
+    await FinanceService.seedFinanceIfEmpty();
 
     console.timeEnd('DB_SEED_TIMER');
     console.log('Database seeded successfully in enterprise SAP standard format.');

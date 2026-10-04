@@ -52,11 +52,17 @@ export class NumberRangeService {
       'PI',     // Physical Inventory
       'TRIP',   // Logistics Fuel Trip
       'MO',     // Maintenance Order
+      'AA',     // Fixed Asset Master (AS01)
       'AST',    // Asset Transfer
       'DEP',    // Depreciation Run
+      'INSP',   // Technical Asset Valuation
       'JE',     // Journal Entry
       'INV',    // Vendor Invoice
       'PAY',    // Payment Order
+      'ARINV',  // Customer Invoice
+      'ARPAY',  // Customer Payment
+      'ALLOC',  // Cost Allocation Cycle
+      'ORD',    // Internal Order
       'APR',    // Approval Request
     ];
 

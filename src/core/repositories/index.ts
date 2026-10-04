@@ -30,6 +30,7 @@ import type {
   MaintenanceOrder,
   Asset,
   AssetTransfer,
+  AssetValuation,
   DepreciationRun,
   JournalEntry,
   VendorInvoice,
@@ -40,6 +41,12 @@ import type {
   NumberRange,
   Setting,
   Attachment,
+  FiscalPeriod,
+  AccountDeterminationRule,
+  CustomerInvoice,
+  CustomerReceipt,
+  CostAllocationCycle,
+  InternalOrder,
 } from '../../types/models';
 
 export * from './IRepository';
@@ -80,6 +87,7 @@ export const fuelLogRepository = createRepo<FuelLog>(db.fuelLogs, 'fuelLogs');
 export const maintenanceRepository = createRepo<MaintenanceOrder>(db.maintenanceOrders, 'maintenanceOrders');
 export const assetRepository = createRepo<Asset>(db.assets, 'assets');
 export const assetTransferRepository = createRepo<AssetTransfer>(db.assetTransfers, 'assetTransfers');
+export const assetValuationRepository = createRepo<AssetValuation>(db.assetValuations, 'assetValuations');
 export const depreciationRepository = createRepo<DepreciationRun>(db.depreciationRuns, 'depreciationRuns');
 export const journalRepository = createRepo<JournalEntry>(db.journalEntries, 'journalEntries');
 export const invoiceRepository = createRepo<VendorInvoice>(db.vendorInvoices, 'vendorInvoices');
@@ -90,3 +98,9 @@ export const notificationRepository = createRepo<Notification>(db.notifications,
 export const numberRangeRepository = createRepo<NumberRange>(db.numberRanges, 'numberRanges');
 export const settingRepository = createRepo<Setting>(db.settings, 'settings');
 export const attachmentRepository = createRepo<Attachment>(db.attachments, 'attachments');
+export const fiscalPeriodRepository = createRepo<FiscalPeriod>(db.fiscalPeriods, 'fiscalPeriods');
+export const accountDeterminationRepository = createRepo<AccountDeterminationRule>(db.accountDeterminations, 'accountDeterminations');
+export const customerInvoiceRepository = createRepo<CustomerInvoice>(db.customerInvoices, 'customerInvoices');
+export const customerReceiptRepository = createRepo<CustomerReceipt>(db.customerReceipts, 'customerReceipts');
+export const costAllocationRepository = createRepo<CostAllocationCycle>(db.costAllocationCycles, 'costAllocationCycles');
+export const internalOrderRepository = createRepo<InternalOrder>(db.internalOrders, 'internalOrders');

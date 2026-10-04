@@ -46,6 +46,16 @@ export interface Role {
   description: string;
   permissionCodes: string[];
   isSystem: boolean;
+  scopeConstraints?: AuthScopeConstraints;
+  isDeleted?: boolean;
+}
+
+export interface UserSession {
+  id: string;
+  loginTime: string;
+  ipAddress: string;
+  device: string;
+  isCurrent?: boolean;
 }
 
 export interface User {
@@ -56,6 +66,8 @@ export interface User {
   roleId: string;
   roleCode: string;
   roleName: string;
+  roleIds?: string[];
+  roles?: { id: string; code: string; name: string }[];
   companyCode: string;
   plantCode: string;
   passwordHash: string;
@@ -64,6 +76,9 @@ export interface User {
   isLocked: boolean;
   lockedUntil?: string;
   mustChangePassword: boolean;
+  isActive?: boolean;
+  passwordExpiryDate?: string;
+  sessions?: UserSession[];
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -649,48 +664,176 @@ export interface PreventiveSchedule {
 }
 
 // Fixed Assets Models
+export type AssetClass =
+  | 'Machinery'
+  | 'Vehicles'
+  | 'Buildings'
+  | 'StorageTanks'
+  | 'IT'
+  | 'Pipelines'
+  | 'AuC'; // Asset under Construction (أصول قيد التنفيذ)
+
+export type AssetStatus =
+  | 'UnderConstruction' // قيد الإنشاء
+  | 'Active'            // نشط
+  | 'InTransfer'         // قيد النقل
+  | 'InDepreciation'     // قيد الإهلاك
+  | 'Disposed';          // مُكهَّن / مستبعد
+
+export type DepreciationMethod = 'StraightLine' | 'DecliningBalance';
+
 export interface Asset {
   id: string;
-  assetNumber: string;
-  name: string;
-  category: 'Machinery' | 'Vehicles' | 'Buildings' | 'StorageTanks' | 'IT';
-  acquisitionDate: string;
-  acquisitionCost: number;
-  salvageValue: number;
-  usefulLifeMonths: number;
-  accumulatedDepreciation: number;
-  netBookValue: number;
+  assetNumber: string;               // AA-style: e.g. AA-2026-000001
+  name: string;                      // Description
+  description?: string;
+  category: 'Machinery' | 'Vehicles' | 'Buildings' | 'StorageTanks' | 'IT' | 'Pipelines' | 'AuC';
+  serialNumber?: string;
+  barcode: string;                   // Code128 barcode string
   plantCode: string;
   costCenter: string;
-  status: 'Active' | 'UnderMaintenance' | 'Disposed';
+  location?: string;                 // Storage location or site facility
+  custodian: string;                 // Person in custody
+  custodianEmployeeId?: string;
+  acquisitionDate: string;
+  acquisitionCost: number;
+  acquisitionSource?: 'PO' | 'GR' | 'Invoice' | 'Manual' | 'AuCSettlement';
+  sourceDocNumber?: string;
+  usefulLifeMonths: number;
+  depreciationMethod: DepreciationMethod;
+  decliningBalanceRate?: number;     // e.g. 0.20 for 20%
+  salvageValue: number;
+  accumulatedDepreciation: number;
+  netBookValue: number;
+  status: AssetStatus;
+  imageUri?: string;                 // SVG or base64 image
+  commissioningDate?: string;
+  depreciationStartDate?: string;
+  disposalDate?: string;
+  disposalType?: 'Scrap' | 'Sale';
+  disposalProceeds?: number;
+  disposalGainLoss?: number;
+  disposalReason?: string;
+  disposalJeDocNumber?: string;
+  capitalizationJeDocNumber?: string;
   isDeleted: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustodyHandoverLog {
+  id: string;
+  assetNumber: string;
+  date: string;
+  fromCustodian: string;
+  toCustodian: string;
+  fromLocation?: string;
+  toLocation?: string;
+  acknowledged: boolean;
+  acknowledgedAt?: string;
+  notes?: string;
 }
 
 export interface AssetTransfer extends TransactionDocument {
   assetNumber: string;
+  assetId: string;
+  assetName: string;
   fromPlant: string;
   toPlant: string;
   fromCostCenter: string;
   toCostCenter: string;
+  fromLocation?: string;
+  toLocation?: string;
+  fromCustodian: string;
+  toCustodian: string;
   transferDate: string;
+  reason: string;
+  acknowledgedByCustodian?: boolean;
+  acknowledgedAt?: string;
+  approvalRequestId?: string;
+  jeDocNumber?: string;
+}
+
+export interface DepreciationRunItem {
+  assetId: string;
+  assetNumber: string;
+  assetName: string;
+  category: string;
+  costCenter: string;
+  glAccount: string;
+  depreciationAccount: string;
+  previousBookValue: number;
+  depreciationAmount: number;
+  newBookValue: number;
+  method: DepreciationMethod;
 }
 
 export interface DepreciationRun extends TransactionDocument {
+  companyCode: string;
   fiscalYear: string;
   period: number; // 1-12
+  runDate: string;
+  runType: 'Monthly' | 'Yearly';
+  isSimulation: boolean;
   totalDepreciationAmount: number;
+  assetCount: number;
   postedToGL: boolean;
   journalEntryDocNumber?: string;
+  reversalDocNumber?: string;
+  items: DepreciationRunItem[];
 }
 
-// Financial Accounting Models
+export interface AssetValuation {
+  id: string;
+  docNumber: string;                 // INSP-2026-000001
+  assetId: string;
+  assetNumber: string;
+  inspectionDate: string;
+  inspectorName: string;
+  inspectorId?: string;
+  conditionScore: number;            // 1-100
+  conditionGrade: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical';
+  physicalConditionNotes: string;
+  estimatedMarketValue?: number;
+  recommendedAction: 'Continue' | 'Maintenance' | 'Overhaul' | 'Disposal';
+  attachments?: { name: string; size: string; type: string }[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+}
+
+// Financial Accounting & Controlling Models (SAP FI/CO)
+
+export type PostingKey =
+  | '40' // Debit G/L
+  | '50' // Credit G/L
+  | '01' // Debit Customer (Invoice)
+  | '15' // Credit Customer (Payment/Receipt)
+  | '21' // Debit Vendor (Payment/Credit Memo)
+  | '31'; // Credit Vendor (Invoice)
+
+export type SAPDocumentType =
+  | 'SA' // G/L account document (قيود عامة)
+  | 'KR' // Vendor invoice (فاتورة مورد)
+  | 'KZ' // Vendor payment (سند صرف مورد)
+  | 'KG' // Vendor credit memo (إشعار دائن مورد)
+  | 'DR' // Customer invoice (فاتورة عميل)
+  | 'DZ' // Customer payment (سند قبض عميل)
+  | 'AB' // General document clearing (مقاصة وتسوية)
+  | 'WE' // Goods receipt (إذن استلام مخزني)
+  | 'RE' // Invoice receipt (استلام فاتورة بضاعة)
+  | 'AA'; // Asset posting (قيد أصول)
+
 export interface JournalEntryLine {
   lineNumber: number;
+  postingKey?: PostingKey;
   accountNumber: string;
   accountName: string;
   debit: number;
   credit: number;
   costCenter?: string;
+  internalOrder?: string;
   lineText?: string;
 }
 
@@ -700,53 +843,197 @@ export interface JournalEntry extends TransactionDocument {
   period: number;
   postingDate: string;
   documentDate: string;
-  documentType: 'SA' | 'KR' | 'KG' | 'DZ' | 'AB'; // SAP Standard Document Types
+  documentType: SAPDocumentType;
   headerText: string;
+  reference?: string; // Links to PO, GR, Invoice, etc.
   totalDebit: number;
   totalCredit: number;
   lines: JournalEntryLine[];
+  isReversed?: boolean;
+  reversalDocNumber?: string;
+  reversalReason?: string;
+  reversedAt?: string;
+  isParked?: boolean; // Parked document (FBV1)
+  parkedBy?: string;
+  attachments?: { name: string; size: string; type: string }[];
+}
+
+export interface FiscalPeriod {
+  id: string;
+  fiscalYear: string;
+  period: number; // 1 to 12
+  startDate: string;
+  endDate: string;
+  status: 'Open' | 'Closed';
+  closedAt?: string;
+  closedBy?: string;
+}
+
+export interface AccountDeterminationRule {
+  id: string;
+  transactionKey:
+    | 'GR'       // Goods receipt (Dr Inventory / Cr GR-IR)
+    | 'IR'       // Invoice receipt (Dr GR-IR / Cr Vendor Payable)
+    | 'GI'       // Goods issue (Dr Consumption / Cr Inventory)
+    | 'DEP'      // Depreciation (Dr Dep Expense / Cr Acc Dep)
+    | 'FUEL'     // Fleet Fuel (Dr Fuel Exp / Cr Bank/AP)
+    | 'MAINT'    // Fleet Maint (Dr Maint Exp / Cr Bank/AP)
+    | 'SCRAP'    // Asset Scrap (Dr Loss / Dr AccDep / Cr Asset)
+    | 'PAYMENT'  // Vendor Payment (Dr Vendor / Cr Bank)
+    | 'AR_INV'   // Customer Invoice (Dr AR / Cr Revenue)
+    | 'AR_PAY';  // Customer Receipt (Dr Bank / Cr AR)
+  title: string;
+  debitAccountNumber: string;
+  debitAccountName: string;
+  creditAccountNumber: string;
+  creditAccountName: string;
+  postingKeyDebit: PostingKey;
+  postingKeyCredit: PostingKey;
+  description: string;
 }
 
 export interface VendorInvoiceItem {
   lineItem: number;
   description: string;
+  quantity?: number;
+  unitPrice?: number;
+  amount: number;
+  vatRate: number;
+  vatAmount: number;
+  totalWithVat: number;
+  poItemNumber?: number;
+}
+
+export type BlockingReason =
+  | 'PriceVariance'
+  | 'QuantityMismatch'
+  | 'MissingGoodsReceipt'
+  | 'TermsDiscrepancy';
+
+export interface VendorInvoice extends TransactionDocument {
+  vendorCode: string;
+  vendorName?: string;
+  poNumber?: string;
+  grNumber?: string;
+  vendorInvoiceNumber: string;
+  invoiceDate: string;
+  postingDate: string;
+  dueDate: string;
+  totalAmount: number;
+  vatAmount: number;
+  netAmount: number;
+  paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
+  paymentTerms?: string; // e.g., 'Net 30', '2/10 Net 30'
+  cashDiscountPercentage?: number;
+  cashDiscountDays?: number;
+  items: VendorInvoiceItem[];
+  // 3-way match
+  isThreeWayMatched?: boolean;
+  isPaymentBlocked?: boolean;
+  blockingReasons?: BlockingReason[];
+  releasedBy?: string;
+  releasedAt?: string;
+  releaseReason?: string;
+  jeDocNumber?: string; // Linked accounting doc
+}
+
+export interface Payment extends TransactionDocument {
+  invoiceId: string;
+  invoiceDocNumber?: string;
+  vendorCode: string;
+  vendorName?: string;
+  amount: number;
+  discountTaken?: number;
+  netPaidAmount?: number;
+  paymentDate: string;
+  bankAccount: string;
+  referenceNumber: string;
+  paymentMethod?: 'BankTransfer' | 'Check' | 'Electronic';
+  jeDocNumber?: string;
+}
+
+export interface CustomerInvoiceItem {
+  lineItem: number;
+  description: string;
+  quantity?: number;
+  unitPrice?: number;
   amount: number;
   vatRate: number;
   vatAmount: number;
   totalWithVat: number;
 }
 
-export interface VendorInvoice extends TransactionDocument {
-  vendorCode: string;
-  poNumber?: string;
-  vendorInvoiceNumber: string;
+export interface CustomerInvoice extends TransactionDocument {
+  customerCode: string;
+  customerName: string;
   invoiceDate: string;
+  postingDate: string;
   dueDate: string;
   totalAmount: number;
   vatAmount: number;
   netAmount: number;
   paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
-  items: VendorInvoiceItem[];
+  items: CustomerInvoiceItem[];
+  jeDocNumber?: string;
 }
 
-export interface Payment extends TransactionDocument {
+export interface CustomerReceipt extends TransactionDocument {
   invoiceId: string;
-  vendorCode: string;
+  invoiceDocNumber?: string;
+  customerCode: string;
+  customerName: string;
   amount: number;
-  paymentDate: string;
+  receiptDate: string;
   bankAccount: string;
   referenceNumber: string;
+  paymentMethod?: 'BankTransfer' | 'Check' | 'Cash';
+  jeDocNumber?: string;
 }
 
 export interface Budget {
   id: string;
   costCenter: string;
+  costCenterName?: string;
+  accountNumber?: string;
   fiscalYear: string;
   allocatedAmount: number;
-  committedAmount: number;
-  actualAmount: number;
-  availableAmount: number;
+  committedAmount: number; // Open POs / PRs
+  actualAmount: number;    // Posted expenses
+  availableAmount: number; // allocated - committed - actual
   isDeleted: boolean;
+}
+
+export interface InternalOrder {
+  id: string;
+  orderNumber: string;
+  description: string;
+  orderType: 'Maintenance' | 'Capex' | 'Marketing' | 'Logistics';
+  responsibleCostCenter: string;
+  responsiblePerson: string;
+  budgetAmount: number;
+  actualCost: number;
+  commitmentAmount: number;
+  status: 'Open' | 'Closed' | 'Settled';
+  isDeleted: boolean;
+}
+
+export interface CostAllocationSegment {
+  receiverCostCenter: string;
+  receiverCostCenterName?: string;
+  percentage: number;
+  allocatedAmount: number;
+}
+
+export interface CostAllocationCycle extends TransactionDocument {
+  cycleCode: string;
+  name: string;
+  fiscalYear: string;
+  period: number;
+  senderCostCenter: string;
+  senderCostCenterName?: string;
+  totalAllocatedAmount: number;
+  segments: CostAllocationSegment[];
+  jeDocNumber?: string;
 }
 
 // Workflow & System Models
@@ -784,9 +1071,12 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'approval' | 'inventory' | 'finance' | 'system';
+  type: 'approval' | 'inventory' | 'finance' | 'procurement' | 'fleet' | 'assets' | 'system' | 'security';
   isRead: boolean;
   link?: string;
+  documentType?: string;
+  documentId?: string;
+  documentNumber?: string;
   createdAt: string;
   isDeleted: boolean;
 }
@@ -802,6 +1092,8 @@ export interface AuditLog {
   after?: Record<string, unknown> | null;
   timestamp: string;
   ipAddress?: string;
+  prevHash?: string;
+  hash?: string;
 }
 
 export interface NumberRange {
@@ -824,4 +1116,123 @@ export interface Setting {
   description: string;
   updatedAt: string;
   isDeleted: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Analytics, Reporting & BI Models (SAP Standard BI / Analytics Cloud)
+// ---------------------------------------------------------------------------
+
+export type ReportCategory = 'procurement' | 'inventory' | 'fleet' | 'assets' | 'finance';
+
+export interface ReportColumn {
+  key: string;
+  header: string;
+  type: 'string' | 'number' | 'currency' | 'date' | 'badge' | 'percentage';
+  sortable?: boolean;
+  aggregate?: 'sum' | 'avg' | 'count';
+  align?: 'start' | 'center' | 'end';
+}
+
+export interface ReportFilterDef {
+  key: string;
+  label: string;
+  type: 'text' | 'select' | 'date' | 'dateRange' | 'numberRange';
+  options?: { label: string; value: string }[];
+  defaultValue?: unknown;
+}
+
+export interface ReportDefinition {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  category: ReportCategory;
+  requiredModule: ModuleCode;
+  columns: ReportColumn[];
+  filters: ReportFilterDef[];
+  defaultSort?: { columnKey: string; direction: 'asc' | 'desc' };
+  groupBy?: string;
+}
+
+export interface ReportSnapshot {
+  id: string;
+  reportId: string;
+  reportCode: string;
+  reportTitle: string;
+  category: ReportCategory;
+  appliedFilters: Record<string, unknown>;
+  dataJson: string; // JSON serialized rows
+  rowCount: number;
+  totalsJson?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface KPIRawData {
+  pos?: PurchaseOrder[];
+  grs?: GoodsReceipt[];
+  materials?: Material[];
+  stockLedger?: StockLedgerEntry[];
+  vehicles?: Vehicle[];
+  fuelLogs?: FuelLog[];
+  maintenanceOrders?: MaintenanceOrder[];
+  assets?: Asset[];
+  contracts?: Contract[];
+  invoices?: VendorInvoice[];
+}
+
+export interface KPIResult {
+  id: string;
+  key: string;
+  name: string;
+  category: ReportCategory | 'general';
+  formula: string;
+  description: string;
+  unit: string;
+  value: number;
+  formattedValue: string;
+  targetValue: number;
+  warningValue: number;
+  higherIsBetter: boolean;
+  trend: number; // percentage change vs previous period
+  status: 'healthy' | 'warning' | 'critical';
+  keywords: string[];
+  relatedReportId: string;
+}
+
+export type ForecastModelType = 'SMA' | 'EXPONENTIAL_SMOOTHING' | 'SEASONAL_DECOMPOSITION';
+
+export interface ForecastPoint {
+  period: string; // e.g., '2026-10'
+  actual?: number;
+  forecast: number;
+  lowerBound: number;
+  upperBound: number;
+  isProjected: boolean;
+}
+
+export interface ForecastResult {
+  seriesName: string;
+  selectedModel: ForecastModelType;
+  modelAccuracyMape: number; // e.g. 4.8%
+  points: ForecastPoint[];
+  suggestedReorderPoint?: number;
+  economicOrderQuantity?: number;
+  explanationArabic: string;
+}
+
+export interface AnomalyItem {
+  id: string;
+  domain: 'procurement' | 'fleet' | 'inventory';
+  entityId: string;
+  entityName: string;
+  metric: string;
+  actualValue: number;
+  expectedMean: number;
+  standardDev: number;
+  zScore: number;
+  date: string;
+  severity: 'high' | 'medium' | 'low';
+  explanationArabic: string;
 }

@@ -5,13 +5,19 @@ import { ToastMessage } from '../../types';
 
 interface ToastContextType {
   toast: (options: Omit<ToastMessage, 'id'>) => void;
-  showToast: (options: {
-    title: string;
-    message?: string;
-    description?: string;
-    type?: 'success' | 'error' | 'warning' | 'info';
-    duration?: number;
-  }) => void;
+  showToast: (
+    optionsOrTitle:
+      | string
+      | {
+          title: string;
+          message?: string;
+          description?: string;
+          type?: 'success' | 'error' | 'warning' | 'info';
+          duration?: number;
+        },
+    typeOrDuration?: 'success' | 'error' | 'warning' | 'info' | number,
+    duration?: number
+  ) => void;
   success: (title: string, description?: string) => void;
   error: (title: string, description?: string) => void;
   warning: (title: string, description?: string) => void;
@@ -45,25 +51,35 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const showToast = useCallback(
-    ({
-      title,
-      message,
-      description,
-      type = 'info',
-      duration = 4000,
-    }: {
-      title: string;
-      message?: string;
-      description?: string;
-      type?: 'success' | 'error' | 'warning' | 'info';
-      duration?: number;
-    }) => {
-      toast({
-        title,
-        description: message || description,
-        type,
-        duration,
-      });
+    (
+      optionsOrTitle:
+        | string
+        | {
+            title: string;
+            message?: string;
+            description?: string;
+            type?: 'success' | 'error' | 'warning' | 'info';
+            duration?: number;
+          },
+      typeOrDuration?: 'success' | 'error' | 'warning' | 'info' | number,
+      durationArg?: number
+    ) => {
+      if (typeof optionsOrTitle === 'string') {
+        const type = typeof typeOrDuration === 'string' ? typeOrDuration : 'info';
+        const duration = typeof typeOrDuration === 'number' ? typeOrDuration : (durationArg ?? 4000);
+        toast({
+          title: optionsOrTitle,
+          type,
+          duration,
+        });
+      } else {
+        toast({
+          title: optionsOrTitle.title,
+          description: optionsOrTitle.message || optionsOrTitle.description,
+          type: optionsOrTitle.type || 'info',
+          duration: optionsOrTitle.duration || 4000,
+        });
+      }
     },
     [toast]
   );

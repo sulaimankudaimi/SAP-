@@ -90,8 +90,9 @@ export const navigationConfig: NavItemWithModule[] = [
     children: [
       { id: 'asset-reg', path: '/assets/register', titleKey: 'nav_assets_register' },
       { id: 'depreciation', path: '/assets/depreciation', titleKey: 'nav_depreciation' },
-      { id: 'asset-maint', path: '/assets/maintenance', titleKey: 'nav_assets_maint' },
+      { id: 'transfers', path: '/assets/transfers', titleKey: 'nav_assets_transfers' },
       { id: 'disposal', path: '/assets/disposal', titleKey: 'nav_disposal' },
+      { id: 'reports', path: '/assets/reports', titleKey: 'nav_assets_reports' },
     ],
   },
   {
@@ -106,6 +107,9 @@ export const navigationConfig: NavItemWithModule[] = [
       { id: 'ar', path: '/finance/ar', titleKey: 'nav_ar' },
       { id: 'cost-centers', path: '/finance/cost-centers', titleKey: 'nav_cost_centers' },
       { id: 'budgets', path: '/finance/budgets', titleKey: 'nav_budgets' },
+      { id: 'period-end', path: '/finance/period-end', titleKey: 'nav_period_end' },
+      { id: 'statements', path: '/finance/statements', titleKey: 'nav_financial_statements' },
+      { id: 'account-rules', path: '/finance/account-rules', titleKey: 'nav_account_rules' },
     ],
   },
   {

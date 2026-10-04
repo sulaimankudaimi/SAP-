@@ -32,6 +32,22 @@ import { DriversListPage } from '../modules/fleet/pages/DriversListPage';
 import { TripsListPage } from '../modules/fleet/pages/TripsListPage';
 import { FuelManagementPage } from '../modules/fleet/pages/FuelManagementPage';
 import { FleetMaintenancePage } from '../modules/fleet/pages/FleetMaintenancePage';
+import { AssetDashboardPage } from '../modules/assets/pages/AssetDashboardPage';
+import { AssetRegisterPage } from '../modules/assets/pages/AssetRegisterPage';
+import { AssetDetailPage } from '../modules/assets/pages/AssetDetailPage';
+import { DepreciationManagementPage } from '../modules/assets/pages/DepreciationManagementPage';
+import { AssetTransfersPage } from '../modules/assets/pages/AssetTransfersPage';
+import { AssetDisposalsPage } from '../modules/assets/pages/AssetDisposalsPage';
+import { AssetReportsPage } from '../modules/assets/pages/AssetReportsPage';
+import { FinancialCockpitPage } from '../modules/finance/pages/FinancialCockpitPage';
+import { JournalEntriesPage } from '../modules/finance/pages/JournalEntriesPage';
+import { AccountsPayablePage } from '../modules/finance/pages/AccountsPayablePage';
+import { AccountsReceivablePage } from '../modules/finance/pages/AccountsReceivablePage';
+import { ControllingPage } from '../modules/finance/pages/ControllingPage';
+import { BudgetControlPage } from '../modules/finance/pages/BudgetControlPage';
+import { PeriodEndClosingPage } from '../modules/finance/pages/PeriodEndClosingPage';
+import { FinancialStatementsPage } from '../modules/finance/pages/FinancialStatementsPage';
+import { AccountDeterminationPage } from '../modules/finance/pages/AccountDeterminationPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -252,11 +268,7 @@ export const AppRoutes: React.FC = () => {
           path="assets"
           element={
             <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_assets')}
-                moduleName="SAP FI-AA"
-                breadcrumbs={[{ label: t('nav_home'), path: '/' }, { label: t('nav_assets') }]}
-              />
+              <AssetDashboardPage />
             </ProtectedRoute>
           }
         />
@@ -264,16 +276,15 @@ export const AppRoutes: React.FC = () => {
           path="assets/register"
           element={
             <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_assets_register')}
-                subtitle="سجل الأصول الرأسمالية ومعدات الضخ والتخزين (Asset Master - AS01)"
-                moduleName="SAP FI-AA"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_assets'), path: '/assets' },
-                  { label: t('nav_assets_register') },
-                ]}
-              />
+              <AssetRegisterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="assets/register/:id"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
+              <AssetDetailPage />
             </ProtectedRoute>
           }
         />
@@ -281,33 +292,15 @@ export const AppRoutes: React.FC = () => {
           path="assets/depreciation"
           element={
             <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_depreciation')}
-                subtitle="تشغيل دورات الإهلاك الشهري والترحيل إلى الأستاذ العام (AFAB)"
-                moduleName="SAP FI-AA"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_assets'), path: '/assets' },
-                  { label: t('nav_depreciation') },
-                ]}
-              />
+              <DepreciationManagementPage />
             </ProtectedRoute>
           }
         />
         <Route
-          path="assets/maintenance"
+          path="assets/transfers"
           element={
             <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_assets_maint')}
-                subtitle="أوامر صيانة الخزانات والمضخات ومحطات الطاقة (SAP PM)"
-                moduleName="SAP PM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_assets'), path: '/assets' },
-                  { label: t('nav_assets_maint') },
-                ]}
-              />
+              <AssetTransfersPage />
             </ProtectedRoute>
           }
         />
@@ -315,16 +308,23 @@ export const AppRoutes: React.FC = () => {
           path="assets/disposal"
           element={
             <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_disposal')}
-                subtitle="استبعاد وتخريد الأصول وحساب أرباح وخسائر التخريد (ABAVN)"
-                moduleName="SAP FI-AA"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_assets'), path: '/assets' },
-                  { label: t('nav_disposal') },
-                ]}
-              />
+              <AssetDisposalsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="assets/reports"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
+              <AssetReportsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="assets/maintenance"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'AM', activity: 'view' }}>
+              <FleetMaintenancePage />
             </ProtectedRoute>
           }
         />
@@ -334,11 +334,7 @@ export const AppRoutes: React.FC = () => {
           path="finance"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_finance')}
-                moduleName="SAP FI/CO"
-                breadcrumbs={[{ label: t('nav_home'), path: '/' }, { label: t('nav_finance') }]}
-              />
+              <FinancialCockpitPage />
             </ProtectedRoute>
           }
         />
@@ -346,16 +342,7 @@ export const AppRoutes: React.FC = () => {
           path="finance/journal"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_journal_entries')}
-                subtitle="إدخال وترحيل القيود اليومية في دفتر الأستاذ العام (GL Entry - FB50)"
-                moduleName="SAP FI-GL"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_finance'), path: '/finance' },
-                  { label: t('nav_journal_entries') },
-                ]}
-              />
+              <JournalEntriesPage />
             </ProtectedRoute>
           }
         />
@@ -363,16 +350,7 @@ export const AppRoutes: React.FC = () => {
           path="finance/ap"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_ap')}
-                subtitle="فواتير الموردين، المطابقات الثلاثية، وأوامر الدفع (AP - FB60)"
-                moduleName="SAP FI-AP"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_finance'), path: '/finance' },
-                  { label: t('nav_ap') },
-                ]}
-              />
+              <AccountsPayablePage />
             </ProtectedRoute>
           }
         />
@@ -380,16 +358,7 @@ export const AppRoutes: React.FC = () => {
           path="finance/ar"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_ar')}
-                subtitle="فواتير العملاء ومحطات التوزيع وسندات القبض (AR - FB70)"
-                moduleName="SAP FI-AR"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_finance'), path: '/finance' },
-                  { label: t('nav_ar') },
-                ]}
-              />
+              <AccountsReceivablePage />
             </ProtectedRoute>
           }
         />
@@ -397,7 +366,7 @@ export const AppRoutes: React.FC = () => {
           path="finance/cost-centers"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <CostCentersListPage />
+              <ControllingPage />
             </ProtectedRoute>
           }
         />
@@ -405,16 +374,31 @@ export const AppRoutes: React.FC = () => {
           path="finance/budgets"
           element={
             <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_budgets')}
-                subtitle="مراقبة الميزانيات التقديرية والتحكم في اعتمادات الإنفاق"
-                moduleName="SAP CO-OM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_finance'), path: '/finance' },
-                  { label: t('nav_budgets') },
-                ]}
-              />
+              <BudgetControlPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="finance/period-end"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
+              <PeriodEndClosingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="finance/statements"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
+              <FinancialStatementsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="finance/account-rules"
+          element={
+            <ProtectedRoute requiredAuth={{ module: 'FI', activity: 'view' }}>
+              <AccountDeterminationPage />
             </ProtectedRoute>
           }
         />
