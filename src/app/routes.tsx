@@ -21,6 +21,17 @@ import { CostCentersListPage } from '../modules/masterdata/pages/CostCentersList
 import { GLAccountsListPage } from '../modules/masterdata/pages/GLAccountsListPage';
 import { MaterialGroupsListPage } from '../modules/masterdata/pages/MaterialGroupsListPage';
 import { UnitsListPage } from '../modules/masterdata/pages/UnitsListPage';
+import { WarehouseDashboardPage } from '../modules/inventory/pages/WarehouseDashboardPage';
+import { StockBalancePage } from '../modules/inventory/pages/StockBalancePage';
+import { MaterialMovementsPage } from '../modules/inventory/pages/MaterialMovementsPage';
+import { PhysicalInventoryPage } from '../modules/inventory/pages/PhysicalInventoryPage';
+import { ReorderManagementPage } from '../modules/inventory/pages/ReorderManagementPage';
+import { FleetDashboardPage } from '../modules/fleet/pages/FleetDashboardPage';
+import { VehiclesListPage } from '../modules/fleet/pages/VehiclesListPage';
+import { DriversListPage } from '../modules/fleet/pages/DriversListPage';
+import { TripsListPage } from '../modules/fleet/pages/TripsListPage';
+import { FuelManagementPage } from '../modules/fleet/pages/FuelManagementPage';
+import { FleetMaintenancePage } from '../modules/fleet/pages/FleetMaintenancePage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -149,11 +160,7 @@ export const AppRoutes: React.FC = () => {
           path="inventory"
           element={
             <ProtectedRoute requiredAuth={{ module: 'WM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_inventory')}
-                moduleName="SAP MM-IM"
-                breadcrumbs={[{ label: t('nav_home'), path: '/' }, { label: t('nav_inventory') }]}
-              />
+              <WarehouseDashboardPage />
             </ProtectedRoute>
           }
         />
@@ -161,16 +168,7 @@ export const AppRoutes: React.FC = () => {
           path="inventory/stock"
           element={
             <ProtectedRoute requiredAuth={{ module: 'WM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_stock_balance')}
-                subtitle="الأرصدة الحالية للوقود والزيوت وقطع الغيار حسب المحطة والموقع (MMBE)"
-                moduleName="SAP MM-IM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_inventory'), path: '/inventory' },
-                  { label: t('nav_stock_balance') },
-                ]}
-              />
+              <StockBalancePage />
             </ProtectedRoute>
           }
         />
@@ -178,16 +176,7 @@ export const AppRoutes: React.FC = () => {
           path="inventory/movements"
           element={
             <ProtectedRoute requiredAuth={{ module: 'WM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_mat_movements')}
-                subtitle="تسجيل استلام المواد، الصرف، والتحويل بين المستودعات (Goods Movement - MIGO)"
-                moduleName="SAP MM-IM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_inventory'), path: '/inventory' },
-                  { label: t('nav_mat_movements') },
-                ]}
-              />
+              <MaterialMovementsPage />
             </ProtectedRoute>
           }
         />
@@ -195,16 +184,7 @@ export const AppRoutes: React.FC = () => {
           path="inventory/physical"
           element={
             <ProtectedRoute requiredAuth={{ module: 'WM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_physical_inv')}
-                subtitle="إنشاء مستندات الجرد الفوري والدوري ومطابقة الفروقات المخزنية"
-                moduleName="SAP MM-IM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_inventory'), path: '/inventory' },
-                  { label: t('nav_physical_inv') },
-                ]}
-              />
+              <PhysicalInventoryPage />
             </ProtectedRoute>
           }
         />
@@ -212,16 +192,7 @@ export const AppRoutes: React.FC = () => {
           path="inventory/reorder"
           element={
             <ProtectedRoute requiredAuth={{ module: 'WM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_reorder')}
-                subtitle="حساب نقاط إعادة الطلب والحدود الدنيا للأمان المخزني"
-                moduleName="SAP MM-CBP"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_inventory'), path: '/inventory' },
-                  { label: t('nav_reorder') },
-                ]}
-              />
+              <ReorderManagementPage />
             </ProtectedRoute>
           }
         />
@@ -231,11 +202,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_fleet')}
-                moduleName="Fleet Logistics"
-                breadcrumbs={[{ label: t('nav_home'), path: '/' }, { label: t('nav_fleet') }]}
-              />
+              <FleetDashboardPage />
             </ProtectedRoute>
           }
         />
@@ -243,16 +210,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet/vehicles"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_vehicles')}
-                subtitle="سجل الصهاريج والشاحنات وقدرات الحمولة والتراخيص"
-                moduleName="Fleet PM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_fleet'), path: '/fleet' },
-                  { label: t('nav_vehicles') },
-                ]}
-              />
+              <VehiclesListPage />
             </ProtectedRoute>
           }
         />
@@ -260,16 +218,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet/drivers"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_drivers')}
-                subtitle="سجل السائقين، رخص القيادة المهنية، والتقييم التشغيلي"
-                moduleName="Fleet HR"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_fleet'), path: '/fleet' },
-                  { label: t('nav_drivers') },
-                ]}
-              />
+              <DriversListPage />
             </ProtectedRoute>
           }
         />
@@ -277,16 +226,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet/trips"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_trips')}
-                subtitle="أوامر الشحن، بوالص النقل، ومتابعة وصول الشحنات للمحطات"
-                moduleName="Fleet TM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_fleet'), path: '/fleet' },
-                  { label: t('nav_trips') },
-                ]}
-              />
+              <TripsListPage />
             </ProtectedRoute>
           }
         />
@@ -294,16 +234,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet/fuel"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_fuel')}
-                subtitle="مراقبة استهلاك الوقود ومعدلات الكفاءة لكل كيلومتر"
-                moduleName="Fleet Controlling"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_fleet'), path: '/fleet' },
-                  { label: t('nav_fuel') },
-                ]}
-              />
+              <FuelManagementPage />
             </ProtectedRoute>
           }
         />
@@ -311,16 +242,7 @@ export const AppRoutes: React.FC = () => {
           path="fleet/maintenance"
           element={
             <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
-              <PlaceholderPage
-                title={t('nav_fleet_maintenance')}
-                subtitle="أوامر الصيانة الدورية، تغيير الإطارات، والفحص الدوري (PM01)"
-                moduleName="SAP PM"
-                breadcrumbs={[
-                  { label: t('nav_home'), path: '/' },
-                  { label: t('nav_fleet'), path: '/fleet' },
-                  { label: t('nav_fleet_maintenance') },
-                ]}
-              />
+              <FleetMaintenancePage />
             </ProtectedRoute>
           }
         />

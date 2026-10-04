@@ -318,6 +318,51 @@ export interface Contract extends TransactionDocument {
 }
 
 // Inventory & Warehouse Models
+export type MovementTypeCode =
+  | '101' // Goods Receipt against PO
+  | '102' // Reversal of GR
+  | '201' // Goods Issue for Cost Center
+  | '261' // Goods Issue for Maintenance Order
+  | '301' // Plant to Plant Transfer
+  | '311' // Storage Location Transfer
+  | '501' // Goods Receipt without PO
+  | '551' // Scrapping
+  | '701' // Physical Inventory Difference (Surplus / Increase)
+  | '702'; // Physical Inventory Difference (Deficit / Decrease)
+
+export interface MaterialDocumentItem {
+  lineItem: number;
+  materialCode: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalAmount: number;
+  storageLocation: string;
+  toPlantCode?: string;
+  toStorageLocation?: string;
+  batchNumber?: string;
+  serialNumber?: string;
+  qualityInspection?: boolean;
+  costCenter?: string;
+  orderNumber?: string;
+  scrapReason?: string;
+}
+
+export interface MaterialDocument extends TransactionDocument {
+  movementType: MovementTypeCode;
+  postingDate: string;
+  documentDate: string;
+  plantCode: string;
+  storageLocation?: string;
+  poNumber?: string;
+  deliveryNoteNumber?: string;
+  headerText?: string;
+  accountingDocNumber?: string;
+  items: MaterialDocumentItem[];
+  attachmentIds?: string[];
+}
+
 export interface GoodsReceiptItem {
   lineItem: number;
   poItemNumber?: number;
@@ -326,6 +371,9 @@ export interface GoodsReceiptItem {
   quantity: number;
   unit: string;
   storageLocation: string;
+  batchNumber?: string;
+  serialNumber?: string;
+  qualityInspection?: boolean;
 }
 
 export interface GoodsReceipt extends TransactionDocument {
@@ -343,13 +391,16 @@ export interface StockLedgerEntry {
   materialCode: string;
   plantCode: string;
   storageLocation: string;
-  movementType: string;
+  movementType: MovementTypeCode | string;
   referenceDocNumber: string;
   quantity: number;
   unit: string;
   amount: number;
+  unitPrice?: number;
+  movingAveragePriceAfter?: number;
   postingDate: string;
   createdBy: string;
+  notes?: string;
   isDeleted: boolean;
 }
 
@@ -363,37 +414,113 @@ export interface StockBalance {
   blockedQty: number;
   unit: string;
   totalValuation: number;
+  movingAveragePrice?: number;
+  binLocation?: string;
   lastMovementDate: string;
   isDeleted: boolean;
 }
 
 export interface PhysicalInventoryItem {
+  lineItem: number;
   materialCode: string;
+  materialName: string;
   bookQty: number;
   countedQty: number;
   varianceQty: number;
   unit: string;
+  unitPrice: number;
+  varianceValue: number;
+  counted: boolean;
 }
 
 export interface PhysicalInventoryDoc extends TransactionDocument {
   plantCode: string;
   storageLocation: string;
   countDate: string;
+  freezeMovements: boolean;
+  abcClassFilter?: 'A' | 'B' | 'C' | 'ALL';
   items: PhysicalInventoryItem[];
+  totalVarianceValue: number;
+  approvedBy?: string;
+  approvedAt?: string;
+  postedDocNumber?: string;
+}
+
+export interface InventoryAlert {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  plantCode: string;
+  alertType: 'critical' | 'low' | 'reorder' | 'overstock' | 'slow_moving';
+  currentStock: number;
+  thresholdQty: number;
+  suggestedReorderQty: number;
+  unit: string;
+  createdAt: string;
+  status: 'active' | 'acknowledged' | 'converted_to_pr' | 'resolved';
+  convertedPrDocNumber?: string;
+  isDeleted: boolean;
+}
+
+export interface AuctionRecord {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  plantCode: string;
+  storageLocation: string;
+  quantity: number;
+  unit: string;
+  startingPrice: number;
+  reservePrice: number;
+  currentBid?: number;
+  currency: string;
+  condition: 'Fair' | 'Scrap' | 'UsedGood' | 'Obsolete';
+  auctionReference: string;
+  status: 'draft' | 'published' | 'awarded' | 'cancelled';
+  createdAt: string;
+  createdBy: string;
+  isDeleted: boolean;
+}
+
+export interface ScannerDeviceStatus {
+  id: string;
+  deviceName: string;
+  deviceType: 'RFID' | 'HandheldBarcode' | 'FixedGate';
+  plantCode: string;
+  location: string;
+  ipAddress: string;
+  batteryLevel: number;
+  status: 'online' | 'offline' | 'warning';
+  lastSyncAt: string;
+}
+
+// Hook interface for Phase 8 Finance Service Posting
+export interface IFinancePostingService {
+  postInventoryMovement(doc: MaterialDocument): Promise<{ success: boolean; jeDocNumber: string }>;
 }
 
 // Fleet & Logistics Models
+export type VehicleType = 'Tanker' | 'HeavyTruck' | 'LightTruck' | 'Crane' | 'Trailer';
+
 export interface Vehicle {
   id: string;
-  plateNumber: string;
   code: string;
-  type: 'Tanker' | 'HeavyTruck' | 'Trailer' | 'LightTruck';
+  plateNumber: string;
+  vin: string;
+  type: VehicleType;
+  fuelType: 'Diesel' | 'Gasoline95' | 'Gasoline91';
   capacityLiters: number;
+  capacityTons?: number;
   makeModel: string;
   year: number;
   currentOdometer: number;
   status: 'available' | 'on_trip' | 'maintenance' | 'out_of_service';
   assignedDriverId?: string;
+  assignedDriverName?: string;
+  insuranceExpiry: string;
+  registrationExpiry: string;
+  lastMaintenanceDate?: string;
+  nextMaintenanceOdometer?: number;
   isDeleted: boolean;
 }
 
@@ -403,31 +530,49 @@ export interface Driver {
   name: string;
   iqamaNumber: string;
   licenseNumber: string;
+  licenseClass: 'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي';
   licenseExpiry: string;
   mobile: string;
   safetyRating: number;
+  performanceScore: number;
+  certifications: string[];
   status: 'available' | 'on_trip' | 'vacation';
+  totalTripsCompleted: number;
+  totalDistanceKm: number;
   isDeleted: boolean;
 }
 
 export interface Trip extends TransactionDocument {
   vehicleId: string;
+  vehiclePlate: string;
   driverId: string;
+  driverName: string;
   originPlant: string;
   destinationLocation: string;
   cargoType: string;
   cargoVolumeLiters: number;
   scheduledDeparture: string;
+  scheduledArrival: string;
   actualDeparture?: string;
   actualArrival?: string;
   startOdometer: number;
   endOdometer?: number;
+  distanceKm?: number;
+  delayMinutes?: number;
+  delayReason?: string;
+  fuelLitersConsumed?: number;
+  fuelCost?: number;
+  driverAllowanceCost?: number;
+  totalTripCost?: number;
+  postedAccountingDocNumber?: string;
 }
 
 export interface FuelLog {
   id: string;
   vehicleId: string;
+  vehiclePlate: string;
   driverId: string;
+  driverName: string;
   date: string;
   fuelType: 'Diesel' | 'Gasoline95' | 'Gasoline91';
   quantityLiters: number;
@@ -435,17 +580,72 @@ export interface FuelLog {
   totalCost: number;
   odometer: number;
   stationName: string;
+  calculatedConsumptionPer100Km?: number;
+  isAnomaly?: boolean;
+  anomalyDeviationPercentage?: number;
   isDeleted: boolean;
+}
+
+export interface FuelAnomalyAlert {
+  id: string;
+  vehicleId: string;
+  vehiclePlate: string;
+  fuelLogId: string;
+  date: string;
+  liters: number;
+  recordedLPer100Km: number;
+  averageLPer100Km: number;
+  deviationPercentage: number;
+  severity: 'warning' | 'critical';
+  reasonSummary: string;
+  status: 'active' | 'investigated' | 'resolved';
+  resolvedNotes?: string;
+  isDeleted: boolean;
+}
+
+export interface MaintenancePartItem {
+  lineItem: number;
+  materialCode: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalCost: number;
+  storageLocation: string;
 }
 
 export interface MaintenanceOrder extends TransactionDocument {
   vehicleId: string;
+  vehiclePlate: string;
   orderType: 'Preventive' | 'Corrective' | 'Inspection';
   description: string;
+  faultReported?: string;
   estimatedCost: number;
   actualCost: number;
+  partsCost: number;
+  laborCost: number;
+  laborHours: number;
   startDate: string;
   completionDate?: string;
+  downtimeHours: number;
+  partsUsed: MaintenancePartItem[];
+  materialDocNumber?: string; // Movement 261 material document link
+  preventiveScheduleId?: string;
+}
+
+export interface PreventiveSchedule {
+  id: string;
+  vehicleId: string;
+  vehiclePlate: string;
+  serviceName: string;
+  intervalKm: number;
+  intervalDays: number;
+  lastDoneOdometer: number;
+  lastDoneDate: string;
+  nextDueOdometer: number;
+  nextDueDate: string;
+  status: 'due' | 'soon' | 'completed';
+  isDeleted: boolean;
 }
 
 // Fixed Assets Models

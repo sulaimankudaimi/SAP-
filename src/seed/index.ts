@@ -30,6 +30,13 @@ import type {
   MaintenanceOrder,
   Asset,
   Budget,
+  MaterialDocument,
+  PhysicalInventoryDoc,
+  InventoryAlert,
+  AuctionRecord,
+  Trip,
+  FuelAnomalyAlert,
+  PreventiveSchedule,
 } from '../types/models';
 import type { StatusVariant } from '../types';
 
@@ -68,12 +75,17 @@ export class DatabaseSeeder {
       db.goodsReceipts,
       db.stockLedger,
       db.stockBalances,
+      db.materialDocuments,
+      db.inventoryAlerts,
+      db.auctionRecords,
       db.physicalInventoryDocs,
       db.vehicles,
       db.drivers,
       db.trips,
       db.fuelLogs,
+      db.fuelAnomalyAlerts,
       db.maintenanceOrders,
+      db.preventiveSchedules,
       db.assets,
       db.assetTransfers,
       db.depreciationRuns,
@@ -377,27 +389,39 @@ export class DatabaseSeeder {
       isDeleted: false,
     }));
 
-    // 11. 40 Vehicles (Fuel tankers, heavy haulers)
+    // 11. Driver Names & 40 Vehicles (Fuel tankers, heavy haulers)
+    const driverFirstNames = ['عبدالله', 'سعد', 'محمد', 'علي', 'فهد', 'يوسف', 'إبراهيم', 'عمر', 'سلمان', 'ماجد'];
+    const driverLastNames = ['الشمري', 'الدوسري', 'القحطاني', 'العتيبي', 'المطيري', 'الحربي', 'الغامدي', 'الزهراني', 'الشهري', 'العنزي'];
+
     const vehicles: Vehicle[] = [];
     for (let i = 1; i <= 40; i++) {
       const isTanker = i <= 25;
+      const fName = driverFirstNames[(i - 1) % driverFirstNames.length];
+      const lName = driverLastNames[Math.floor((i - 1) / 3) % driverLastNames.length];
       vehicles.push({
         id: `veh-${i}`,
-        code: `TRK-${String(i).padStart(3, '0')}`,
+        code: `TNK-${String(i).padStart(3, '0')}`,
         plateNumber: `${1000 + i}-أ ب ج`,
-        type: isTanker ? 'Tanker' : 'HeavyTruck',
+        vin: `WDB9340331L${String(100000 + i)}`,
+        type: isTanker ? 'Tanker' : (i % 3 === 0 ? 'Crane' : 'HeavyTruck'),
+        fuelType: 'Diesel',
         capacityLiters: isTanker ? 36000 : 0,
-        makeModel: isTanker ? 'Mercedes-Benz Actros 3340' : 'Volvo FH16 650',
+        capacityTons: isTanker ? 30 : 45,
+        makeModel: isTanker ? 'Mercedes-Benz Actros 3340' : (i % 3 === 0 ? 'Tadano GT-600EL' : 'Volvo FH16 650'),
         year: 2021 + (i % 4),
         currentOdometer: 85000 + i * 4200,
         status: i % 8 === 0 ? 'maintenance' : i % 5 === 0 ? 'on_trip' : 'available',
+        assignedDriverId: `drv-${((i - 1) % 30) + 1}`,
+        assignedDriverName: `${fName} ${lName}`,
+        insuranceExpiry: i % 4 === 0 ? '2026-10-25' : '2027-08-30',
+        registrationExpiry: i % 6 === 0 ? '2026-10-18' : '2027-11-15',
+        lastMaintenanceDate: '2026-08-15',
+        nextMaintenanceOdometer: 85000 + i * 4200 + 10000,
         isDeleted: false,
       });
     }
 
     // 12. 30 Drivers
-    const driverFirstNames = ['عبدالله', 'سعد', 'محمد', 'علي', 'فهد', 'يوسف', 'إبراهيم', 'عمر', 'سلمان', 'ماجد'];
-    const driverLastNames = ['الشمري', 'الدوسري', 'القحطاني', 'العتيبي', 'المطيري', 'الحربي', 'الغامدي', 'الزهراني', 'الشهري', 'العنزي'];
     const drivers: Driver[] = [];
     for (let i = 1; i <= 30; i++) {
       const fName = driverFirstNames[(i - 1) % driverFirstNames.length];
@@ -408,10 +432,18 @@ export class DatabaseSeeder {
         name: `${fName} ${lName}`,
         iqamaNumber: `234${String(1000000 + i)}`,
         licenseNumber: `SA-DL-${String(50000 + i)}`,
+        licenseClass: i % 3 === 0 ? 'نقل مواد خطرة (HazMat)' : 'عمومي ثقيل',
         licenseExpiry: '2028-12-31',
         mobile: `055${String(1000000 + i)}`,
         safetyRating: 4.2 + (i % 8) * 0.1,
+        performanceScore: 88 + (i % 12),
+        certifications: [
+          'شهادة أرامكو لنقل المواد البترولية (HazMat)',
+          'شهادة الدفاع المدني لمكافحة حرائق الصهاريج',
+        ],
         status: i % 4 === 0 ? 'on_trip' : 'available',
+        totalTripsCompleted: 24 + i * 5,
+        totalDistanceKm: 18500 + i * 2400,
         isDeleted: false,
       });
     }
@@ -624,18 +656,26 @@ export class DatabaseSeeder {
       });
     }
 
-    // 16. 12 Months of Fuel & Maintenance Logs
+    // 16. 12 Months of Fuel & Maintenance Logs, Trips, Preventive Schedules, & Fuel Anomalies
     const fuelLogs: FuelLog[] = [];
     const maintenanceOrders: MaintenanceOrder[] = [];
 
     vehicles.forEach((veh, vIdx) => {
       // 12 fuel entries per vehicle
       for (let m = 1; m <= 12; m++) {
-        const liters = 600 + (m * 20);
+        const isLatest = m === 12;
+        const isAnomalyVeh = vIdx === 2 || vIdx === 7;
+        const liters = isLatest && isAnomalyVeh ? (vIdx === 2 ? 820 : 720) : 600 + (m * 20);
+        const lPer100 = isLatest && vIdx === 2 ? 58 : isLatest && vIdx === 7 ? 49 : 38;
+        const isAnomaly = isLatest && isAnomalyVeh;
+        const devPct = isLatest && vIdx === 2 ? 52.6 : isLatest && vIdx === 7 ? 28.9 : undefined;
+
         fuelLogs.push({
           id: `fl-${veh.code}-${m}`,
           vehicleId: veh.id,
+          vehiclePlate: veh.plateNumber,
           driverId: drivers[vIdx % drivers.length].id,
+          driverName: drivers[vIdx % drivers.length].name,
           date: `2026-${String(m).padStart(2, '0')}-15`,
           fuelType: 'Diesel',
           quantityLiters: liters,
@@ -643,6 +683,9 @@ export class DatabaseSeeder {
           totalCost: liters * 1.15,
           odometer: veh.currentOdometer - (12 - m) * 2500,
           stationName: 'محطة أرامكو المركزية - طريق الخرج',
+          calculatedConsumptionPer100Km: lPer100,
+          isAnomaly,
+          anomalyDeviationPercentage: devPct,
           isDeleted: false,
         });
       }
@@ -653,10 +696,38 @@ export class DatabaseSeeder {
         docNumber: `MO-2026-${String(vIdx + 1).padStart(6, '0')}`,
         status: 'completed',
         vehicleId: veh.id,
+        vehiclePlate: veh.plateNumber,
         orderType: vIdx % 3 === 0 ? 'Inspection' : 'Preventive',
         description: 'صيانة وقائية دورية 50,000 كم، تغيير زيوت الفلاتر وفحص المكابح',
         estimatedCost: 3500,
         actualCost: 3450,
+        partsCost: 1850,
+        laborCost: 1600,
+        laborHours: 12,
+        downtimeHours: 16,
+        partsUsed: [
+          {
+            lineItem: 10,
+            materialCode: materials[0]?.materialCode || 'OIL-SYN-01',
+            materialName: materials[0]?.name || 'زيت محركات ديزل تخليقي',
+            quantity: 2,
+            unit: 'DRUM',
+            unitPrice: 450,
+            totalCost: 900,
+            storageLocation: 'SL01',
+          },
+          {
+            lineItem: 20,
+            materialCode: materials[3]?.materialCode || 'FLT-SET-04',
+            materialName: materials[3]?.name || 'طقم فلاتر ديزل وهواء متكامل',
+            quantity: 1,
+            unit: 'SET',
+            unitPrice: 950,
+            totalCost: 950,
+            storageLocation: 'SL01',
+          },
+        ],
+        materialDocNumber: `MBLNR-2026-${String(vIdx + 1).padStart(6, '0')}`,
         startDate: '2026-08-10',
         completionDate: '2026-08-12',
         createdBy: 'u-flt-mgr',
@@ -667,6 +738,172 @@ export class DatabaseSeeder {
         isDeleted: false,
       });
     });
+
+    // 16b. Trips & Dispatches (20 trips: 6 in-progress, 14 completed)
+    const tripRoutes = [
+      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: 'حقل الغوار - محطة الضخ 4', dist: 395 },
+      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: '1300 - مجمع الدمام ورأس تنورة', dist: 405 },
+      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: '1200 - مصفاة ينبع البترولية', dist: 1050 },
+      { origin: 'حقل خريص - منشأة الضخ المركزية', dest: '1100 - مركز الرياض اللوجستي المركزي', dist: 160 },
+      { origin: '1300 - مجمع الدمام ورأس تنورة', dest: 'مجمع الجبيل الصناعي للبتروكيماويات', dist: 95 },
+    ];
+
+    const trips: Trip[] = [];
+    for (let t = 1; t <= 20; t++) {
+      const isInProgress = t <= 6;
+      const v = vehicles[t - 1];
+      const d = drivers[t - 1];
+      const r = tripRoutes[(t - 1) % tripRoutes.length];
+      const startOdo = v.currentOdometer - 1200 + t * 50;
+      const dist = r.dist;
+      const endOdo = startOdo + dist;
+      const fuelLiters = Math.round(dist * 0.38);
+      const fuelCost = Math.round(fuelLiters * 1.15);
+      const allowance = Math.round(dist * 0.35);
+      const totalCost = fuelCost + allowance;
+
+      trips.push({
+        id: `trip-${t}`,
+        docNumber: `TRIP-2026-${String(t).padStart(6, '0')}`,
+        status: isInProgress ? 'in_progress' : 'completed',
+        vehicleId: v.id,
+        vehiclePlate: v.plateNumber,
+        driverId: d.id,
+        driverName: d.name,
+        originPlant: r.origin,
+        destinationLocation: r.dest,
+        cargoType: t % 2 === 0 ? 'ديزل صناعي - 36,000 لتر' : 'بنزين 95 عالي الأوكتان - 34,000 لتر',
+        cargoVolumeLiters: 36000,
+        scheduledDeparture: '2026-10-03 06:00',
+        scheduledArrival: '2026-10-03 14:00',
+        actualDeparture: '2026-10-03 06:15',
+        actualArrival: isInProgress ? undefined : '2026-10-03 13:45',
+        startOdometer: startOdo,
+        endOdometer: isInProgress ? undefined : endOdo,
+        distanceKm: isInProgress ? undefined : dist,
+        delayMinutes: isInProgress ? 0 : (t % 4 === 0 ? 35 : 0),
+        delayReason: !isInProgress && t % 4 === 0 ? 'ازدحام نقطة تفتيش أمن المنشآت عند مدخل المرفق' : undefined,
+        fuelLitersConsumed: isInProgress ? undefined : fuelLiters,
+        fuelCost: isInProgress ? undefined : fuelCost,
+        driverAllowanceCost: isInProgress ? undefined : allowance,
+        totalTripCost: isInProgress ? undefined : totalCost,
+        postedAccountingDocNumber: isInProgress ? undefined : `ACC-TRIP-2026-${String(t).padStart(6, '0')}`,
+        createdBy: 'u-flt-mgr',
+        createdAt: now,
+        updatedBy: 'u-flt-mgr',
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      });
+    }
+
+    // 16c. Active Fuel Anomaly Alerts (deviation > 25%)
+    const fuelAnomalyAlerts: FuelAnomalyAlert[] = [
+      {
+        id: 'faa-1',
+        vehicleId: vehicles[2].id,
+        vehiclePlate: vehicles[2].plateNumber,
+        fuelLogId: `fl-${vehicles[2].code}-12`,
+        date: '2026-10-02',
+        liters: 820,
+        recordedLPer100Km: 58,
+        averageLPer100Km: 38,
+        deviationPercentage: 52.6,
+        severity: 'critical',
+        reasonSummary: 'استهلاك مرتفع جداً يتجاوز المعدل بنسبة 52.6% (احتمال تسريب وقود، تهريب محرك، أو تشغيل مكيف مفرط)',
+        status: 'active',
+        isDeleted: false,
+      },
+      {
+        id: 'faa-2',
+        vehicleId: vehicles[7].id,
+        vehiclePlate: vehicles[7].plateNumber,
+        fuelLogId: `fl-${vehicles[7].code}-12`,
+        date: '2026-10-01',
+        liters: 720,
+        recordedLPer100Km: 49,
+        averageLPer100Km: 38,
+        deviationPercentage: 28.9,
+        severity: 'warning',
+        reasonSummary: 'استهلاك يتجاوز المعدل بنسبة 28.9% (فحص نظام الحقن وفلاتر الديزل مطلوب)',
+        status: 'active',
+        isDeleted: false,
+      },
+    ];
+
+    // 16d. Preventive Maintenance Schedules
+    const preventiveSchedules: PreventiveSchedule[] = [
+      {
+        id: 'ps-1',
+        vehicleId: vehicles[0].id,
+        vehiclePlate: vehicles[0].plateNumber,
+        serviceName: 'صيانة دورية 10,000 كم (تغيير زيوت وفلاتر ومسح كمبيوتر)',
+        intervalKm: 10000,
+        intervalDays: 90,
+        lastDoneOdometer: 80000,
+        lastDoneDate: '2026-07-15',
+        nextDueOdometer: 90000,
+        nextDueDate: '2026-10-15',
+        status: 'due',
+        isDeleted: false,
+      },
+      {
+        id: 'ps-2',
+        vehicleId: vehicles[1].id,
+        vehiclePlate: vehicles[1].plateNumber,
+        serviceName: 'فحص منظومة الفرامل والهواء المضغوط وسلامة الإطارات',
+        intervalKm: 15000,
+        intervalDays: 120,
+        lastDoneOdometer: 85000,
+        lastDoneDate: '2026-08-01',
+        nextDueOdometer: 100000,
+        nextDueDate: '2026-11-01',
+        status: 'soon',
+        isDeleted: false,
+      },
+      {
+        id: 'ps-3',
+        vehicleId: vehicles[2].id,
+        vehiclePlate: vehicles[2].plateNumber,
+        serviceName: 'فحص صمامات تفريغ الصهريج ونظام مانع الشرر (Spark Arrestor)',
+        intervalKm: 20000,
+        intervalDays: 180,
+        lastDoneOdometer: 70000,
+        lastDoneDate: '2026-05-10',
+        nextDueOdometer: 90000,
+        nextDueDate: '2026-10-10',
+        status: 'due',
+        isDeleted: false,
+      },
+      {
+        id: 'ps-4',
+        vehicleId: vehicles[3].id,
+        vehiclePlate: vehicles[3].plateNumber,
+        serviceName: 'صيانة شاملة 50,000 كم واستبدال حزام المحرك وسائل التبريد',
+        intervalKm: 50000,
+        intervalDays: 365,
+        lastDoneOdometer: 50000,
+        lastDoneDate: '2025-11-20',
+        nextDueOdometer: 100000,
+        nextDueDate: '2026-11-20',
+        status: 'soon',
+        isDeleted: false,
+      },
+      {
+        id: 'ps-5',
+        vehicleId: vehicles[4].id,
+        vehiclePlate: vehicles[4].plateNumber,
+        serviceName: 'معايرة مقاييس ومستشعرات حرارة وضغط سوائل الوقود',
+        intervalKm: 10000,
+        intervalDays: 90,
+        lastDoneOdometer: 92000,
+        lastDoneDate: '2026-09-01',
+        nextDueOdometer: 102000,
+        nextDueDate: '2026-12-01',
+        status: 'completed',
+        isDeleted: false,
+      },
+    ];
 
     // 17. Budgets per Cost Center (25 Cost Centers)
     const budgets: Budget[] = costCenters.map((cc) => {
@@ -684,6 +921,169 @@ export class DatabaseSeeder {
         isDeleted: false,
       };
     });
+
+    // 18. Material Documents (MBLNR) corresponding to Goods Receipts and Movements
+    const materialDocuments: MaterialDocument[] = goodsReceipts.map((gr, i) => ({
+      id: `md-${i + 1}`,
+      docNumber: `MD-2026-${String(i + 1).padStart(6, '0')}`,
+      status: 'completed',
+      movementType: '101',
+      postingDate: gr.postingDate,
+      documentDate: gr.postingDate,
+      plantCode: gr.plantCode,
+      storageLocation: gr.items[0]?.storageLocation || 'SL01',
+      poNumber: gr.poNumber,
+      deliveryNoteNumber: gr.deliveryNoteNumber,
+      headerText: `استلام بضائع مقابل أمر شراء ${gr.poNumber}`,
+      accountingDocNumber: `ACC-2026-${String(i + 1).padStart(6, '0')}`,
+      items: gr.items.map((it) => ({
+        lineItem: it.lineItem,
+        materialCode: it.materialCode,
+        materialName: it.materialName,
+        quantity: it.quantity,
+        unit: it.unit,
+        unitPrice: 150,
+        totalAmount: it.quantity * 150,
+        storageLocation: it.storageLocation,
+        batchNumber: `BATCH-2026-A1`,
+      })),
+      createdBy: 'u-wh-clerk',
+      createdAt: now,
+      updatedBy: 'u-wh-clerk',
+      updatedAt: now,
+      version: 1,
+      isDeleted: false,
+    }));
+
+    // 19. Physical Inventory Docs (MI01 / MI04 / MI07)
+    const samplePiDocs: PhysicalInventoryDoc[] = [
+      {
+        id: 'pi-1',
+        docNumber: 'PI-2026-000001',
+        status: 'completed',
+        plantCode: '1100',
+        storageLocation: 'SL01',
+        countDate: '2026-09-30',
+        freezeMovements: true,
+        abcClassFilter: 'A',
+        totalVarianceValue: 1250,
+        postedDocNumber: 'MD-2026-000099',
+        items: [
+          {
+            lineItem: 1,
+            materialCode: materials[0].materialCode,
+            materialName: materials[0].name,
+            bookQty: 500,
+            countedQty: 505,
+            varianceQty: 5,
+            unit: materials[0].baseUnit,
+            unitPrice: materials[0].standardPrice,
+            varianceValue: 5 * materials[0].standardPrice,
+            counted: true,
+          },
+          {
+            lineItem: 2,
+            materialCode: materials[1].materialCode,
+            materialName: materials[1].name,
+            bookQty: 300,
+            countedQty: 298,
+            varianceQty: -2,
+            unit: materials[1].baseUnit,
+            unitPrice: materials[1].standardPrice,
+            varianceValue: -2 * materials[1].standardPrice,
+            counted: true,
+          },
+        ],
+        createdBy: 'u-wh-clerk',
+        createdAt: now,
+        updatedBy: 'u-wh-clerk',
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      },
+      {
+        id: 'pi-2',
+        docNumber: 'PI-2026-000002',
+        status: 'draft',
+        plantCode: '1100',
+        storageLocation: 'SL02',
+        countDate: '2026-10-02',
+        freezeMovements: false,
+        abcClassFilter: 'ALL',
+        totalVarianceValue: 0,
+        items: materials.slice(0, 5).map((m, idx) => ({
+          lineItem: idx + 1,
+          materialCode: m.materialCode,
+          materialName: m.name,
+          bookQty: m.reorderPoint * 2,
+          countedQty: m.reorderPoint * 2,
+          varianceQty: 0,
+          unit: m.baseUnit,
+          unitPrice: m.standardPrice,
+          varianceValue: 0,
+          counted: false,
+        })),
+        createdBy: 'u-wh-clerk',
+        createdAt: now,
+        updatedBy: 'u-wh-clerk',
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      },
+    ];
+
+    // 20. Inventory Alerts & Auction records
+    const inventoryAlerts: InventoryAlert[] = [
+      {
+        id: 'alt-1',
+        materialCode: materials[2].materialCode,
+        materialName: materials[2].name,
+        plantCode: '1100',
+        alertType: 'critical',
+        currentStock: 15,
+        thresholdQty: materials[2].reorderPoint,
+        suggestedReorderQty: materials[2].reorderPoint * 2,
+        unit: materials[2].baseUnit,
+        createdAt: now,
+        status: 'active',
+        isDeleted: false,
+      },
+      {
+        id: 'alt-2',
+        materialCode: materials[5].materialCode,
+        materialName: materials[5].name,
+        plantCode: '1100',
+        alertType: 'low',
+        currentStock: 40,
+        thresholdQty: materials[5].reorderPoint,
+        suggestedReorderQty: materials[5].reorderPoint * 1.5,
+        unit: materials[5].baseUnit,
+        createdAt: now,
+        status: 'active',
+        isDeleted: false,
+      },
+    ];
+
+    const auctionRecords: AuctionRecord[] = [
+      {
+        id: 'auc-1',
+        auctionReference: 'AUC-2026-000001',
+        materialCode: materials[10].materialCode,
+        materialName: materials[10].name,
+        plantCode: '1100',
+        storageLocation: 'SL01',
+        quantity: 250,
+        unit: materials[10].baseUnit,
+        startingPrice: 10000,
+        reservePrice: 15000,
+        currency: 'SAR',
+        condition: 'Obsolete',
+        status: 'published',
+        createdAt: now,
+        createdBy: 'u-wh-clerk',
+        isDeleted: false,
+      },
+    ];
 
     // Execute bulk additions in high-speed Dexie transaction
     await db.transaction(
@@ -710,8 +1110,15 @@ export class DatabaseSeeder {
         db.vendorInvoices,
         db.stockBalances,
         db.stockLedger,
+        db.materialDocuments,
+        db.physicalInventoryDocs,
+        db.inventoryAlerts,
+        db.auctionRecords,
+        db.trips,
         db.fuelLogs,
+        db.fuelAnomalyAlerts,
         db.maintenanceOrders,
+        db.preventiveSchedules,
         db.budgets,
       ],
       async () => {
@@ -736,8 +1143,15 @@ export class DatabaseSeeder {
         await db.vendorInvoices.bulkAdd(vendorInvoices);
         await db.stockBalances.bulkAdd(stockBalances);
         await db.stockLedger.bulkAdd(stockLedger);
+        await db.materialDocuments.bulkAdd(materialDocuments);
+        await db.physicalInventoryDocs.bulkAdd(samplePiDocs);
+        await db.inventoryAlerts.bulkAdd(inventoryAlerts);
+        await db.auctionRecords.bulkAdd(auctionRecords);
+        await db.trips.bulkAdd(trips);
         await db.fuelLogs.bulkAdd(fuelLogs);
+        await db.fuelAnomalyAlerts.bulkAdd(fuelAnomalyAlerts);
         await db.maintenanceOrders.bulkAdd(maintenanceOrders);
+        await db.preventiveSchedules.bulkAdd(preventiveSchedules);
         await db.budgets.bulkAdd(budgets);
       }
     );

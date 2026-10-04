@@ -81,6 +81,11 @@ export class GulfErpDatabase extends Dexie {
   numberRanges!: Table<NumberRange, string>;
   settings!: Table<Setting, string>;
   attachments!: Table<Attachment, string>;
+  materialDocuments!: Table<import('../../types/models').MaterialDocument, string>;
+  inventoryAlerts!: Table<import('../../types/models').InventoryAlert, string>;
+  auctionRecords!: Table<import('../../types/models').AuctionRecord, string>;
+  fuelAnomalyAlerts!: Table<import('../../types/models').FuelAnomalyAlert, string>;
+  preventiveSchedules!: Table<import('../../types/models').PreventiveSchedule, string>;
 
   constructor() {
     super('gulf_erp');
@@ -105,14 +110,19 @@ export class GulfErpDatabase extends Dexie {
       purchaseOrders: 'id, docNumber, status, vendorCode, plantCode, orderDate, isDeleted',
       contracts: 'id, docNumber, status, vendorCode, isDeleted',
       goodsReceipts: 'id, docNumber, poNumber, vendorCode, plantCode, postingDate, isDeleted',
+      materialDocuments: 'id, docNumber, movementType, plantCode, storageLocation, poNumber, postingDate, isDeleted',
       stockLedger: 'id, materialCode, plantCode, storageLocation, movementType, referenceDocNumber, postingDate, isDeleted',
       stockBalances: 'id, materialCode, plantCode, storageLocation, [materialCode+plantCode+storageLocation], isDeleted',
       physicalInventoryDocs: 'id, docNumber, plantCode, storageLocation, status, isDeleted',
+      inventoryAlerts: 'id, materialCode, plantCode, alertType, status, isDeleted',
+      auctionRecords: 'id, materialCode, plantCode, status, isDeleted',
       vehicles: 'id, code, plateNumber, status, isDeleted',
       drivers: 'id, code, status, isDeleted',
       trips: 'id, docNumber, status, vehicleId, driverId, originPlant, isDeleted',
       fuelLogs: 'id, vehicleId, driverId, date, isDeleted',
+      fuelAnomalyAlerts: 'id, vehicleId, status, isDeleted',
       maintenanceOrders: 'id, docNumber, vehicleId, orderType, status, isDeleted',
+      preventiveSchedules: 'id, vehicleId, status, isDeleted',
       assets: 'id, assetNumber, category, plantCode, costCenter, status, isDeleted',
       assetTransfers: 'id, docNumber, assetNumber, fromPlant, toPlant, isDeleted',
       depreciationRuns: 'id, docNumber, fiscalYear, period, postedToGL, isDeleted',

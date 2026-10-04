@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { CommandPalette } from './CommandPalette';
+import { useBarcodeScanner } from '../../modules/inventory/hooks/useBarcodeScanner';
+import { BarcodeScanDrawer } from '../../modules/inventory/components/BarcodeScanDrawer';
 
 export const AppLayout: React.FC = () => {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Global Barcode Scanner Keyboard Wedge listener (Requirement #10)
+  const { lastScanned, isDrawerOpen, setIsDrawerOpen, triggerScan } = useBarcodeScanner();
 
   // Global shortcut listener for Ctrl+K / Cmd+K
   useEffect(() => {
@@ -19,6 +25,15 @@ export const AppLayout: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handleBarcodeAction = (action: 'view_stock' | 'gr' | 'gi', targetCode: string) => {
+    setIsDrawerOpen(false);
+    if (action === 'view_stock') {
+      navigate('/inventory/stock');
+    } else if (action === 'gr' || action === 'gi') {
+      navigate('/inventory');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] flex" dir="rtl">
@@ -38,6 +53,15 @@ export const AppLayout: React.FC = () => {
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+      />
+
+      {/* Global Barcode Scanner Drawer */}
+      <BarcodeScanDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        scanned={lastScanned}
+        onManualScan={triggerScan}
+        onSelectAction={handleBarcodeAction}
       />
     </div>
   );
