@@ -1,0 +1,45 @@
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/700.css";
+@import "tailwindcss";
+
+:root {
+  --bg: #F4F7FB;
+  --card: #FFFFFF;
+  --navy: #0B2545;
+  --navy-2: #13315C;
+  --primary: #0FA37F;
+  --primary-hover: #0c8a6c;
+  --blue: #2563EB;
+  --amber: #F59E0B;
+  --red: #EF4444;
+  --text: #0F172A;
+  --muted: #64748B;
+  --border: #E5EAF2;
+
+  --radius-card: 16px;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+body {
+  font-family: 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  min-width: 1280px;
+}
+
+/* Custom scrollbars matching enterprise SAP style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
