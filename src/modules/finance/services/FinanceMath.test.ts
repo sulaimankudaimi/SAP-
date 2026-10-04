@@ -160,4 +160,11 @@ function runTests() {
   console.log('--- ALL FINANCIAL ACCOUNTING & CONTROLLING UNIT TESTS PASSED ---');
 }
 
-runTests();
+import { describe, it } from 'vitest';
+
+describe('FinanceMath Suite', () => {
+  it('executes full cycle PR/PO/GR/Invoice accounting and trial balance zero-sum', () => {
+    runTests();
+  });
+});
+

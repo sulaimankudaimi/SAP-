@@ -143,10 +143,12 @@ export const navigationConfig: NavItemWithModule[] = [
     requiredModule: 'ADM',
     children: [
       { id: 'dev-cockpit', path: '/admin/dev', titleKey: 'nav_audit_log' },
+      { id: 'diagnostics', path: '/admin/diagnostics', titleKey: 'nav_diagnostics' },
       { id: 'users', path: '/admin/users', titleKey: 'nav_users' },
       { id: 'roles', path: '/admin/roles', titleKey: 'nav_roles' },
       { id: 'audit', path: '/admin/audit', titleKey: 'nav_audit_log' },
       { id: 'settings', path: '/admin/settings', titleKey: 'nav_settings' },
+      { id: 'about', path: '/about', titleKey: 'nav_about' },
     ],
   },
 ];

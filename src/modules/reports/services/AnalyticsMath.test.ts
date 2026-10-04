@@ -107,7 +107,11 @@ async function runTests() {
   console.log('--- ALL ANALYTICS, FORECASTING & NLP TESTS PASSED SUCCESSFULLY ---');
 }
 
-runTests().catch((e) => {
-  console.error('Test execution failed:', e);
-  process.exit(1);
+import { describe, it } from 'vitest';
+
+describe('AnalyticsMath Suite', () => {
+  it('executes predictive forecasting, SMA, SES, EOQ, and NLP search tests', async () => {
+    await runTests();
+  });
 });
+

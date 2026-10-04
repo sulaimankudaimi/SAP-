@@ -283,6 +283,28 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
                   <span>فحص المحرك والبيانات (Dev)</span>
                 </button>
 
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    navigate('/admin/diagnostics');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
+                >
+                  <Shield className="w-4 h-4 text-[#2563EB]" />
+                  <span>سجلات التشخيص وصحة النظام</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    navigate('/about');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4 text-[#F59E0B]" />
+                  <span>عن النظام واختصارات المفاتيح</span>
+                </button>
+
                 <div className="border-t border-[#E5EAF2] my-1" />
 
                 <button

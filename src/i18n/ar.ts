@@ -83,6 +83,8 @@ export const ar = {
   nav_roles: 'الأدوار والصلاحيات',
   nav_audit_log: 'سجل التدقيق (Audit Log)',
   nav_settings: 'إعدادات النظام',
+  nav_diagnostics: 'سجلات التشخيص وصحة النظام',
+  nav_about: 'عن النظام والاختصارات',
 
   // Statuses
   status_approved: 'معتمد',

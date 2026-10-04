@@ -37,6 +37,8 @@ export function formatDate(date: string | Date, pattern: string = 'yyyy-MM-dd'):
   }
 }
 
+import { downloadCsvFile } from './utils/fileDownloader';
+
 export function exportToCSV<T extends Record<string, unknown>>(data: T[], filename: string): void {
   exportToCsv(filename, data);
 }
@@ -66,13 +68,5 @@ export function exportToCsv<T extends Record<string, unknown>>(
 
   // Prepend UTF-8 BOM so Excel on Windows properly displays Arabic text
   const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-  const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', cleanFilename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCsvFile(cleanFilename, csvRows.join('\n')).catch(console.error);
 }

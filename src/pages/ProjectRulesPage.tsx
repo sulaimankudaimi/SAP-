@@ -5,6 +5,8 @@ import { StatusChip } from '../components/ui/Badge';
 import { FileCode, CheckCircle2, ShieldCheck, Download } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
+import { saveFileUniversal } from '../core/utils/fileDownloader';
+
 export const ProjectRulesPage: React.FC = () => {
   const rulesContent = `ROLE
 You are a Principal Software Architect and Senior Full-Stack Engineer who has implemented SAP S/4HANA (MM, WM, FI/CO, AM, PM) and builds enterprise desktop apps. You write production-grade, strictly typed, modular code.
@@ -74,13 +76,9 @@ WORKING PROTOCOL
             size="sm"
             icon={<Download className="w-4 h-4" />}
             onClick={() => {
-              const blob = new Blob([rulesContent], { type: 'text/markdown;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = 'PROJECT_RULES.md';
-              link.click();
-              URL.revokeObjectURL(url);
+              saveFileUniversal('PROJECT_RULES.md', rulesContent, [
+                { name: 'Markdown Document (*.md)', extensions: ['md'] },
+              ]).catch(console.error);
             }}
           >
             تحميل نسخة MD

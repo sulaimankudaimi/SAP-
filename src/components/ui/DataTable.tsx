@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,7 +22,6 @@ import {
   ChevronLeft,
   ChevronsRight,
   ChevronsLeft,
-  Check,
 } from 'lucide-react';
 import { cn, exportToCSV } from '../../core/utils';
 import { t } from '../../i18n/ar';
@@ -41,7 +40,11 @@ export interface DataTableProps<TData extends object = Record<string, unknown>> 
   onRowSelect?: (selectedRows: TData[]) => void;
   onRowClick?: (row: TData) => void;
   className?: string;
+  initialPageSize?: number;
 }
+
+const ROW_HEIGHT = 44;
+const OVERSCAN = 6;
 
 export function DataTable<TData extends object = Record<string, unknown>>({
   data,
@@ -54,6 +57,7 @@ export function DataTable<TData extends object = Record<string, unknown>>({
   onRowSelect,
   onRowClick,
   className,
+  initialPageSize = 10,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -62,10 +66,14 @@ export function DataTable<TData extends object = Record<string, unknown>>({
   const [globalFilter, setGlobalFilter] = useState('');
   const [showColMenu, setShowColMenu] = useState(false);
 
+  // Memoized data and columns for high-speed selector efficiency
+  const memoizedData = useMemo(() => data, [data]);
+  const memoizedColumns = useMemo(() => columns, [columns]);
+
   // TanStack Table Instance
   const table = useReactTable({
-    data,
-    columns,
+    data: memoizedData,
+    columns: memoizedColumns,
     state: {
       sorting,
       columnFilters,
@@ -77,7 +85,6 @@ export function DataTable<TData extends object = Record<string, unknown>>({
     onRowSelectionChange: (updater) => {
       setRowSelection(updater);
       if (onRowSelect) {
-        // notify selected items
         setTimeout(() => {
           const selected = table.getSelectedRowModel().flatRows.map((r) => r.original);
           onRowSelect(selected);
@@ -94,24 +101,65 @@ export function DataTable<TData extends object = Record<string, unknown>>({
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: initialPageSize,
       },
     },
   });
 
-  const handleExportCSV = () => {
-    // Export currently filtered data
+  const handleExportCSV = useCallback(() => {
     const rowsToExport = table.getFilteredRowModel().flatRows.map((r) => r.original);
     exportToCSV(rowsToExport as unknown as Record<string, unknown>[], exportFileName || exportFilename || 'export_data');
-  };
+  }, [table, exportFileName, exportFilename]);
 
   const selectedRowsCount = table.getFilteredSelectedRowModel().rows.length;
+  const pageRows = table.getRowModel().rows;
+  const totalPageRows = pageRows.length;
+
+  // Virtualization window calculation for fast rendering of large page sizes (> 50 items)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(400);
+
+  const isVirtualized = totalPageRows > 50;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isVirtualized) return;
+
+    const handleScroll = () => {
+      setScrollTop(container.scrollTop);
+    };
+
+    const handleResize = () => {
+      setViewportHeight(container.clientHeight || 400);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isVirtualized]);
+
+  const startIndex = isVirtualized
+    ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+    : 0;
+  const endIndex = isVirtualized
+    ? Math.min(totalPageRows, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN)
+    : totalPageRows;
+
+  const paddingTop = isVirtualized ? startIndex * ROW_HEIGHT : 0;
+  const paddingBottom = isVirtualized ? (totalPageRows - endIndex) * ROW_HEIGHT : 0;
+  const visibleRows = isVirtualized ? pageRows.slice(startIndex, endIndex) : pageRows;
 
   return (
     <div className={cn('bg-white rounded-[16px] border border-[#E5EAF2] shadow-[0_1px_3px_rgba(15,23,42,0.06)] overflow-hidden flex flex-col', className)}>
       {/* Top Toolbar */}
       <div className="p-4 border-b border-[#E5EAF2] flex flex-wrap items-center justify-between gap-3">
-        {/* Global Search */}
+        {/* Global Search with accessible focus ring */}
         <div className="relative flex-1 min-w-[240px] max-w-sm">
           <Search className="w-4 h-4 text-[#64748B] absolute inset-y-0 start-3 my-auto pointer-events-none" />
           <input
@@ -119,7 +167,8 @@ export function DataTable<TData extends object = Record<string, unknown>>({
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs text-[#0F172A] placeholder-[#64748B] ps-9 pe-3 py-2 transition-all focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0FA37F]/30 focus:border-[#0FA37F]"
+            aria-label={searchPlaceholder}
+            className="w-full bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs text-[#0F172A] placeholder-[#64748B] ps-9 pe-3 py-2 transition-all focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0FA37F] focus:border-[#0FA37F]"
           />
         </div>
 
@@ -138,6 +187,7 @@ export function DataTable<TData extends object = Record<string, unknown>>({
               size="sm"
               icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
               onClick={() => setShowColMenu(!showColMenu)}
+              aria-label={t('table_columns_toggle')}
             >
               {t('table_columns_toggle')}
             </Button>
@@ -179,21 +229,27 @@ export function DataTable<TData extends object = Record<string, unknown>>({
             size="sm"
             icon={<Download className="w-3.5 h-3.5" />}
             onClick={handleExportCSV}
+            aria-label={t('action_export_csv')}
           >
             {t('action_export_csv')}
           </Button>
         </div>
       </div>
 
-      {/* Table Body Area */}
-      <div className="overflow-x-auto relative flex-1 min-h-[300px]">
+      {/* Table Body Area with Virtualization Container */}
+      <div
+        ref={containerRef}
+        className="overflow-x-auto relative flex-1 min-h-[300px] max-h-[600px] overflow-y-auto focus-visible:ring-1 focus-visible:ring-[#0FA37F]"
+        tabIndex={0}
+        aria-label="جدول البيانات"
+      >
         {isLoading ? (
           <div className="p-6 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
-        ) : table.getRowModel().rows.length === 0 ? (
+        ) : totalPageRows === 0 ? (
           <EmptyState
             title={t('table_no_data')}
             description={t('empty_description')}
@@ -215,11 +271,20 @@ export function DataTable<TData extends object = Record<string, unknown>>({
                       >
                         {header.isPlaceholder ? null : (
                           <div
+                            tabIndex={canSort ? 0 : undefined}
+                            role={canSort ? 'button' : undefined}
+                            aria-label={canSort ? `ترتيب حسب ${String(header.column.columnDef.header || header.id)}` : undefined}
                             className={cn(
-                              'flex items-center gap-1.5',
+                              'flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#0FA37F] rounded',
                               canSort && 'cursor-pointer hover:text-[#0F172A]'
                             )}
                             onClick={header.column.getToggleSortingHandler()}
+                            onKeyDown={(e) => {
+                              if (canSort && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                header.column.toggleSorting();
+                              }
+                            }}
                           >
                             <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
                             {canSort && (
@@ -242,7 +307,12 @@ export function DataTable<TData extends object = Record<string, unknown>>({
               ))}
             </thead>
             <tbody className="divide-y divide-[#E5EAF2] text-[#0F172A]">
-              {table.getRowModel().rows.map((row) => {
+              {paddingTop > 0 && (
+                <tr>
+                  <td style={{ height: `${paddingTop}px` }} colSpan={table.getAllLeafColumns().length} />
+                </tr>
+              )}
+              {visibleRows.map((row) => {
                 const isSelected = row.getIsSelected();
                 return (
                   <tr
@@ -262,6 +332,11 @@ export function DataTable<TData extends object = Record<string, unknown>>({
                   </tr>
                 );
               })}
+              {paddingBottom > 0 && (
+                <tr>
+                  <td style={{ height: `${paddingBottom}px` }} colSpan={table.getAllLeafColumns().length} />
+                </tr>
+              )}
             </tbody>
           </table>
         )}
@@ -274,9 +349,10 @@ export function DataTable<TData extends object = Record<string, unknown>>({
           <select
             value={table.getState().pagination.pageSize}
             onChange={(e) => table.setPageSize(Number(e.target.value))}
-            className="bg-white border border-[#E5EAF2] rounded-lg px-2 py-1 text-xs font-mono text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#0FA37F]"
+            aria-label={t('table_rows_per_page')}
+            className="bg-white border border-[#E5EAF2] rounded-lg px-2 py-1 text-xs font-mono text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0FA37F]"
           >
-            {[5, 10, 20, 50].map((pageSize) => (
+            {[10, 20, 50, 100, 500].map((pageSize) => (
               <option key={pageSize} value={pageSize}>
                 {pageSize}
               </option>
@@ -291,37 +367,41 @@ export function DataTable<TData extends object = Record<string, unknown>>({
           })}
         </div>
 
-        {/* RTL Navigation controls: forward/backward arrows respect RTL */}
+        {/* RTL Navigation controls */}
         <div className="flex items-center gap-1">
           <button
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
-            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] transition-colors"
+            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0FA37F] transition-colors"
             title="الصفحة الأولى"
+            aria-label="الصفحة الأولى"
           >
             <ChevronsRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] transition-colors"
+            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0FA37F] transition-colors"
             title="السابق"
+            aria-label="السابق"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] transition-colors"
+            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0FA37F] transition-colors"
             title="التالي"
+            aria-label="التالي"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
-            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] transition-colors"
+            className="p-1.5 rounded-lg bg-white border border-[#E5EAF2] disabled:opacity-40 hover:bg-[#E5EAF2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0FA37F] transition-colors"
             title="الصفحة الأخيرة"
+            aria-label="الصفحة الأخيرة"
           >
             <ChevronsLeft className="w-4 h-4" />
           </button>

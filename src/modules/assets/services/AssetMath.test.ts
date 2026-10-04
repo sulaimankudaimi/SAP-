@@ -141,5 +141,10 @@ function runTests() {
   console.log('--- ALL MATHEMATICAL & ACCOUNTING TESTS COMPLETED SUCCESSFULLY ---');
 }
 
-// Auto-run if executed via tsx
-runTests();
+import { describe, it } from 'vitest';
+
+describe('AssetMath Suite', () => {
+  it('executes fixed asset depreciation and disposal balancing math', () => {
+    runTests();
+  });
+});

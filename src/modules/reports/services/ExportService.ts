@@ -72,13 +72,30 @@ export class ExportService {
     XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
 
     const finalFileName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
-    XLSX.writeFile(wb, finalFileName);
+
+    // Check if in Electron native mode
+    if (typeof window !== 'undefined' && window.erpNative?.saveFile) {
+      const u8 = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+      window.erpNative
+        .saveFile(finalFileName, new Uint8Array(u8), [
+          { name: 'Excel Workbook (*.xlsx)', extensions: ['xlsx'] },
+        ])
+        .catch(console.error);
+    } else {
+      XLSX.writeFile(wb, finalFileName);
+    }
   }
 
   /**
-   * Triggers a clean print-friendly layout.
+   * Triggers a clean print-friendly layout or native PDF export.
    */
-  static printReport(): void {
-    window.print();
+  static printReport(defaultName?: string): void {
+    if (typeof window !== 'undefined' && window.erpNative?.printToPDF) {
+      window.erpNative.printToPDF(defaultName).catch(() => {
+        window.print();
+      });
+    } else {
+      window.print();
+    }
   }
 }
