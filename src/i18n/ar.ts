@@ -252,6 +252,11 @@ export const ar = {
   nav_period_end: 'إقفال الفترات المالية',
   nav_financial_statements: 'القوائم المالية',
   nav_account_rules: 'قواعد التوجيه الآلي',
+  nav_backup: 'النسخ الاحتياطي والاستعادة',
+  nav_workflow: 'سير العمل والاعتمادات',
+  nav_approvals: 'طلبات الموافقة',
+  nav_notifications: 'مركز الإشعارات',
+  nav_print_templates: 'قوالب المطبوعات الرسمية',
 
   // Login
   login_title: 'بوابة الدخول للنظام المكتبي',

@@ -63,10 +63,9 @@ export const TripModal: React.FC<TripModalProps> = ({
       const toLocalIso = (d: Date) => d.toISOString().slice(0, 16);
 
       if (tripToComplete) {
-        setEndOdometer(tripToComplete.startOdometer + 350);
         setActualArrival(toLocalIso(now));
-        setFuelConsumedLiters(130);
-        setDriverAllowance(150);
+        setFuelConsumedLiters(0);
+        setDriverAllowance(0);
       } else {
         setScheduledDeparture(toLocalIso(now));
         setScheduledArrival(toLocalIso(later));
@@ -84,12 +83,17 @@ export const TripModal: React.FC<TripModalProps> = ({
       setVehicles(vList);
       setDrivers(dList);
 
-      if (vList.length > 0 && !selectedVehicleId) {
-        setSelectedVehicleId(vList[0].id);
-        setStartOdometer(vList[0].currentOdometer || 0);
-      }
-      if (dList.length > 0 && !selectedDriverId) {
-        setSelectedDriverId(dList[0].id);
+      if (tripToComplete) {
+        const targetVehicle = await FleetService.getVehicleById(tripToComplete.vehicleId);
+        setEndOdometer(targetVehicle?.currentOdometer || tripToComplete.startOdometer);
+      } else {
+        if (vList.length > 0 && !selectedVehicleId) {
+          setSelectedVehicleId(vList[0].id);
+          setStartOdometer(vList[0].currentOdometer || 0);
+        }
+        if (dList.length > 0 && !selectedDriverId) {
+          setSelectedDriverId(dList[0].id);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -142,8 +146,9 @@ export const TripModal: React.FC<TripModalProps> = ({
       success('تم بنجاح', `تم إنشاء أمر الشحن وانطلاق الرحلة: ${trip.docNumber}`);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إنشاء الرحلة');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'تعذر إنشاء الرحلة';
+      error('خطأ', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -174,8 +179,9 @@ export const TripModal: React.FC<TripModalProps> = ({
       );
       onSuccess();
       onClose();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إكمال الرحلة');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'تعذر إكمال الرحلة';
+      error('خطأ', msg);
     } finally {
       setIsSubmitting(false);
     }

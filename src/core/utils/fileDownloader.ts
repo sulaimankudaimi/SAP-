@@ -40,8 +40,7 @@ export async function saveFileUniversal(
   } else if (typeof data === 'string') {
     blob = new Blob([data], { type: 'text/plain;charset=utf-8;' });
   } else {
-    const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-    blob = new Blob([arrayBuffer]);
+    blob = new Blob([data as unknown as BlobPart]);
   }
 
   const url = URL.createObjectURL(blob);

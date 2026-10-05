@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { AutomaticPostingEngine } from './AutomaticPostingEngine';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type { VendorInvoice, Payment, Vendor } from '../../../types/models';
 
 export interface AgingBucket {
@@ -284,6 +285,7 @@ export class AccountsPayableService {
     paymentDate: string;
     createdBy: string;
   }): Promise<{ successfulPayments: Payment[]; totalPaid: number; totalDiscounts: number }> {
+    requirePermission({ module: 'FI', activity: 'post' });
     const selected = params.items.filter((item) => item.selected && !item.isBlocked);
     if (selected.length === 0) {
       throw new Error('لم يتم تحديد أي فواتير معتمدة للصرف والدفع.');

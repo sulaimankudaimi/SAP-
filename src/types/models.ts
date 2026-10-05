@@ -1236,3 +1236,46 @@ export interface AnomalyItem {
   severity: 'high' | 'medium' | 'low';
   explanationArabic: string;
 }
+
+// Workflow Approval Rules Models
+export type WorkflowDocumentType = 'PR' | 'PO' | 'CONTRACT' | 'DISPOSAL' | 'PAYMENT';
+
+export interface ApprovalRuleStep {
+  stepNumber: number;
+  roleCode: string;
+  roleName: string;
+}
+
+export interface ApprovalRule {
+  id: string;
+  documentType: WorkflowDocumentType;
+  minAmount: number;
+  maxAmount: number;
+  steps: ApprovalRuleStep[];
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  isDeleted: boolean;
+}
+
+// Print Templates Models
+export type PrintDocumentType = 'PO' | 'GR' | 'INVOICE' | 'VOUCHER';
+
+export interface PrintTemplate {
+  id: string;
+  documentType: PrintDocumentType;
+  companyNameArabic: string;
+  companyNameEnglish: string;
+  taxNumber: string;
+  commercialRecord: string;
+  headerText: string;
+  footerText: string;
+  termsAndConditions: string;
+  logoBase64?: string;
+  showSignatureBlock: boolean;
+  showStampBlock: boolean;
+  bankDetails?: string;
+  updatedAt: string;
+}
+

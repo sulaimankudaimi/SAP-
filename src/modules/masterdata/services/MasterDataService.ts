@@ -12,6 +12,7 @@ import {
   attachmentRepository,
 } from '../../../core/repositories';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   Material,
   Vendor,
@@ -250,6 +251,7 @@ export class MasterDataService {
     userId: string,
     userName: string
   ): Promise<void> {
+    requirePermission({ module: 'MD', activity: 'change' });
     const repoMap = {
       materials: materialRepository,
       vendors: vendorRepository,
@@ -375,6 +377,7 @@ export class MasterDataService {
     userId: string,
     userName: string
   ): Promise<Attachment> {
+    requirePermission({ module: 'MD', activity: 'change' });
     const newRecord: Attachment = {
       ...attachmentData,
       id: `ATT-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -397,6 +400,7 @@ export class MasterDataService {
   }
 
   static async deleteAttachment(id: string, userId: string, userName: string): Promise<void> {
+    requirePermission({ module: 'MD', activity: 'delete' });
     const before = await attachmentRepository.getById(id);
     if (!before) return;
 
@@ -535,6 +539,7 @@ export class MasterDataService {
     userName: string
   ): Promise<number> {
     if (validRows.length === 0) return 0;
+    requirePermission({ module: 'MD', activity: 'create' });
 
     switch (entityType) {
       case 'materials':

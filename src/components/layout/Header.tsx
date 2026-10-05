@@ -13,41 +13,20 @@ import {
   Shield,
   Activity,
   UserCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { t } from '../../i18n/ar';
-import { NotificationItem } from '../../types';
 import { useToast } from '../ui/Toast';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useAuthStore } from '../../core/auth/useAuthStore';
+import { TCodeBar } from './TCodeBar';
+import { NotificationService } from '../../core/services/NotificationService';
+import type { Notification } from '../../types/models';
 
 export interface HeaderProps {
   onOpenCommandPalette: () => void;
 }
-
-const mockNotifications: NotificationItem[] = [
-  {
-    id: 'n1',
-    title: 'طلب اعتماد جديد لأمر الشراء PO-2026-000042',
-    time: 'منذ 10 دقائق',
-    unread: true,
-    type: 'procurement',
-  },
-  {
-    id: 'n2',
-    title: 'استلام صهريج وقود ديزل Euro 5 بمحطة ينبع (MIGO 101)',
-    time: 'منذ ساعة',
-    unread: true,
-    type: 'inventory',
-  },
-  {
-    id: 'n3',
-    title: 'اكتمال فحص السلامة الوقائية لأسطول النقل (الرياض)',
-    time: 'منذ 3 ساعات',
-    unread: false,
-    type: 'system',
-  },
-];
 
 export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
   const navigate = useNavigate();
@@ -77,10 +56,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
 
   // Dropdown States
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const loadNotifications = async () => {
+    try {
+      await NotificationService.generateSystemNotifications();
+      const list = await NotificationService.getNotifications({ userId: user?.id });
+      setNotifications(list);
+    } catch (e) {
+      console.error('Failed to load notifications in header', e);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, [user?.id]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleSaveContext = () => {
     setCompanyCode(tempCompany);
@@ -90,8 +83,26 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
     success(t('context_saved'), `الشركة: ${tempCompany} | المحطة: ${tempPlant} | السنة: ${tempYear}`);
   };
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  const handleMarkAllRead = async () => {
+    try {
+      await NotificationService.markAllAsRead(user?.id);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleNotificationClick = async (item: Notification) => {
+    if (!item.isRead) {
+      await NotificationService.markAsRead(item.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
+      );
+    }
+    setShowNotifications(false);
+    if (item.link) {
+      navigate(item.link);
+    }
   };
 
   const handleLogout = () => {
@@ -111,17 +122,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
   return (
     <>
       <header className="h-16 bg-white border-b border-[#E5EAF2] px-6 flex items-center justify-between sticky top-0 z-20">
-        {/* Global Search Input trigger for Command Palette */}
-        <div className="flex-1 max-w-md">
+        {/* SAP T-Code Box & Command Palette Search */}
+        <div className="flex-1 max-w-xl flex items-center gap-3">
+          <TCodeBar />
           <button
             onClick={onOpenCommandPalette}
-            className="w-full flex items-center justify-between bg-[#F4F7FB] hover:bg-slate-100 border border-[#E5EAF2] rounded-xl px-3.5 py-2 text-xs text-[#64748B] transition-all cursor-pointer group"
+            className="flex-1 hidden md:flex items-center justify-between bg-[#F4F7FB] hover:bg-slate-100 border border-[#E5EAF2] rounded-xl px-3 py-1.5 text-xs text-[#64748B] transition-all cursor-pointer group"
           >
-            <div className="flex items-center gap-2.5">
-              <Search className="w-4 h-4 text-[#64748B] group-hover:text-[#0FA37F] transition-colors" />
-              <span>{t('cmd_placeholder')}</span>
+            <div className="flex items-center gap-2">
+              <Search className="w-3.5 h-3.5 text-[#64748B] group-hover:text-[#0FA37F] transition-colors" />
+              <span className="truncate">{t('cmd_placeholder')}</span>
             </div>
-            <kbd className="hidden sm:inline-flex items-center gap-1 font-mono text-[10px] bg-white border border-[#E5EAF2] text-[#64748B] px-1.5 py-0.5 rounded shadow-xs">
+            <kbd className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] bg-white border border-[#E5EAF2] text-[#64748B] px-1.5 py-0.5 rounded shadow-xs">
               Ctrl+K
             </kbd>
           </button>
@@ -162,6 +174,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
+                if (!showNotifications) {
+                  loadNotifications();
+                }
               }}
               className="relative p-2 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F4F7FB] transition-colors cursor-pointer"
               title={t('notifications_title')}
@@ -196,24 +211,47 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
                 </div>
 
                 <div className="divide-y divide-[#E5EAF2] max-h-72 overflow-y-auto my-2">
-                  {notifications.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`p-3 space-y-1 transition-colors hover:bg-[#F4F7FB] rounded-lg ${
-                        item.unread ? 'bg-[#0FA37F]/5' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-[#0F172A] leading-snug">
-                          {item.title}
-                        </span>
-                        {item.unread && (
-                          <span className="w-2 h-2 rounded-full bg-[#0FA37F] shrink-0 ms-2" />
-                        )}
-                      </div>
-                      <span className="text-[10px] text-[#64748B] block">{item.time}</span>
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-[#64748B]">
+                      لا توجد إشعارات جديدة حالياً
                     </div>
-                  ))}
+                  ) : (
+                    notifications.slice(0, 8).map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleNotificationClick(item)}
+                        className={`p-3 space-y-1 transition-colors hover:bg-[#F4F7FB] rounded-lg cursor-pointer ${
+                          !item.isRead ? 'bg-[#0FA37F]/5' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-[#0F172A] leading-snug">
+                            {item.title}
+                          </span>
+                          {!item.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-[#0FA37F] shrink-0 ms-2" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#64748B] line-clamp-1">{item.message}</p>
+                        <span className="text-[9px] text-slate-400 font-mono block">
+                          {item.createdAt.slice(0, 16).replace('T', ' ')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-[#E5EAF2] text-center">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(false);
+                      navigate('/notifications');
+                    }}
+                    className="text-xs font-semibold text-[#0FA37F] hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>عرض كافة الإشعارات والتنبيهات</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             )}

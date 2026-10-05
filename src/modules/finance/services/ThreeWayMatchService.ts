@@ -1,5 +1,6 @@
 import { db } from '../../../core/db';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type { VendorInvoice, BlockingReason, PurchaseOrder, GoodsReceipt } from '../../../types/models';
 
 export interface MatchResult {
@@ -129,6 +130,7 @@ export class ThreeWayMatchService {
     reason: string,
     releasedByUserId: string
   ): Promise<VendorInvoice> {
+    requirePermission({ module: 'FI', activity: 'approve' });
     const invoice = await db.vendorInvoices.get(invoiceId);
     if (!invoice) throw new Error('فاتورة المورد غير موجودة.');
     if (!invoice.isPaymentBlocked) throw new Error('الفاتورة غير محجوبة بالفعل.');

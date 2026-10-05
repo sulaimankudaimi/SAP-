@@ -1,14 +1,17 @@
 import { approvalRepository, notificationRepository } from '../repositories';
+import { requirePermission } from '../security/SessionContext';
+import { WorkflowService } from '../../modules/admin/services/WorkflowService';
 import type {
   ApprovalRequest,
   ApprovalStep,
   User,
+  WorkflowDocumentType,
 } from '../../types/models';
 import { SYSTEM_ROLES } from './RbacService';
 
 export class ApprovalService {
   /**
-   * Evaluates sequential approval steps required for a document based on amount thresholds.
+   * Synchronous fallback for threshold calculations.
    */
   static determineSteps(
     documentType: 'PR' | 'PO' | 'CONTRACT' | 'DISPOSAL',
@@ -81,17 +84,25 @@ export class ApprovalService {
   }
 
   /**
-   * Submits a document for approval.
+   * Submits a document for approval reading configurable rules dynamically from DB.
    */
   static async submitForApproval(options: {
-    documentType: 'PR' | 'PO' | 'CONTRACT' | 'DISPOSAL';
+    documentType: WorkflowDocumentType;
     documentId: string;
     documentNumber: string;
     amount: number;
     currency?: string;
     requester: User;
   }): Promise<ApprovalRequest> {
-    const steps = this.determineSteps(options.documentType, options.amount);
+    const moduleCode =
+      options.documentType === 'DISPOSAL'
+        ? 'AM'
+        : options.documentType === 'PAYMENT'
+        ? 'FI'
+        : 'MM';
+
+    requirePermission({ module: moduleCode, activity: 'create' }, { amount: options.amount });
+    const steps = await WorkflowService.determineSteps(options.documentType, options.amount);
     const id = `APR-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
     const request: ApprovalRequest = {
@@ -147,6 +158,14 @@ export class ApprovalService {
     if (!request) {
       throw new Error(`Approval request with ID ${options.requestId} not found`);
     }
+
+    const moduleCode =
+      request.documentType === 'DISPOSAL'
+        ? 'AM'
+        : request.documentType === 'PAYMENT'
+        ? 'FI'
+        : 'MM';
+    requirePermission({ module: moduleCode, activity: 'approve' }, { amount: request.amount });
 
     if (request.status !== 'pending') {
       throw new Error(`طلب الاعتماد هذا قد تمت معالجته مسبقاً بحالة (${request.status}).`);

@@ -6,6 +6,7 @@ import {
 } from '../../../core/repositories';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   JournalEntry,
   JournalEntryLine,
@@ -91,6 +92,7 @@ export class FinanceService {
     status: 'Open' | 'Closed',
     userId: string
   ): Promise<void> {
+    requirePermission({ module: 'FI', activity: 'change' });
     const periodRecord = await db.fiscalPeriods
       .where({ fiscalYear, period })
       .first();
@@ -130,6 +132,12 @@ export class FinanceService {
     if (!input.lines || input.lines.length < 2) {
       throw new Error('يجب أن يحتوي القيد المحاسبي على طرفين على الأقل (مدين ودائن).');
     }
+
+    const firstCostCenter = input.lines.find((l) => l.costCenter)?.costCenter;
+    requirePermission(
+      { module: 'FI', activity: input.isParked ? 'create' : 'post' },
+      { costCenter: firstCostCenter }
+    );
 
     // Validate period if posting (parked docs can be drafted)
     if (!input.isParked) {
@@ -217,6 +225,7 @@ export class FinanceService {
    * Posts a previously parked document (FBV0).
    */
   static async postParkedDocument(id: string, userId: string): Promise<JournalEntry> {
+    requirePermission({ module: 'FI', activity: 'post' });
     const entry = await db.journalEntries.get(id);
     if (!entry) throw new Error('مستند القيد المحفوظ غير موجود.');
     if (!entry.isParked) throw new Error('المستند مرحل بالفعل.');
@@ -262,6 +271,7 @@ export class FinanceService {
     userId: string,
     reversalDate?: string
   ): Promise<JournalEntry> {
+    requirePermission({ module: 'FI', activity: 'reverse' });
     const original = await db.journalEntries.where('docNumber').equals(docNumber).first();
     if (!original) throw new Error(`المستند المحاسبي ${docNumber} غير موجود.`);
     if (original.isReversed) throw new Error(`المستند ${docNumber} تم عكسه وإلغاؤه مسبقاً بموجب ${original.reversalDocNumber}.`);

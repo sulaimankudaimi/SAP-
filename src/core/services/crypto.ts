@@ -9,6 +9,16 @@ const HMAC_KEY_ID = 'session_hmac_key';
 
 let cachedHmacKey: CryptoKey | null = null;
 
+function getWebCrypto(): Crypto {
+  if (typeof window !== 'undefined' && window.crypto) {
+    return window.crypto;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+    return globalThis.crypto;
+  }
+  throw new Error('Web Crypto API is not available in this environment');
+}
+
 function openKeyDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
@@ -32,6 +42,20 @@ async function getOrGenerateHmacKey(): Promise<CryptoKey> {
     return cachedHmacKey;
   }
 
+  const cryptoApi = getWebCrypto();
+
+  if (typeof indexedDB === 'undefined') {
+    cachedHmacKey = await cryptoApi.subtle.generateKey(
+      {
+        name: 'HMAC',
+        hash: { name: 'SHA-256' },
+      },
+      false, // non-extractable per security spec
+      ['sign', 'verify']
+    );
+    return cachedHmacKey;
+  }
+
   const idb = await openKeyDatabase();
   return new Promise((resolve, reject) => {
     const tx = idb.transaction(IDB_KEY_STORE, 'readwrite');
@@ -44,7 +68,7 @@ async function getOrGenerateHmacKey(): Promise<CryptoKey> {
         resolve(cachedHmacKey!);
       } else {
         try {
-          const generatedKey = await window.crypto.subtle.generateKey(
+          const generatedKey = await cryptoApi.subtle.generateKey(
             {
               name: 'HMAC',
               hash: { name: 'SHA-256' },
@@ -77,7 +101,7 @@ export class CryptoService {
    */
   static generateSalt(): string {
     const array = new Uint8Array(16);
-    window.crypto.getRandomValues(array);
+    getWebCrypto().getRandomValues(array);
     return Array.from(array)
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
@@ -90,8 +114,9 @@ export class CryptoService {
     const encoder = new TextEncoder();
     const passwordBuffer = encoder.encode(password);
     const saltBuffer = encoder.encode(salt);
+    const cryptoApi = getWebCrypto();
 
-    const baseKey = await window.crypto.subtle.importKey(
+    const baseKey = await cryptoApi.subtle.importKey(
       'raw',
       passwordBuffer,
       'PBKDF2',
@@ -99,7 +124,7 @@ export class CryptoService {
       ['deriveBits']
     );
 
-    const derivedBits = await window.crypto.subtle.deriveBits(
+    const derivedBits = await cryptoApi.subtle.deriveBits(
       {
         name: 'PBKDF2',
         salt: saltBuffer,
@@ -146,7 +171,7 @@ export class CryptoService {
     const key = await getOrGenerateHmacKey();
     const encoder = new TextEncoder();
     const dataBuffer = encoder.encode(payload);
-    const sigBuffer = await window.crypto.subtle.sign('HMAC', key, dataBuffer);
+    const sigBuffer = await getWebCrypto().subtle.sign('HMAC', key, dataBuffer);
     return Array.from(new Uint8Array(sigBuffer))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');

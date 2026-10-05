@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { FinanceService } from './FinanceService';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   CostCenter,
   Budget,
@@ -180,6 +181,10 @@ export class ControllingService {
     segments: CostAllocationSegment[];
     createdBy: string;
   }): Promise<CostAllocationCycle> {
+    requirePermission(
+      { module: 'CO', activity: 'post' },
+      { costCenter: params.senderCostCenter, amount: params.totalAmount }
+    );
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(
       `${params.fiscalYear}-${String(params.period).padStart(2, '0')}-01`
     );

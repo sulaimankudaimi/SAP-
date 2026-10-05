@@ -7,6 +7,7 @@ import {
 } from '../../../core/repositories';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   Asset,
   AssetClass,
@@ -137,6 +138,10 @@ export class AssetService {
     input: CreateAssetInput,
     user: { id: string; fullName: string }
   ): Promise<{ asset: Asset; je?: JournalEntry }> {
+    requirePermission(
+      { module: 'AM', activity: 'create' },
+      { plant: input.plantCode, costCenter: input.costCenter, amount: input.acquisitionCost }
+    );
     const fiscalYear = input.acquisitionDate
       ? input.acquisitionDate.split('-')[0]
       : new Date().getFullYear().toString();
@@ -275,6 +280,11 @@ export class AssetService {
       throw new Error('الأصل المحدد ليس أصلاً قيد التنفيذ ليتم تسويته.');
     }
 
+    requirePermission(
+      { module: 'AM', activity: 'post' },
+      { plant: auc.plantCode, costCenter: auc.costCenter, amount: auc.acquisitionCost }
+    );
+
     const settlementAmount = auc.acquisitionCost;
     const now = new Date().toISOString();
     const fiscalYear = options.targetAssetInput.acquisitionDate.split('-')[0] || '2026';
@@ -374,6 +384,11 @@ export class AssetService {
       throw new Error('لا يمكن نقل أصل مستبعد أو مُكهَّن.');
     }
 
+    requirePermission(
+      { module: 'AM', activity: 'create' },
+      { plant: asset.plantCode, costCenter: asset.costCenter }
+    );
+
     const fiscalYear = new Date().getFullYear().toString();
     const docNumber = await NumberRangeService.getNextNumber('AST', fiscalYear);
     const now = new Date().toISOString();
@@ -438,6 +453,11 @@ export class AssetService {
       throw new Error('طلب النقل غير موجود.');
     }
 
+    requirePermission(
+      { module: 'AM', activity: 'approve' },
+      { plant: transfer.toPlant, costCenter: transfer.toCostCenter }
+    );
+
     const asset = await assetRepository.getById(transfer.assetId);
     if (!asset || asset.isDeleted) {
       throw new Error('الأصل المرتبط بطلب النقل غير موجود.');
@@ -486,6 +506,7 @@ export class AssetService {
     transferId: string,
     user: { id: string; fullName: string }
   ): Promise<AssetTransfer> {
+    requirePermission({ module: 'AM', activity: 'change' });
     const transfer = await assetTransferRepository.getById(transferId);
     if (!transfer || transfer.isDeleted) {
       throw new Error('طلب النقل غير موجود.');
@@ -528,6 +549,11 @@ export class AssetService {
     if (asset.status === 'Disposed') {
       throw new Error('هذا الأصل مُكهَّن ومستبعد مسبقاً.');
     }
+
+    requirePermission(
+      { module: 'AM', activity: 'post' },
+      { plant: asset.plantCode, costCenter: asset.costCenter, amount: input.proceeds }
+    );
 
     const cost = asset.acquisitionCost;
     const accDep = asset.accumulatedDepreciation;
@@ -713,6 +739,7 @@ export class AssetService {
     input: AssetValuationInput,
     user: { id: string; fullName: string }
   ): Promise<AssetValuation> {
+    requirePermission({ module: 'AM', activity: 'change' });
     const asset = await assetRepository.getById(assetId);
     if (!asset || asset.isDeleted) {
       throw new Error('الأصل المطلوب تسجيل الفحص الفني له غير موجود.');

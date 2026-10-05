@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { FinanceService } from './FinanceService';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   AccountDeterminationRule,
   JournalEntry,
@@ -185,6 +186,11 @@ export class AutomaticPostingEngine {
       return { success: true, jeDocNumber: '' };
     }
 
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { plant: params.plantCode, costCenter: params.costCenter, amount: params.amount }
+    );
+
     const rule = await this.getRule('GR');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.postingDate);
 
@@ -261,6 +267,10 @@ export class AutomaticPostingEngine {
     createdBy: string;
   }): Promise<{ success: boolean; jeDocNumber: string }> {
     const inv = params.invoice;
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: inv.totalAmount }
+    );
     const rule = await this.getRule('IR');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(inv.postingDate || inv.invoiceDate);
 
@@ -361,6 +371,11 @@ export class AutomaticPostingEngine {
   }): Promise<{ success: boolean; jeDocNumber: string }> {
     if (params.amount <= 0) return { success: true, jeDocNumber: '' };
 
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { costCenter: params.costCenter, amount: params.amount }
+    );
+
     const rule = await this.getRule('GI');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.postingDate);
 
@@ -449,6 +464,10 @@ export class AutomaticPostingEngine {
     discountTaken?: number;
     createdBy: string;
   }): Promise<{ success: boolean; jeDocNumber: string }> {
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: params.payment.amount }
+    );
     const pay = params.payment;
     const rule = await this.getRule('PAYMENT');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(pay.paymentDate);
@@ -545,6 +564,10 @@ export class AutomaticPostingEngine {
     createdBy: string;
   }): Promise<{ success: boolean; jeDocNumber: string }> {
     const inv = params.invoice;
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: inv.totalAmount }
+    );
     const rule = await this.getRule('AR_INV');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(inv.postingDate || inv.invoiceDate);
 
@@ -639,6 +662,10 @@ export class AutomaticPostingEngine {
     createdBy: string;
   }): Promise<{ success: boolean; jeDocNumber: string }> {
     const rec = params.receipt;
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: rec.amount }
+    );
     const rule = await this.getRule('AR_PAY');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(rec.receiptDate);
 

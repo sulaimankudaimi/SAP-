@@ -12,6 +12,7 @@ import { useToast } from '../components/ui/Toast';
 import { AuthService } from '../core/services/AuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
 import { DatabaseSeeder } from '../seed';
+import { db } from '../core/db';
 
 const loginSchema = z.object({
   username: z.string().min(2, 'يرجى إدخال اسم المستخدم أو الرقم الوظيفي'),
@@ -192,9 +193,11 @@ export const LoginPage: React.FC = () => {
               label={t('login_remember')}
               {...register('remember')}
             />
-            <span className="text-[11px] font-mono text-[#0FA37F]">
-              كلمة المرور الافتراضية: Admin@123
-            </span>
+            {isDemoMode && (
+              <span className="text-[11px] font-mono text-[#0FA37F]">
+                كلمة المرور الافتراضية: Admin@123
+              </span>
+            )}
           </div>
 
           <Button

@@ -1,5 +1,6 @@
 import { db } from '../../../core/db';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type { Budget, CostCenter } from '../../../types/models';
 
 export interface BudgetAvailabilityCheckResult {
@@ -93,6 +94,7 @@ export class BudgetService {
     fiscalYear: string = '2026',
     userId: string = 'usr-admin-1'
   ): Promise<void> {
+    requirePermission({ module: 'CO', activity: 'change' }, { costCenter, amount });
     const budget = await db.budgets.where({ costCenter, fiscalYear }).first();
     if (!budget) return;
 
@@ -118,6 +120,7 @@ export class BudgetService {
     fiscalYear: string = '2026',
     userId: string = 'usr-admin-1'
   ): Promise<void> {
+    requirePermission({ module: 'CO', activity: 'change' }, { costCenter, amount });
     const budget = await db.budgets.where({ costCenter, fiscalYear }).first();
     if (!budget) return;
 
@@ -136,6 +139,7 @@ export class BudgetService {
     allocatedAmount: number,
     userId: string
   ): Promise<Budget> {
+    requirePermission({ module: 'CO', activity: 'change' }, { costCenter, amount: allocatedAmount });
     const existing = await db.budgets.where({ costCenter, fiscalYear }).first();
     const cc = await db.costCenters.where('code').equals(costCenter).first();
 

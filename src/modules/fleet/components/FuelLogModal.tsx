@@ -119,8 +119,9 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر تسجيل قيد الوقود');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'تعذر تسجيل قيد الوقود';
+      error('خطأ', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +177,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
             label="نوع الوقود:"
             value={fuelType}
             onChange={(e) => {
-              const val = e.target.value as any;
+              const val = e.target.value as 'Diesel' | 'Gasoline95' | 'Gasoline91';
               setFuelType(val);
               setCostPerLiter(val === 'Diesel' ? 1.15 : val === 'Gasoline95' ? 2.33 : 2.18);
             }}

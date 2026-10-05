@@ -94,6 +94,8 @@ export class GulfErpDatabase extends Dexie {
   costAllocationCycles!: Table<import('../../types/models').CostAllocationCycle, string>;
   internalOrders!: Table<import('../../types/models').InternalOrder, string>;
   reportSnapshots!: Table<import('../../types/models').ReportSnapshot, string>;
+  approvalRules!: Table<import('../../types/models').ApprovalRule, string>;
+  printTemplates!: Table<import('../../types/models').PrintTemplate, string>;
 
   constructor() {
     super('gulf_erp');
@@ -152,6 +154,8 @@ export class GulfErpDatabase extends Dexie {
       costAllocationCycles: 'id, docNumber, cycleCode, fiscalYear, period, isDeleted',
       internalOrders: 'id, orderNumber, responsibleCostCenter, status, isDeleted',
       reportSnapshots: 'id, reportId, reportCode, category, createdBy, createdAt',
+      approvalRules: 'id, documentType, isDeleted',
+      printTemplates: 'id, documentType',
     });
   }
 }

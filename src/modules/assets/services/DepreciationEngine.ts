@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { assetRepository, depreciationRepository, journalRepository } from '../../../core/repositories';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   Asset,
   DepreciationRun,
@@ -233,6 +234,11 @@ export class DepreciationEngine {
       throw new Error('لا توجد أصول مستحقة للإهلاك خلال هذه الفترة المالية.');
     }
 
+    requirePermission(
+      { module: 'AM', activity: 'post' },
+      { plant: options.plantCode, amount: preview.totalDepreciation }
+    );
+
     // Generate Document Numbers
     const docNumber = await NumberRangeService.getNextNumber('DEP', options.fiscalYear);
     const jeDocNumber = await NumberRangeService.getNextNumber('JE', options.fiscalYear);
@@ -364,6 +370,11 @@ export class DepreciationEngine {
     if (run.reversalDocNumber || run.status === 'rejected') {
       throw new Error('تم إلغاء أو عكس دورة الإهلاك هذه مسبقاً.');
     }
+
+    requirePermission(
+      { module: 'AM', activity: 'reverse' },
+      { amount: run.totalDepreciationAmount }
+    );
 
     const stornoDocNumber = await NumberRangeService.getNextNumber('JE', run.fiscalYear);
     const now = new Date().toISOString();

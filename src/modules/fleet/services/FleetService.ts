@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { InventoryService } from '../../inventory/services/InventoryService';
+import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   Vehicle,
   VehicleType,
@@ -97,6 +98,7 @@ export class FleetService {
     data: Omit<Vehicle, 'id' | 'isDeleted'>,
     userId: string = 'u-flt-mgr'
   ): Promise<Vehicle> {
+    requirePermission({ module: 'TM', activity: 'create' });
     const id = `veh-${Date.now()}`;
     const vehicle: Vehicle = {
       ...data,
@@ -124,6 +126,7 @@ export class FleetService {
   ): Promise<Vehicle> {
     const before = await db.vehicles.get(id);
     if (!before) throw new Error('المركبة غير موجودة');
+    requirePermission({ module: 'TM', activity: 'change' });
 
     const updated: Vehicle = {
       ...before,
@@ -214,6 +217,7 @@ export class FleetService {
     data: Omit<Driver, 'id' | 'isDeleted'>,
     userId: string = 'u-flt-mgr'
   ): Promise<Driver> {
+    requirePermission({ module: 'TM', activity: 'create' });
     const id = `drv-${Date.now()}`;
     const driver: Driver = {
       ...data,
@@ -239,6 +243,7 @@ export class FleetService {
     data: Partial<Driver>,
     userId: string = 'u-flt-mgr'
   ): Promise<Driver> {
+    requirePermission({ module: 'TM', activity: 'change' });
     const before = await db.drivers.get(id);
     if (!before) throw new Error('السائق غير موجود');
 
@@ -299,6 +304,8 @@ export class FleetService {
 
     const driver = await db.drivers.get(input.driverId);
     if (!driver) throw new Error('السائق المحدد غير موجود');
+
+    requirePermission({ module: 'TM', activity: 'create' }, { plant: input.originPlant });
 
     const docNumber = await NumberRangeService.getNextNumber('TRIP', '2026');
     const now = new Date().toISOString();
@@ -364,6 +371,8 @@ export class FleetService {
   ): Promise<Trip> {
     const trip = await db.trips.get(tripId);
     if (!trip) throw new Error('الرحلة غير موجودة');
+
+    requirePermission({ module: 'TM', activity: 'change' }, { plant: trip.originPlant });
 
     if (input.endOdometer < trip.startOdometer) {
       throw new Error(
@@ -476,6 +485,7 @@ export class FleetService {
     if (!driver) throw new Error('السائق غير موجود');
 
     const totalCost = input.quantityLiters * input.costPerLiter;
+    requirePermission({ module: 'TM', activity: 'create' }, { amount: totalCost });
 
     // Calculate consumption L/100km using previous fuel log
     const prevLogs = await db.fuelLogs
@@ -585,6 +595,7 @@ export class FleetService {
     notes: string,
     userId: string = 'u-flt-mgr'
   ): Promise<void> {
+    requirePermission({ module: 'TM', activity: 'change' });
     await db.fuelAnomalyAlerts.update(alertId, {
       status: 'resolved',
       resolvedNotes: notes,
@@ -624,6 +635,11 @@ export class FleetService {
   ): Promise<MaintenanceOrder> {
     const vehicle = await db.vehicles.get(input.vehicleId);
     if (!vehicle) throw new Error('المركبة غير موجودة');
+
+    requirePermission(
+      { module: 'TM', activity: 'create' },
+      { amount: input.estimatedCost }
+    );
 
     const docNumber = await NumberRangeService.getNextNumber('MO', '2026');
     const now = new Date().toISOString();
@@ -686,6 +702,8 @@ export class FleetService {
       throw new Error('يرجى تحديد قطعة غيار واحدة على الأقل للصرف');
     }
 
+    requirePermission({ module: 'WM', activity: 'post' }, { plant: plantCode });
+
     // Call InventoryService with Movement Type 261 (Goods Issue for Maintenance Order)
     const movementResult = await InventoryService.postMaterialDocument({
       movementType: '261',
@@ -745,6 +763,8 @@ export class FleetService {
   ): Promise<MaintenanceOrder> {
     const order = await db.maintenanceOrders.get(orderId);
     if (!order) throw new Error('أمر الصيانة غير موجود');
+
+    requirePermission({ module: 'TM', activity: 'change' });
 
     const laborRate = input.laborRatePerHour || 120; // 120 SAR per tech hour
     const laborCost = input.laborHours * laborRate;

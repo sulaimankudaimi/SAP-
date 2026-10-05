@@ -878,6 +878,7 @@ export class InventoryService {
     abcClassFilter?: 'A' | 'B' | 'C' | 'ALL';
     userId: string;
   }): Promise<PhysicalInventoryDoc> {
+    requirePermission({ module: 'WM', activity: 'create' }, { plant: params.plantCode });
     const docNumber = await NumberRangeService.getNextNumber('PI', '2026');
     const now = new Date().toISOString();
 
@@ -946,6 +947,7 @@ export class InventoryService {
   ): Promise<PhysicalInventoryDoc> {
     const pi = await db.physicalInventoryDocs.get(piId);
     if (!pi) throw new Error('مستند الجرد غير موجود');
+    requirePermission({ module: 'WM', activity: 'change' }, { plant: pi.plantCode });
 
     let totalVarianceValue = 0;
     const updatedItems = pi.items.map((item) => {
@@ -990,6 +992,7 @@ export class InventoryService {
     const pi = await db.physicalInventoryDocs.get(piId);
     if (!pi) throw new Error('مستند الجرد غير موجود');
     if (pi.status === 'completed') throw new Error('تم ترحيل فروقات هذا المستند مسبقاً');
+    requirePermission({ module: 'WM', activity: 'post' }, { plant: pi.plantCode });
 
     const materialDocNumbers: string[] = [];
 
