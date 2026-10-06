@@ -39,6 +39,13 @@ const ProjectRulesPage = lazy(() => import('../pages/ProjectRulesPage').then((m)
 const DevAdminPage = lazy(() => import('../pages/DevAdminPage').then((m) => ({ default: m.DevAdminPage })));
 const DiagnosticsPage = lazy(() => import('../pages/DiagnosticsPage').then((m) => ({ default: m.DiagnosticsPage })));
 const AboutPage = lazy(() => import('../pages/AboutPage').then((m) => ({ default: m.AboutPage })));
+const NotificationsPage = lazy(() => import('../pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+
+// Admin Module Pages
+const ApprovalsInboxPage = lazy(() => import('../modules/admin/pages/ApprovalsInboxPage').then((m) => ({ default: m.ApprovalsInboxPage })));
+const WorkflowConfigPage = lazy(() => import('../modules/admin/pages/WorkflowConfigPage').then((m) => ({ default: m.WorkflowConfigPage })));
+const BackupRestorePage = lazy(() => import('../modules/admin/pages/BackupRestorePage').then((m) => ({ default: m.BackupRestorePage })));
+const PrintTemplatesPage = lazy(() => import('../modules/admin/pages/PrintTemplatesPage').then((m) => ({ default: m.PrintTemplatesPage })));
 
 // Master Data Module
 const MasterDataHubPage = lazy(() => import('../modules/masterdata/pages/MasterDataHubPage').then((m) => ({ default: m.MasterDataHubPage })));
@@ -523,6 +530,39 @@ export const AppRoutes: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="admin/approvals"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'ADM', activity: 'view' }}>
+                <ApprovalsInboxPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/workflow"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'ADM', activity: 'view' }}>
+                <WorkflowConfigPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/backup"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'ADM', activity: 'create' }}>
+                <BackupRestorePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/print-templates"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'ADM', activity: 'view' }}>
+                <PrintTemplatesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="notifications" element={<NotificationsPage />} />
         </Route>
 
         {/* 404 Catch-All */}

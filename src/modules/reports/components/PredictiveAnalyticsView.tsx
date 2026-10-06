@@ -480,15 +480,17 @@ export const PredictiveAnalyticsView: React.FC = () => {
           {/* Filters Bar */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-              {[
-                { id: 'all', label: `كافة الحالات الشاذة (${anomalies.length})` },
-                { id: 'procurement', label: 'المشتريات والإنفاق' },
-                { id: 'fleet', label: 'الأسطول والوقود' },
-                { id: 'inventory', label: 'حركات المخزون' },
-              ].map((tab) => (
+              {(
+                [
+                  { id: 'all', label: `كافة الحالات الشاذة (${anomalies.length})` },
+                  { id: 'procurement', label: 'المشتريات والإنفاق' },
+                  { id: 'fleet', label: 'الأسطول والوقود' },
+                  { id: 'inventory', label: 'حركات المخزون' },
+                ] as const
+              ).map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setAnomalyFilter(tab.id as any)}
+                  onClick={() => setAnomalyFilter(tab.id)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                     anomalyFilter === tab.id
                       ? 'bg-white text-[#0B2545] shadow-sm'

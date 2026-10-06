@@ -157,6 +157,11 @@ export class GulfErpDatabase extends Dexie {
       approvalRules: 'id, documentType, isDeleted',
       printTemplates: 'id, documentType',
     });
+
+    // Version 2: Index baseUnit on materials for high-speed MasterDataService where/count lookups
+    this.version(2).stores({
+      materials: 'id, materialCode, groupCode, abcClass, baseUnit, isDeleted',
+    });
   }
 }
 

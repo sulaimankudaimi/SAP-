@@ -38,8 +38,9 @@ function getWebCrypto(): Crypto {
   throw new Error('Web Crypto API is not available in this environment');
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
+function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
+  const buf = new ArrayBuffer(hex.length / 2);
+  const bytes = new Uint8Array(buf);
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
   }
@@ -59,7 +60,7 @@ async function sha256Hex(data: string): Promise<string> {
   return bytesToHex(new Uint8Array(hashBuffer));
 }
 
-async function deriveAesKey(passphrase: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
+async function deriveAesKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
   const cryptoApi = getWebCrypto();
   const enc = new TextEncoder();
   const baseKey = await cryptoApi.subtle.importKey(
@@ -181,8 +182,8 @@ export class BackupService {
     const checksumSha256 = await sha256Hex(jsonPayload);
 
     // 3. Generate salt & IV
-    const salt = new Uint8Array(16);
-    const iv = new Uint8Array(12); // Standard 96-bit IV for AES-GCM
+    const salt = new Uint8Array(new ArrayBuffer(16));
+    const iv = new Uint8Array(new ArrayBuffer(12)); // Standard 96-bit IV for AES-GCM
     cryptoApi.getRandomValues(salt);
     cryptoApi.getRandomValues(iv);
 

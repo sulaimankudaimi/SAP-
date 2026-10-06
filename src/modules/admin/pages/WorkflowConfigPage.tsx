@@ -72,7 +72,7 @@ const DOC_TYPES: DocTypeOption[] = [
 const AVAILABLE_ROLES = [
   { code: SYSTEM_ROLES.PROCUREMENT_OFFICER, name: 'مسؤول المشتريات' },
   { code: SYSTEM_ROLES.PROCUREMENT_MANAGER, name: 'مدير المشتريات' },
-  { code: SYSTEM_ROLES.WAREHOUSE_OFFICER, name: 'أمين المستودع' },
+  { code: SYSTEM_ROLES.WAREHOUSE_CLERK, name: 'أمين المستودع' },
   { code: SYSTEM_ROLES.ACCOUNTANT, name: 'المحاسب المالي' },
   { code: SYSTEM_ROLES.FINANCE_MANAGER, name: 'المدير المالي (CFO)' },
   { code: SYSTEM_ROLES.ASSET_MANAGER, name: 'مدير الأصول والمعدات' },

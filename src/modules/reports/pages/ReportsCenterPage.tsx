@@ -32,8 +32,15 @@ import {
   Landmark,
 } from 'lucide-react';
 
+type ReportsCenterTab = 'catalog' | 'runner' | 'dashboards' | 'predictive' | 'kpis' | 'snapshots';
+const VALID_TABS: readonly ReportsCenterTab[] = ['catalog', 'runner', 'dashboards', 'predictive', 'kpis', 'snapshots'];
+
+function isReportsCenterTab(tab: string): tab is ReportsCenterTab {
+  return (VALID_TABS as readonly string[]).includes(tab);
+}
+
 export const ReportsCenterPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'runner' | 'dashboards' | 'predictive' | 'kpis' | 'snapshots'>('catalog');
+  const [activeTab, setActiveTab] = useState<ReportsCenterTab>('catalog');
   const [selectedReportId, setSelectedReportId] = useState<string>('REP-MM-01');
 
   // Catalog State
@@ -118,25 +125,29 @@ export const ReportsCenterPage: React.FC = () => {
       {/* "Ask the Data" Natural Language Search Engine */}
       <AskDataSearchBar
         onSelectReport={handleOpenReport}
-        onNavigateTab={(tab) => setActiveTab(tab as any)}
+        onNavigateTab={(tab) => {
+          if (isReportsCenterTab(tab)) setActiveTab(tab);
+        }}
       />
 
       {/* Main Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
-        {[
-          { id: 'catalog', label: 'كتالوج التقارير الشامل', icon: FileText, count: allReports.length },
-          { id: 'runner', label: 'مشغل التقارير التفاعلي', icon: BarChart3 },
-          { id: 'dashboards', label: 'لوحات المؤشرات الإدارية', icon: TrendingUp },
-          { id: 'predictive', label: 'التحليلات التنبؤية وكشف الشذوذ', icon: Sparkles },
-          { id: 'kpis', label: 'مكتبة مؤشرات الأداء (KPIs)', icon: Target },
-          { id: 'snapshots', label: 'اللقطات المؤرشفة', icon: Camera },
-        ].map((tab) => {
+        {(
+          [
+            { id: 'catalog', label: 'كتالوج التقارير الشامل', icon: FileText, count: allReports.length },
+            { id: 'runner', label: 'مشغل التقارير التفاعلي', icon: BarChart3 },
+            { id: 'dashboards', label: 'لوحات المؤشرات الإدارية', icon: TrendingUp },
+            { id: 'predictive', label: 'التحليلات التنبؤية وكشف الشذوذ', icon: Sparkles },
+            { id: 'kpis', label: 'مكتبة مؤشرات الأداء (KPIs)', icon: Target },
+            { id: 'snapshots', label: 'اللقطات المؤرشفة', icon: Camera },
+          ] as const
+        ).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                 isActive
                   ? 'bg-[#0B2545] text-white shadow-sm'

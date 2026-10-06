@@ -566,8 +566,8 @@ export const AssetDetailPage: React.FC = () => {
                   <XAxis dataKey="periodLabel" tick={{ fontSize: 11, fill: '#64748B' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(val: any, name: any) => [
-                      `${Number(val).toLocaleString('en-US')} SAR`,
+                    formatter={(val: number | string | undefined, name: string | undefined) => [
+                      `${Number(val || 0).toLocaleString('en-US')} SAR`,
                       name === 'bookValue' ? 'صافي القيمة الدفترية' : 'مجمع الإهلاك',
                     ]}
                     contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}

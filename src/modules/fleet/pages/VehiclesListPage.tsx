@@ -9,6 +9,8 @@ import { Modal } from '../../../components/ui/Modal';
 import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
 import type { Vehicle, VehicleType } from '../../../types/models';
+import { getErrorMessage } from '../../../core/utils';
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import {
   Truck,
   Search,
@@ -25,6 +27,17 @@ import {
   CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
+
+const VALID_VEHICLE_TYPES: readonly VehicleType[] = ['Tanker', 'HeavyTruck', 'LightTruck', 'Crane', 'Trailer'];
+
+function parseVehicleTypeFilter(val: string): VehicleType | 'ALL' {
+  if (val === 'ALL') return 'ALL';
+  return (VALID_VEHICLE_TYPES as readonly string[]).includes(val) ? (val as VehicleType) : 'ALL';
+}
+
+function parseVehicleType(val: string): VehicleType {
+  return (VALID_VEHICLE_TYPES as readonly string[]).includes(val) ? (val as VehicleType) : 'Tanker';
+}
 
 export const VehiclesListPage: React.FC = () => {
   const { success, error } = useToast();
@@ -66,7 +79,7 @@ export const VehiclesListPage: React.FC = () => {
       setVehicles(vList);
       setExpiryAlerts(expList);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FleetModule', 'Failed to load vehicles', err);
       error('خطأ', 'تعذر تحميل بيانات الأسطول');
     } finally {
       setIsLoading(false);
@@ -100,6 +113,7 @@ export const VehiclesListPage: React.FC = () => {
       setSelectedCostReport(report);
       setIsCostDrawerOpen(true);
     } catch (err) {
+      DiagnosticLogger.error('FleetModule', 'Failed to get vehicle cost report', err);
       error('خطأ', 'تعذر احتساب تقرير التكلفة');
     }
   };
@@ -125,8 +139,8 @@ export const VehiclesListPage: React.FC = () => {
       success('تمت الإضافة بنجاح', `تم تسجيل الشاحنة ${newPlate} في الأسطول`);
       setIsCreateModalOpen(false);
       loadVehicles();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إضافة المركبة');
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
     }
   };
 
@@ -261,7 +275,7 @@ export const VehiclesListPage: React.FC = () => {
           <Select
             label="نوع المركبة:"
             value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as any)}
+            onChange={(e) => setSelectedType(parseVehicleTypeFilter(e.target.value))}
             options={[
               { label: 'كافة أنواع المركبات (الكل)', value: 'ALL' },
               { label: 'صهاريج نقل الوقود (Tanker)', value: 'Tanker' },
@@ -465,7 +479,7 @@ export const VehiclesListPage: React.FC = () => {
             <Select
               label="نوع المركبة:"
               value={newType}
-              onChange={(e) => setNewType(e.target.value as any)}
+              onChange={(e) => setNewType(parseVehicleType(e.target.value))}
               options={[
                 { label: 'صهريج وقود بترولي (Tanker)', value: 'Tanker' },
                 { label: 'شاحنة ثقيلة (Heavy Truck)', value: 'HeavyTruck' },

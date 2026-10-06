@@ -9,12 +9,10 @@
  * Can be executed via `npx tsx src/modules/finance/services/FinanceMath.test.ts`
  */
 
+import { describe, it, expect } from 'vitest';
+
 function assert(condition: boolean, msg: string) {
-  if (!condition) {
-    console.error(`❌ Assertion Failed: ${msg}`);
-    throw new Error(`Assertion Failed: ${msg}`);
-  }
-  console.log(`✅ Passed: ${msg}`);
+  expect(condition, msg).toBe(true);
 }
 
 // Mock Journal Entry structure for math tests
@@ -31,8 +29,6 @@ function isBalanced(lines: MockLine[]): boolean {
 }
 
 function runTests() {
-  console.log('--- STARTING FINANCIAL ACCOUNTING & CONTROLLING UNIT TESTS ---');
-
   // Test 1: Full Cycle PR -> PO -> GR -> Invoice -> Payment Balanced Entries
   // 1a. PO is created for 100,000 SAR (Commitment, no GL entry yet)
   const poAmount = 100000;
@@ -156,11 +152,7 @@ function runTests() {
   assert(validatePostingDate('2026-01-15') === false, `Posting to Period 1 (Closed) is strictly rejected`);
   assert(validatePostingDate('2026-02-28') === false, `Posting to Period 2 (Closed) is strictly rejected`);
   assert(validatePostingDate('2026-03-10') === true, `Posting to Period 3 (Open) is successfully permitted`);
-
-  console.log('--- ALL FINANCIAL ACCOUNTING & CONTROLLING UNIT TESTS PASSED ---');
 }
-
-import { describe, it } from 'vitest';
 
 describe('FinanceMath Suite', () => {
   it('executes full cycle PR/PO/GR/Invoice accounting and trial balance zero-sum', () => {

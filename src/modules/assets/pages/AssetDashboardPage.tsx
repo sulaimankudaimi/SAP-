@@ -8,6 +8,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { AssetService } from '../services/AssetService';
 import { AssetScanDrawer } from '../components/AssetScanDrawer';
 import { AssetAcquisitionModal } from '../components/AssetAcquisitionModal';
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import {
   Building2,
   TrendingDown,
@@ -66,7 +67,7 @@ export const AssetDashboardPage: React.FC = () => {
       const all = await AssetService.getAssets();
       setRecentAssets(all.slice(0, 6));
     } catch (err) {
-      console.error('Failed to load asset dashboard:', err);
+      DiagnosticLogger.error('AssetModule', 'Failed to load asset dashboard', err);
     } finally {
       setLoading(false);
     }
@@ -199,7 +200,7 @@ export const AssetDashboardPage: React.FC = () => {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} interval={0} angle={-15} textAnchor="end" />
                 <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  formatter={(val: any) => [`${Number(val).toLocaleString('en-US')} SAR`, 'القيمة الدفترية']}
+                  formatter={(val: number | string | undefined) => [`${Number(val || 0).toLocaleString('en-US')} SAR`, 'القيمة الدفترية']}
                   contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Bar dataKey="totalValue" fill="#0FA37F" radius={[6, 6, 0, 0]} />
@@ -243,7 +244,7 @@ export const AssetDashboardPage: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(val: any) => [val, 'عدد الأصول']}
+                  formatter={(val: number | string | undefined) => [val ?? 0, 'عدد الأصول']}
                   contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />

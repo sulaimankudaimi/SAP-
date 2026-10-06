@@ -268,7 +268,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                       <Badge variant="amber">مركز تكلفة</Badge>
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{c.name}</p>
-                    <p className="text-[11px] text-[#64748B]">المسؤول: {c.manager || 'الإدارة المالية'}</p>
+                    <p className="text-[11px] text-[#64748B]">المسؤول: {c.responsiblePerson || 'الإدارة المالية'}</p>
                   </div>
                   <button
                     type="button"
@@ -282,7 +282,8 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   </button>
                 </div>
               ))
-            ) : activeTab === 'plants' ? (
+            )
+          ) : activeTab === 'plants' ? (
             filteredPlants.length === 0 ? (
               <div className="p-8 text-center text-xs text-[#64748B]">لا توجد محطات مطابقة</div>
             ) : (
@@ -312,7 +313,8 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   </button>
                 </div>
               ))
-            ) : (
+            )
+          ) : (
             filteredGlAccounts.length === 0 ? (
               <div className="p-8 text-center text-xs text-[#64748B]">لا توجد حسابات أستاذ مطابقة</div>
             ) : (

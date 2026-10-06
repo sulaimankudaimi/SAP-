@@ -3,18 +3,14 @@
  * Can be run directly via `npx tsx src/modules/assets/services/AssetMath.test.ts`.
  */
 
+import { describe, it, expect } from 'vitest';
 import { DepreciationEngine } from './DepreciationEngine';
 
 function assert(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(`❌ Assertion Failed: ${message}`);
-  }
-  console.log(`✅ Passed: ${message}`);
+  expect(condition, message).toBe(true);
 }
 
 function runTests() {
-  console.log('--- STARTING ASSET LIFECYCLE MATH & ACCOUNTING UNIT TESTS ---');
-
   // TEST 1: Straight-Line Depreciation
   {
     const asset = {
@@ -137,11 +133,7 @@ function runTests() {
     const totalCredits = cost;                   // 200,000
     assert(totalDebits === totalCredits, 'Sale with loss journal entry is strictly balanced (200,000 == 200,000)');
   }
-
-  console.log('--- ALL MATHEMATICAL & ACCOUNTING TESTS COMPLETED SUCCESSFULLY ---');
 }
-
-import { describe, it } from 'vitest';
 
 describe('AssetMath Suite', () => {
   it('executes fixed asset depreciation and disposal balancing math', () => {

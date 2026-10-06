@@ -9,6 +9,8 @@ import { Modal } from '../../../components/ui/Modal';
 import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
 import type { Driver } from '../../../types/models';
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import { getErrorMessage } from '../../../core/utils';
 import {
   Users,
   Search,
@@ -25,6 +27,15 @@ import {
   Truck,
   Eye,
 } from 'lucide-react';
+
+type LicenseClass = 'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي';
+const VALID_LICENSE_CLASSES: readonly LicenseClass[] = ['نقل مواد خطرة (HazMat)', 'عمومي ثقيل', 'عمومي متوسط', 'خصوصي'];
+
+function parseLicenseClass(val: string): LicenseClass {
+  return (VALID_LICENSE_CLASSES as readonly string[]).includes(val)
+    ? (val as LicenseClass)
+    : 'نقل مواد خطرة (HazMat)';
+}
 
 export const DriversListPage: React.FC = () => {
   const { success, error } = useToast();
@@ -55,7 +66,7 @@ export const DriversListPage: React.FC = () => {
       const list = await FleetService.getDrivers();
       setDrivers(list);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FleetModule', 'Failed to load drivers', err);
       error('خطأ', 'تعذر تحميل بيانات السائقين');
     } finally {
       setIsLoading(false);
@@ -110,8 +121,8 @@ export const DriversListPage: React.FC = () => {
       success('تمت الإضافة بنجاح', `تم تسجيل السائق ${newName} بنجاح`);
       setIsCreateModalOpen(false);
       loadDrivers();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إضافة السائق');
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
     }
   };
 
@@ -395,7 +406,7 @@ export const DriversListPage: React.FC = () => {
             <Select
               label="فئة رخصة القيادة:"
               value={newLicenseClass}
-              onChange={(e) => setNewLicenseClass(e.target.value as any)}
+              onChange={(e) => setNewLicenseClass(parseLicenseClass(e.target.value))}
               options={[
                 { label: 'نقل مواد خطرة (HazMat)', value: 'نقل مواد خطرة (HazMat)' },
                 { label: 'عمومي ثقيل', value: 'عمومي ثقيل' },

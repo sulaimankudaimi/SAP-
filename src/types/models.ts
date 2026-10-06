@@ -1051,7 +1051,7 @@ export interface ApprovalStep {
 export interface ApprovalRequest {
   [key: string]: unknown;
   id: string;
-  documentType: 'PR' | 'PO' | 'CONTRACT' | 'DISPOSAL';
+  documentType: WorkflowDocumentType;
   documentId: string;
   documentNumber: string;
   amount: number;
@@ -1112,7 +1112,7 @@ export interface Setting {
   id: string;
   key: string;
   value: string;
-  category: 'general' | 'numbering' | 'security' | 'workflow';
+  category: 'general' | 'numbering' | 'security' | 'workflow' | 'system';
   description: string;
   updatedAt: string;
   isDeleted: boolean;

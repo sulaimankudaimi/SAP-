@@ -10,6 +10,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { GoodsIssueModal } from '../components/GoodsIssueModal';
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import {
   RefreshCw,
   AlertTriangle,
@@ -26,6 +27,13 @@ import {
   Clock,
 } from 'lucide-react';
 import type { InventoryAlert, AuctionRecord } from '../../../types/models';
+
+type AuctionCondition = 'Fair' | 'Scrap' | 'UsedGood' | 'Obsolete';
+const VALID_CONDITIONS: readonly AuctionCondition[] = ['Fair', 'Scrap', 'UsedGood', 'Obsolete'];
+
+function parseAuctionCondition(val: string): AuctionCondition {
+  return (VALID_CONDITIONS as readonly string[]).includes(val) ? (val as AuctionCondition) : 'Fair';
+}
 
 export const ReorderManagementPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -66,7 +74,7 @@ export const ReorderManagementPage: React.FC = () => {
       setAbcXyzItems(analysis);
       setAuctions(aucs);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('InventoryModule', 'Failed to load reorder data', err);
       error('خطأ', 'تعذر تحميل بيانات إعادة الطلب والتحليل');
     } finally {
       setIsLoading(false);
@@ -602,7 +610,7 @@ export const ReorderManagementPage: React.FC = () => {
             <Select
               label="الحالة الفنية للمواد:"
               value={auctionCondition}
-              onChange={(e) => setAuctionCondition(e.target.value as any)}
+              onChange={(e) => setAuctionCondition(parseAuctionCondition(e.target.value))}
               options={[
                 { label: 'مقبول / بحالة جيدة (Fair)', value: 'Fair' },
                 { label: 'سائل / معدن قابل للتكرير والتخريد (Scrap)', value: 'Scrap' },

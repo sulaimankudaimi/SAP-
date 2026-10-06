@@ -451,7 +451,7 @@ export class InventoryService {
           const po = await db.purchaseOrders.where('docNumber').equals(payload.poNumber).first();
           if (po) {
             let allCompleted = true;
-            let anyReceived = false;
+            let partiallyReceived = false;
 
             const updatedItems = po.items.map((poItem) => {
               const matchedProcessed = processedItems.find((p) => p.materialCode === poItem.materialCode);
@@ -462,7 +462,7 @@ export class InventoryService {
                   allCompleted = false;
                 }
                 if (newRecv > 0) {
-                  anyReceived = true;
+                  partiallyReceived = true;
                 }
                 return { ...poItem, receivedQuantity: newRecv };
               }
@@ -470,12 +470,12 @@ export class InventoryService {
                 allCompleted = false;
               }
               if ((poItem.receivedQuantity || 0) > 0) {
-                anyReceived = true;
+                partiallyReceived = true;
               }
               return poItem;
             });
 
-            const newPoStatus = allCompleted ? 'completed' : anyReceived ? 'in_progress' : po.status;
+            const newPoStatus = allCompleted ? 'completed' : partiallyReceived ? 'in_progress' : po.status;
 
             await db.purchaseOrders.update(po.id, {
               items: updatedItems,

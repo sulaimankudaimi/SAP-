@@ -7,6 +7,8 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { FleetService } from '../services/FleetService';
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import { getErrorMessage } from '../../../core/utils';
 import type {
   Vehicle,
   MaintenanceOrder,
@@ -29,6 +31,15 @@ interface MaintenanceOrderModalProps {
   onClose: () => void;
   onSuccess: () => void;
   existingOrder?: MaintenanceOrder | null;
+}
+
+type MaintenanceOrderType = 'Preventive' | 'Corrective' | 'Inspection';
+const VALID_ORDER_TYPES: readonly MaintenanceOrderType[] = ['Preventive', 'Corrective', 'Inspection'];
+
+function parseOrderType(val: string): MaintenanceOrderType {
+  return (VALID_ORDER_TYPES as readonly string[]).includes(val)
+    ? (val as MaintenanceOrderType)
+    : 'Preventive';
 }
 
 export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
@@ -104,7 +115,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
         setSelectedMaterialCode(mList[0].materialCode);
       }
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FleetModule', 'Failed to load vehicle and material lists in modal', err);
     }
   };
 
@@ -153,8 +164,8 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
       success('تم إنشاء أمر الصيانة', `تم فتح أمر الصيانة رقم ${order.docNumber}`);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إنشاء أمر الصيانة');
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -181,8 +192,8 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
       setPartsToIssue([]);
       onSuccess();
       setActiveTab('closure');
-    } catch (err: any) {
-      error('خطأ في صرف المخزون', err.message || 'تعذر ترحيل حركة 261');
+    } catch (err: unknown) {
+      error('خطأ في صرف المخزون', getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -207,8 +218,8 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
       );
       onSuccess();
       onClose();
-    } catch (err: any) {
-      error('خطأ', err.message || 'تعذر إغلاق أمر الصيانة');
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -286,7 +297,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
             <Select
               label="نوع أمر الصيانة:"
               value={orderType}
-              onChange={(e) => setOrderType(e.target.value as any)}
+              onChange={(e) => setOrderType(parseOrderType(e.target.value))}
               disabled={!!existingOrder}
               options={[
                 { label: 'صيانة دورية وقائية (Preventive)', value: 'Preventive' },

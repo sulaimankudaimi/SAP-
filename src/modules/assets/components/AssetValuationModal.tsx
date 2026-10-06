@@ -18,6 +18,13 @@ interface AssetValuationModalProps {
   onSuccess: (valuation: AssetValuation) => void;
 }
 
+type RecommendedAction = 'Continue' | 'Maintenance' | 'Overhaul' | 'Disposal';
+const VALID_ACTIONS: readonly RecommendedAction[] = ['Continue', 'Maintenance', 'Overhaul', 'Disposal'];
+
+function parseRecommendedAction(val: string): RecommendedAction {
+  return (VALID_ACTIONS as readonly string[]).includes(val) ? (val as RecommendedAction) : 'Continue';
+}
+
 export const AssetValuationModal: React.FC<AssetValuationModalProps> = ({
   isOpen,
   onClose,
@@ -191,7 +198,7 @@ export const AssetValuationModal: React.FC<AssetValuationModalProps> = ({
             </label>
             <Select
               value={recommendedAction}
-              onChange={(e) => setRecommendedAction(e.target.value as any)}
+              onChange={(e) => setRecommendedAction(parseRecommendedAction(e.target.value))}
               options={[
                 { value: 'Continue', label: 'الاستمرار بالتشغيل الاعتيادي (Continue)' },
                 { value: 'Maintenance', label: 'إدراج في خطة صيانة وقائية (Maintenance)' },

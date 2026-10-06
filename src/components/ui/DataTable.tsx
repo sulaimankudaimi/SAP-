@@ -11,6 +11,7 @@ import {
   VisibilityState,
   flexRender,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -115,45 +116,26 @@ export function DataTable<TData extends object = Record<string, unknown>>({
   const pageRows = table.getRowModel().rows;
   const totalPageRows = pageRows.length;
 
-  // Virtualization window calculation for fast rendering of large page sizes (> 50 items)
+  // Virtualization via @tanstack/react-virtual for smooth scrolling when rows > 200
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(400);
+  const isVirtualized = totalPageRows > 200;
 
-  const isVirtualized = totalPageRows > 50;
+  const rowVirtualizer = useVirtualizer({
+    count: totalPageRows,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: OVERSCAN,
+    enabled: isVirtualized,
+  });
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !isVirtualized) return;
-
-    const handleScroll = () => {
-      setScrollTop(container.scrollTop);
-    };
-
-    const handleResize = () => {
-      setViewportHeight(container.clientHeight || 400);
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize);
-    handleResize();
-
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [isVirtualized]);
-
-  const startIndex = isVirtualized
-    ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const virtualItems = isVirtualized ? rowVirtualizer.getVirtualItems() : [];
+  const paddingTop = isVirtualized && virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = isVirtualized && virtualItems.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
     : 0;
-  const endIndex = isVirtualized
-    ? Math.min(totalPageRows, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN)
-    : totalPageRows;
-
-  const paddingTop = isVirtualized ? startIndex * ROW_HEIGHT : 0;
-  const paddingBottom = isVirtualized ? (totalPageRows - endIndex) * ROW_HEIGHT : 0;
-  const visibleRows = isVirtualized ? pageRows.slice(startIndex, endIndex) : pageRows;
+  const visibleRows = isVirtualized && virtualItems.length > 0
+    ? virtualItems.map((v) => pageRows[v.index])
+    : pageRows;
 
   return (
     <div className={cn('bg-white rounded-[16px] border border-[#E5EAF2] shadow-[0_1px_3px_rgba(15,23,42,0.06)] overflow-hidden flex flex-col', className)}>

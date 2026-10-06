@@ -68,5 +68,14 @@ export function exportToCsv<T extends Record<string, unknown>>(
 
   // Prepend UTF-8 BOM so Excel on Windows properly displays Arabic text
   const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-  downloadCsvFile(cleanFilename, csvRows.join('\n')).catch(console.error);
+  void downloadCsvFile(cleanFilename, csvRows.join('\n'));
+}
+
+export function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return 'حدث خطأ غير متوقع';
 }

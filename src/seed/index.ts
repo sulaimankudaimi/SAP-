@@ -1376,8 +1376,5 @@ export class DatabaseSeeder {
 
     // 21. Seed Financial Accounting & Controlling (Periods, GL entries, account rules)
     await FinanceService.seedFinanceIfEmpty();
-
-    console.timeEnd('DB_SEED_TIMER');
-    console.log('Database seeded successfully in enterprise SAP standard format.');
   }
 }

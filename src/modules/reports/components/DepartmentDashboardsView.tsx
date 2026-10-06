@@ -31,6 +31,8 @@ import {
   Building2,
 } from 'lucide-react';
 
+type DepartmentId = 'procurement' | 'inventory' | 'fleet' | 'assets' | 'finance';
+
 interface DepartmentDashboardsViewProps {
   onSelectReport: (reportId: string) => void;
 }
@@ -40,7 +42,7 @@ const COLORS = ['#0B2545', '#0FA37F', '#2563EB', '#F59E0B', '#8B5CF6', '#EC4899'
 export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> = ({
   onSelectReport,
 }) => {
-  const [selectedDept, setSelectedDept] = useState<'procurement' | 'inventory' | 'fleet' | 'assets' | 'finance'>('procurement');
+  const [selectedDept, setSelectedDept] = useState<DepartmentId>('procurement');
 
   // Unified Global Filters
   const [dateRange, setDateRange] = useState<string>('YTD');
@@ -52,7 +54,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
   const [crossFilterValue, setCrossFilterValue] = useState<string | null>(null);
 
   // Departments List
-  const departments = [
+  const departments: Array<{ id: DepartmentId; label: string; icon: typeof Package }> = [
     { id: 'procurement', label: 'المشتريات والتوريد', icon: Package },
     { id: 'inventory', label: 'المستودعات والمخزون', icon: Building },
     { id: 'fleet', label: 'الأسطول والنقل اللوجستي', icon: Truck },
@@ -145,7 +147,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
             <button
               key={dept.id}
               onClick={() => {
-                setSelectedDept(dept.id as any);
+                setSelectedDept(dept.id);
                 clearCrossFilter();
               }}
               className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -275,7 +277,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                    <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -296,7 +298,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                    <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                    <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                     <Bar dataKey="amount" name="قيمة المشتريات (ر.س)" fill="#0B2545" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -323,13 +325,13 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                    <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                    <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                     <Bar
                       dataKey="value"
                       name="قيمة المخزون"
                       fill="#0FA37F"
                       radius={[6, 6, 0, 0]}
-                      onClick={(entry: any) => handleChartClick('plant', entry?.plant || entry?.name || '')}
+                      onClick={(entry: { plant?: string; name?: string }) => handleChartClick('plant', entry?.plant || entry?.name || '')}
                       className="cursor-pointer"
                     />
                   </BarChart>
@@ -340,7 +342,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
             <Card className="p-5 border border-slate-200 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-xs font-bold text-[#0B2545]">
-                  تطور معدل دوران المخزون السنوي (Turnover Ratio)
+                  معدل دوران المخزون السنوي (Turnover Ratio)
                 </h3>
                 <span className="text-[10px] text-emerald-600 font-bold">هدف: 6.0x</span>
               </div>
@@ -350,7 +352,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={[4, 8]} />
-                    <Tooltip formatter={(v: any) => `${v} مرة/سنة`} />
+                    <Tooltip formatter={(v: number | string | undefined) => `${v ?? 0} مرة/سنة`} />
                     <Line type="monotone" dataKey="rate" stroke="#0FA37F" strokeWidth={3} dot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -376,7 +378,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="code" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                   <Legend />
                   <Bar dataKey="fuel" name="تكلفة الوقود المعبأ" fill="#2563EB" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="maintenance" name="تكاليف الصيانة وقطع الغيار" fill="#F59E0B" radius={[6, 6, 0, 0]} />
@@ -403,7 +405,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                   <XAxis type="number" tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={140} />
-                  <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                   <Bar dataKey="value" name="القيمة الرأسمالية" fill="#0B2545" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -428,7 +430,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                  <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
                   <Legend />
                   <Bar dataKey="revenue" name="إيرادات مبيعات الطاقة" fill="#0FA37F" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="expense" name="المصروفات والتكاليف" fill="#EF4444" radius={[6, 6, 0, 0]} />

@@ -1,29 +1,18 @@
+import { describe, it, expect } from 'vitest';
 import { PredictiveAnalyticsService } from './PredictiveAnalyticsService';
 import { NaturalLanguageSearchService } from './NaturalLanguageSearchService';
 import { ReportCatalogService } from './ReportCatalogService';
 
 function assert(condition: boolean, message: string) {
-  if (!condition) {
-    console.error(`❌ FAILED: ${message}`);
-    process.exit(1);
-  } else {
-    console.log(`✅ Passed: ${message}`);
-  }
+  expect(condition, message).toBe(true);
 }
 
 function assertClose(actual: number, expected: number, tolerance: number = 0.5, message: string = '') {
   const diff = Math.abs(actual - expected);
-  if (diff > tolerance) {
-    console.error(`❌ FAILED: ${message} (Expected ${expected}, got ${actual}, diff ${diff} > ${tolerance})`);
-    process.exit(1);
-  } else {
-    console.log(`✅ Passed: ${message} (${actual.toFixed(2)} ≈ ${expected.toFixed(2)})`);
-  }
+  expect(diff <= tolerance, `${message} (Expected ${expected}, got ${actual}, diff ${diff})`).toBe(true);
 }
 
 async function runTests() {
-  console.log('--- STARTING ANALYTICS & PREDICTIVE FORECASTING UNIT TESTS ---');
-
   // 1. Simple Moving Average (SMA) Test
   const series = [10, 20, 30, 40, 50];
   const sma = PredictiveAnalyticsService.calculateSMA(series, 3);
@@ -103,11 +92,7 @@ async function runTests() {
 
   const searchFleet = await NaturalLanguageSearchService.search('تكلفة الكيلومتر لاستهلاك الوقود', catalog);
   assert(searchFleet.matchedKPIs.some((k) => k.key === 'COST_PER_KM'), 'NL search matches COST_PER_KM KPI');
-
-  console.log('--- ALL ANALYTICS, FORECASTING & NLP TESTS PASSED SUCCESSFULLY ---');
 }
-
-import { describe, it } from 'vitest';
 
 describe('AnalyticsMath Suite', () => {
   it('executes predictive forecasting, SMA, SES, EOQ, and NLP search tests', async () => {
