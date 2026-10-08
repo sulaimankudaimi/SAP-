@@ -24,15 +24,94 @@ import { t } from '../../i18n/ar';
 import { NavItemConfig } from '../../types';
 import { useAuthStore } from '../../core/auth/useAuthStore';
 import type { ModuleCode } from '../../types/models';
+import { isRouteImplemented } from '../../app/routeStatus';
 
 export interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-interface NavItemWithModule extends NavItemConfig {
+export interface NavItemWithModule extends NavItemConfig {
   requiredModule?: ModuleCode;
 }
+
+/**
+ * Pure navigation model builder that filters items based on route implementation,
+ * permissions, and demo mode. Extracted for automated unit testing.
+ * A group whose children are all hidden is completely hidden.
+ */
+export function buildVisibleNavigation(
+  items: NavItemWithModule[],
+  can: (auth: { module: ModuleCode; activity: 'view' }) => boolean,
+  isDemoMode: boolean = false
+): NavItemWithModule[] {
+  return items
+    .map((item) => {
+      // 1. Check top-level module authorization
+      if (item.requiredModule && !can({ module: item.requiredModule, activity: 'view' })) {
+        return null;
+      }
+
+      // 2. Filter children if item has a sub-menu
+      if (item.children && item.children.length > 0) {
+        const visibleChildren = item.children.filter((child) => {
+          // Unimplemented route filter
+          if (!isRouteImplemented(child.path)) {
+            return false;
+          }
+
+          // Dev cockpit route: only in demo mode with SYS_VIEW
+          if (child.path === '/admin/dev') {
+            if (!isDemoMode || !can({ module: 'SYS', activity: 'view' })) {
+              return false;
+            }
+          }
+
+          // Diagnostics route: requires SYS_VIEW
+          if (child.path === '/admin/diagnostics' || child.path === '/diagnostics') {
+            if (!can({ module: 'SYS', activity: 'view' })) {
+              return false;
+            }
+          }
+
+          // Child module permission
+          if ('requiredModule' in child && (child as NavItemWithModule).requiredModule) {
+            if (!can({ module: (child as NavItemWithModule).requiredModule!, activity: 'view' })) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        // If all children are hidden, the entire group header is hidden
+        if (visibleChildren.length === 0) {
+          return null;
+        }
+
+        return {
+          ...item,
+          children: visibleChildren,
+        };
+      }
+
+      // 3. Single leaf item without children
+      if (!isRouteImplemented(item.path)) {
+        return null;
+      }
+
+      if (item.path === '/rules' || item.path === '/admin/dev') {
+        if (!isDemoMode || !can({ module: 'SYS', activity: 'view' })) {
+          return null;
+        }
+      }
+
+      return item;
+    })
+    .filter((item): item is NavItemWithModule => item !== null);
+}
+
+export const filterSidebarItems = buildVisibleNavigation;
 
 export const navigationConfig: NavItemWithModule[] = [
   {
@@ -181,11 +260,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Filter navigation items based on current role permissions (SAP-style UI security)
-  const visibleNavItems = navigationConfig.filter((item) => {
-    if (!item.requiredModule) return true;
-    return can({ module: item.requiredModule, activity: 'view' });
-  });
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+
+  // Filter navigation items based on implementation status, role permissions, and demo mode
+  const visibleNavItems = buildVisibleNavigation(navigationConfig, can, isDemoMode);
 
   return (
     <aside

@@ -102,7 +102,7 @@ export class CryptoService {
   private static KEY_LENGTH = 32; // 256 bits
 
   /**
-   * Generates a random cryptographic salt (16 bytes hex).
+   * Generates a random cryptographic salt (16 bytes hex = 32 chars).
    */
   static generateSalt(): string {
     const array = new Uint8Array(16);
@@ -110,6 +110,22 @@ export class CryptoService {
     return Array.from(array)
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
+  }
+
+  /**
+   * Generates a 16-character secure OTP from an unambiguous alphabet (no 0/O/1/l/I)
+   * using cryptographic random values.
+   */
+  static generateSecureOtp(length: number = 16): string {
+    // Unambiguous character set excluding 0, O, o, 1, l, I
+    const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz#@!';
+    const array = new Uint8Array(length);
+    getWebCrypto().getRandomValues(array);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += alphabet[array[i] % alphabet.length];
+    }
+    return result;
   }
 
   /**

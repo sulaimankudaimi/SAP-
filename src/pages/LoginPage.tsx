@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Zap, ShieldCheck, Lock, User, ArrowLeft, Building2, AlertCircle, KeyRound, Sparkles } from 'lucide-react';
+import { Zap, ShieldCheck, Lock, User, ArrowLeft, Building2, AlertCircle, KeyRound, Sparkles, Copy, Check, EyeOff, RefreshCw } from 'lucide-react';
 import { t } from '../i18n/ar';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -12,6 +12,7 @@ import { useToast } from '../components/ui/Toast';
 import { AuthService } from '../core/services/AuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
 import { DatabaseSeeder } from '../seed';
+import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { db } from '../core/db';
 
 const loginSchema = z.object({
@@ -49,27 +50,39 @@ export const LoginPage: React.FC = () => {
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
   const navigate = useNavigate();
   const location = useLocation();
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
   const setSession = useAuthStore((s) => s.setSession);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showDemoAccounts, setShowDemoAccounts] = useState(true);
   const [initialOtp, setInitialOtp] = useState<string | null>(null);
+  const [copiedOtp, setCopiedOtp] = useState(false);
+  const [canRegenerate, setCanRegenerate] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  // Auto seed on initial load if not yet seeded
+  // Check initial OTP from in-memory/sessionStorage and check if admin can regenerate
+  const checkOtpStatus = async () => {
+    if (!isDemoMode) {
+      const secret = FirstBootSecret.get();
+      setInitialOtp(secret);
+
+      // Admin can regenerate if never logged in and mustChangePassword is true
+      const admin = await db.users.where({ username: 'admin' }).first();
+      if (admin && !admin.lastLoginAt && admin.mustChangePassword) {
+        setCanRegenerate(true);
+      } else {
+        setCanRegenerate(false);
+      }
+    }
+  };
+
   useEffect(() => {
     DatabaseSeeder.isSeeded().then(async (seeded) => {
       if (!seeded) {
         await DatabaseSeeder.seed().catch(console.error);
       }
-      // Check for one-time generated admin password in non-demo mode
-      if (!isDemoMode) {
-        const otpSetting = await db.settings.get('set-initial-admin-otp');
-        if (otpSetting && otpSetting.value) {
-          setInitialOtp(otpSetting.value);
-        }
-      }
+      await checkOtpStatus();
     });
   }, [isDemoMode]);
 
@@ -98,7 +111,6 @@ export const LoginPage: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      // Ensure DB is seeded before authenticating
       const seeded = await DatabaseSeeder.isSeeded();
       if (!seeded) {
         await DatabaseSeeder.seed();
@@ -108,13 +120,51 @@ export const LoginPage: React.FC = () => {
       setSession(session);
       success('تم تسجيل الدخول بنجاح', `مرحباً بك، ${session.user.fullName} (${session.role.name})`);
 
-      const destination = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
-      navigate(destination);
+      // Clear FirstBootSecret upon login
+      FirstBootSecret.clear();
+      setInitialOtp(null);
+
+      // Route destination: if mustChangePassword, guard will route to /change-password, else target
+      if (session.user.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+      } else {
+        const destination = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
+        navigate(destination, { replace: true });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'فشل تسجيل الدخول';
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCopyOtp = () => {
+    if (initialOtp) {
+      navigator.clipboard.writeText(initialOtp);
+      setCopiedOtp(true);
+      success(t('otp_copied'), initialOtp);
+      setTimeout(() => setCopiedOtp(false), 3000);
+    }
+  };
+
+  const handleDismissOtp = () => {
+    FirstBootSecret.clear();
+    setInitialOtp(null);
+  };
+
+  const handleRegenerateOtp = async () => {
+    setIsRegenerating(true);
+    try {
+      const newOtp = await AuthService.regenerateInitialAdminPassword();
+      setInitialOtp(newOtp);
+      success(t('otp_regenerated_success'), 'تم إنشاء رمز جديد لمرة واحدة.');
+      await checkOtpStatus();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'فشل إعادة توليد الرمز';
+      toastError('خطأ', msg);
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -213,20 +263,59 @@ export const LoginPage: React.FC = () => {
 
           {/* Initial OTP Notification for First Boot in Non-Demo Mode */}
           {!isDemoMode && initialOtp && (
-            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs text-amber-900">
-              <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                <KeyRound className="w-4 h-4 text-amber-600" />
-                <span>إطلاق النظام الأول: كلمة المرور المؤقتة لمدير النظام</span>
+            <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl space-y-2.5 text-xs text-amber-950 shadow-xs animate-in fade-in-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <KeyRound className="w-4 h-4 text-amber-600" />
+                  <span>{t('otp_card_title')}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDismissOtp}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                  title="إخفاء من الشاشة"
+                >
+                  <EyeOff className="w-3 h-3" />
+                  <span>{t('otp_dismiss_btn')}</span>
+                </button>
               </div>
-              <p className="text-[11px] text-amber-700 leading-relaxed">
-                اسم المستخدم: <strong className="font-mono text-slate-900">admin</strong> — كلمة المرور لمرة واحدة:{' '}
-                <code className="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono font-bold text-red-600 select-all">
-                  {initialOtp}
-                </code>
+
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                اسم المستخدم: <strong className="font-mono text-slate-900">admin</strong>
               </p>
-              <p className="text-[10px] text-amber-600">
+
+              <div className="flex items-center justify-between gap-2 p-2 bg-white rounded-xl border border-amber-200">
+                <div className="flex-1 font-mono font-bold text-red-600 text-sm tracking-wider select-all overflow-x-auto text-start">
+                  {initialOtp}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyOtp}
+                  className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                >
+                  {copiedOtp ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedOtp ? 'تم النسخ' : t('otp_copy_btn')}</span>
+                </button>
+              </div>
+
+              <p className="text-[10px] text-amber-700 leading-relaxed">
                 سيُطلب منك تغيير كلمة المرور فور تسجيل الدخول الأول وفق معايير الأمان المؤسسية.
               </p>
+            </div>
+          )}
+
+          {/* Regenerate OTP Link if Admin has never logged in and OTP was lost */}
+          {!isDemoMode && canRegenerate && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={handleRegenerateOtp}
+                disabled={isRegenerating}
+                className="text-[11px] text-[#2563EB] hover:text-[#13315C] hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                <span>{t('otp_regenerate_link')}</span>
+              </button>
             </div>
           )}
 

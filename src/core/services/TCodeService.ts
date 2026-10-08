@@ -1,5 +1,6 @@
 import type { Role, ModuleCode, ActivityType } from '../../types/models';
 import { RbacService } from './RbacService';
+import { isRouteImplemented } from '../../app/routeStatus';
 
 export interface SAPTransactionCode {
   code: string;
@@ -559,6 +560,11 @@ export class TCodeService {
     }
 
     return SAP_TCODES.filter((item) => {
+      // Omit unimplemented placeholder screens from autocomplete
+      if (!isRouteImplemented(item.path)) {
+        return false;
+      }
+
       const matchCode = item.code.toLowerCase().includes(cleanQ);
       const matchAr = item.descriptionArabic.toLowerCase().includes(cleanQ);
       const matchEn = item.descriptionEnglish.toLowerCase().includes(cleanQ);
@@ -577,7 +583,7 @@ export class TCodeService {
   }
 
   /**
-   * Resolves a T-Code string, strictly verifying authorization.
+   * Resolves a T-Code string, strictly verifying authorization and implementation status.
    */
   static resolveCode(
     inputCode: string,
@@ -611,6 +617,15 @@ export class TCodeService {
           code: tcode,
         };
       }
+    }
+
+    // Check if target screen is implemented in current release
+    if (!isRouteImplemented(tcode.path)) {
+      return {
+        success: false,
+        error: 'هذه الشاشة غير متاحة بعد في هذا الإصدار',
+        code: tcode,
+      };
     }
 
     return {

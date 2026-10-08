@@ -214,10 +214,10 @@ describe('Admin Part 2 Unit Tests & Acceptance Criteria', () => {
     });
 
     it('allows administrator to navigate to any registered T-code', () => {
-      // Procurement ME21N
-      const resPo = TCodeService.resolveCode('ME21N', adminRole);
-      expect(resPo.success).toBe(true);
-      expect(resPo.targetPath).toBe('/procurement/po');
+      // Master Data MM03
+      const resMat = TCodeService.resolveCode('MM03', adminRole);
+      expect(resMat.success).toBe(true);
+      expect(resMat.targetPath).toBe('/masterdata/materials');
 
       // Goods Movement MIGO
       const resMigo = TCodeService.resolveCode('MIGO', adminRole);

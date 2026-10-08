@@ -1,6 +1,7 @@
 import { userRepository, roleRepository } from '../repositories';
 import { CryptoService } from './crypto';
 import { AuditService } from './AuditService';
+import { FirstBootSecret } from '../security/FirstBootSecret';
 import { db } from '../db';
 import type { User, Role } from '../../types/models';
 
@@ -14,6 +15,12 @@ export interface AuthSession {
 export class AuthService {
   private static MAX_FAILED_ATTEMPTS = 5;
   private static LOCKOUT_MINUTES = 15;
+
+  /**
+   * Known legacy salt from prior static seeder implementations.
+   * Kept exclusively for transparent runtime cryptographic upgrade upon successful verification.
+   */
+  static readonly LEGACY_SALTS = ['e8f7b2c14a9018d423985710bcdef012'] as const;
 
   /**
    * Validates strong password policy:
@@ -31,6 +38,7 @@ export class AuthService {
   /**
    * Authenticates user against salted PBKDF2 hash with automatic lockout protection.
    * Issues HMAC-SHA256 signed token.
+   * Upgrades legacy fixed salts transparently upon successful login.
    * Performs user updates and audit logs atomically inside Dexie transaction.
    */
   static async login(username: string, password: string): Promise<AuthSession> {
@@ -43,8 +51,6 @@ export class AuthService {
     if (!user) {
       throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
     }
-
-    const authContext = { userId: user.id, userName: user.username };
 
     // Check account lockout status
     if (user.isLocked) {
@@ -152,14 +158,28 @@ export class AuthService {
       );
     }
 
+    // Check if user has a legacy fixed salt that needs transparent upgrade
+    const isLegacySalt = (this.LEGACY_SALTS as readonly string[]).includes(user.passwordSalt);
+    let finalSalt = user.passwordSalt;
+    let finalHash = user.passwordHash;
+
+    if (isLegacySalt) {
+      finalSalt = CryptoService.generateSalt();
+      finalHash = await CryptoService.hashPassword(password, finalSalt);
+    }
+
     // Login successful: reset failed attempts & record LOGIN audit in a single transaction
     const now = new Date().toISOString();
+    let updatedSessionUser: User = { ...user, lastLoginAt: now };
+
     try {
       await db.transaction('rw', [db.users, db.auditLogs], async () => {
         const freshUser = await db.users.get(user.id);
         if (freshUser) {
-          const updatedUser = {
+          const updatedUser: User = {
             ...freshUser,
+            passwordSalt: finalSalt,
+            passwordHash: finalHash,
             failedLoginAttempts: 0,
             isLocked: false,
             lockedUntil: undefined,
@@ -167,6 +187,7 @@ export class AuthService {
             updatedAt: now,
           };
           await db.users.put(updatedUser);
+          updatedSessionUser = updatedUser;
 
           await AuditService.log({
             action: 'LOGIN',
@@ -174,13 +195,30 @@ export class AuthService {
             entityId: user.id,
             userId: user.id,
             userName: user.username,
-            after: { lastLoginAt: now },
+            after: {
+              lastLoginAt: now,
+              saltUpgraded: isLegacySalt,
+            },
           });
+
+          if (isLegacySalt) {
+            await AuditService.log({
+              action: 'UPDATE',
+              entity: 'users',
+              entityId: user.id,
+              userId: user.id,
+              userName: user.username,
+              after: { reason: 'Cryptographic Salt Upgrade to Random Salt' },
+            });
+          }
         }
       });
     } catch {
       throw new Error('حدث خطأ في النظام أثناء توثيق الدخول.');
     }
+
+    // If logging in as admin with temporary OTP, clear FirstBootSecret on successful login
+    FirstBootSecret.clear();
 
     const role = await roleRepository.getById(user.roleId);
     if (!role) {
@@ -193,7 +231,7 @@ export class AuthService {
     const token = await CryptoService.sign(tokenPayload);
 
     return {
-      user: { ...user, lastLoginAt: now },
+      user: updatedSessionUser,
       role,
       token,
       expiresAt,
@@ -202,34 +240,58 @@ export class AuthService {
 
   /**
    * Updates user password and resets mustChangePassword flag.
+   * Requires and verifies current password.
    * Enforces 10+ chars, upper, lower, digit, symbol.
+   * Enforces that new password must differ from current password.
+   * Generates a NEW random salt and hashes with PBKDF2.
    */
   static async changePassword(
     userId: string,
+    currentPlainPassword: string,
     newPlainPassword: string
   ): Promise<void> {
+    const existingUser = await userRepository.getById(userId);
+    if (!existingUser) {
+      throw new Error('المستخدم غير موجود.');
+    }
+
+    // 1. Verify current password
+    const isCurrentValid = await CryptoService.verifyPassword(
+      currentPlainPassword,
+      existingUser.passwordSalt,
+      existingUser.passwordHash
+    );
+    if (!isCurrentValid) {
+      throw new Error('كلمة المرور الحالية غير صحيحة.');
+    }
+
+    // 2. Ensure new password differs from current password
+    if (currentPlainPassword === newPlainPassword) {
+      throw new Error('كلمة المرور الجديدة يجب أن تكون مختلفة عن كلمة المرور الحالية.');
+    }
+
+    // 3. Validate password policy
     if (!this.validatePasswordPolicy(newPlainPassword)) {
       throw new Error(
         'كلمة المرور يجب أن لا تقل عن 10 خانات، وتحتوي على حرف كبير، حرف صغير، رقم، ورمز خاص واحد على الأقل.'
       );
     }
 
-    const existingUser = await userRepository.getById(userId);
-    if (!existingUser) {
-      throw new Error('المستخدم غير موجود.');
-    }
+    // 4. Generate fresh random salt & PBKDF2 hash
+    const newSalt = CryptoService.generateSalt();
+    const newHash = await CryptoService.hashPassword(newPlainPassword, newSalt);
 
-    const salt = CryptoService.generateSalt();
-    const hash = await CryptoService.hashPassword(newPlainPassword, salt);
+    const authContext = { userId: existingUser.id, userName: existingUser.username };
 
     await userRepository.update(
       userId,
       {
-        passwordSalt: salt,
-        passwordHash: hash,
+        passwordSalt: newSalt,
+        passwordHash: newHash,
         mustChangePassword: false,
+        updatedAt: new Date().toISOString(),
       },
-      { userId: existingUser.id, userName: existingUser.username }
+      authContext
     );
 
     await AuditService.log({
@@ -240,5 +302,58 @@ export class AuthService {
       userName: existingUser.username,
       after: { mustChangePassword: false },
     });
+  }
+
+  /**
+   * Regenerates temporary one-time password for the initial admin.
+   * Allowed ONLY when the admin has never logged in (lastLoginAt is undefined)
+   * AND mustChangePassword is true.
+   * Otherwise throws an error.
+   */
+  static async regenerateInitialAdminPassword(): Promise<string> {
+    const admin = await db.users.where({ username: 'admin' }).first();
+    if (!admin) {
+      throw new Error('حساب مدير النظام غير موجود.');
+    }
+
+    if (admin.lastLoginAt) {
+      throw new Error('لا يمكن إعادة توليد كلمة المرور المؤقتة بعد تسجيل الدخول الأول للنظام.');
+    }
+
+    if (!admin.mustChangePassword) {
+      throw new Error('تم تغيير كلمة المرور مسبقاً وتأكيد الهوية.');
+    }
+
+    // Generate 16-character unambiguous OTP
+    const newOtp = CryptoService.generateSecureOtp(16);
+    const newSalt = CryptoService.generateSalt();
+    const newHash = await CryptoService.hashPassword(newOtp, newSalt);
+
+    const now = new Date().toISOString();
+    const updatedAdmin: User = {
+      ...admin,
+      passwordSalt: newSalt,
+      passwordHash: newHash,
+      failedLoginAttempts: 0,
+      isLocked: false,
+      lockedUntil: undefined,
+      updatedAt: now,
+    };
+
+    await db.users.put(updatedAdmin);
+
+    // Save strictly to memory / sessionStorage
+    FirstBootSecret.set(newOtp);
+
+    await AuditService.log({
+      action: 'UPDATE',
+      entity: 'users',
+      entityId: admin.id,
+      system: true,
+      userName: 'AdminPasswordRecovery',
+      after: { reason: 'Initial temporary admin OTP regenerated' },
+    });
+
+    return newOtp;
   }
 }

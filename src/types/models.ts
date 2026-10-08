@@ -16,7 +16,8 @@ export type ModuleCode =
   | 'FI' // Financial Accounting
   | 'CO' // Controlling
   | 'MD' // Master Data
-  | 'ADM'; // Administration
+  | 'ADM' // Administration
+  | 'SYS'; // System / Technical Administration
 
 export interface AuthScopeConstraints {
   plant?: string[];

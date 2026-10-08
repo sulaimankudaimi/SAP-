@@ -23,6 +23,7 @@ import { Button } from '../components/ui/Button';
 import { ScreenSkeleton } from '../components/ui/Skeleton';
 import { formatCurrency, formatNumber } from '../core/utils';
 import { BackupService } from '../modules/admin/services/BackupService';
+import { isRouteImplemented } from '../app/routeStatus';
 import {
   DashboardService,
   type DashboardKPISummary,
@@ -233,22 +234,38 @@ export const DashboardPage: React.FC = () => {
 
         {/* Card 2: Total procurement this month (Procurement) */}
         {canViewProcurement ? (
-          <div
-            onClick={() => navigate('/procurement/po')}
-            className="cursor-pointer transition-transform hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <StatCard
-              label="إجمالي قيمة المشتريات هذا الشهر"
-              value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0, 'SAR')}
-              icon={<ShoppingCart className="w-5 h-5 text-[#0FA37F]" />}
-              trend={{
-                value: kpiSummary?.monthlyProcurementTrend || 8.4,
-                isPositive: true,
-                label: 'معدل الإنفاق الشهري المعتمد',
-              }}
-              subtitle="أوامر شراء معتمدة ومفتوحة للتوريد"
-            />
-          </div>
+          isRouteImplemented('/procurement/po') ? (
+            <div
+              onClick={() => navigate('/procurement/po')}
+              className="cursor-pointer transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <StatCard
+                label="إجمالي قيمة المشتريات هذا الشهر"
+                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0, 'SAR')}
+                icon={<ShoppingCart className="w-5 h-5 text-[#0FA37F]" />}
+                trend={{
+                  value: kpiSummary?.monthlyProcurementTrend || 8.4,
+                  isPositive: true,
+                  label: 'معدل الإنفاق الشهري المعتمد',
+                }}
+                subtitle="أوامر شراء معتمدة ومفتوحة للتوريد"
+              />
+            </div>
+          ) : (
+            <div>
+              <StatCard
+                label="إجمالي قيمة المشتريات هذا الشهر"
+                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0, 'SAR')}
+                icon={<ShoppingCart className="w-5 h-5 text-[#0FA37F]" />}
+                trend={{
+                  value: kpiSummary?.monthlyProcurementTrend || 8.4,
+                  isPositive: true,
+                  label: 'معدل الإنفاق الشهري المعتمد',
+                }}
+                subtitle="أوامر شراء معتمدة ومفتوحة للتوريد"
+              />
+            </div>
+          )
         ) : null}
 
         {/* Card 3: Inventory valuation (Inventory / Warehouses) */}

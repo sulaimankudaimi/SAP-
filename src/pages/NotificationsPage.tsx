@@ -22,6 +22,7 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { useToast } from '../components/ui/Toast';
 import { NotificationService } from '../core/services/NotificationService';
+import { isRouteImplemented } from '../app/routeStatus';
 import type { Notification } from '../types/models';
 
 export const NotificationsPage: React.FC = () => {
@@ -107,7 +108,7 @@ export const NotificationsPage: React.FC = () => {
     if (!notif.isRead) {
       handleMarkAsRead(notif.id);
     }
-    if (notif.link) {
+    if (notif.link && isRouteImplemented(notif.link)) {
       navigate(notif.link);
     }
   };
@@ -319,7 +320,7 @@ export const NotificationsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {item.link && (
+                  {item.link && isRouteImplemented(item.link) && (
                     <span className="text-[11px] text-[#0FA37F] hover:underline font-semibold flex items-center gap-1">
                       <span>عرض المستند</span>
                       <ExternalLink className="w-3 h-3" />

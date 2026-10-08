@@ -161,15 +161,15 @@ describe('Admin Part 2 - Comprehensive Integration & Acceptance Tests', () => {
   // -------------------------------------------------------------
   describe('2. SAP T-Code Resolver & Access Enforcement', () => {
     it('resolves valid T-Codes to correct routes for authorized users', () => {
-      // ME51N -> /procurement/pr
-      const resPr = TCodeService.resolveCode('ME51N', adminRole);
-      expect(resPr.success).toBe(true);
-      expect(resPr.targetPath).toBe('/procurement/pr');
+      // MIGO -> /inventory/movements
+      const resMigo = TCodeService.resolveCode('MIGO', adminRole);
+      expect(resMigo.success).toBe(true);
+      expect(resMigo.targetPath).toBe('/inventory/movements');
 
-      // ME21N -> /procurement/po
-      const resPo = TCodeService.resolveCode('ME21N', adminRole);
-      expect(resPo.success).toBe(true);
-      expect(resPo.targetPath).toBe('/procurement/po');
+      // MM03 -> /masterdata/materials
+      const resMm03 = TCodeService.resolveCode('MM03', adminRole);
+      expect(resMm03.success).toBe(true);
+      expect(resMm03.targetPath).toBe('/masterdata/materials');
 
       // FB50 -> /finance/journal-entries
       const resFb50 = TCodeService.resolveCode('FB50', adminRole);
@@ -183,9 +183,9 @@ describe('Admin Part 2 - Comprehensive Integration & Acceptance Tests', () => {
     });
 
     it('supports SAP /n prefix standard notation', () => {
-      const res = TCodeService.resolveCode('/nME21N', adminRole);
+      const res = TCodeService.resolveCode('/nMIGO', adminRole);
       expect(res.success).toBe(true);
-      expect(res.targetPath).toBe('/procurement/po');
+      expect(res.targetPath).toBe('/inventory/movements');
     });
 
     it('strictly forbids navigation when user role lacks required permission', () => {

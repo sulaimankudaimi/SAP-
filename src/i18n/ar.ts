@@ -266,6 +266,30 @@ export const ar = {
   login_remember: 'تذكر جلسة العمل على هذا الجهاز',
   login_btn: 'دخول إلى النظام',
   login_footer_note: 'تطبيق سطح مكتب مشفر 100% متوافق مع بيئة العمل دون اتصال',
+
+  // Password Management
+  nav_change_password: 'تغيير كلمة المرور',
+  change_pwd_title: 'تغيير كلمة المرور الإلزامية',
+  change_pwd_subtitle: 'يتعين عليك تعيين كلمة مرور قوية وجديدة لحماية حسابك واستيفاء معايير الحوكمة والأمن السيبراني.',
+  change_pwd_current: 'كلمة المرور الحالية',
+  change_pwd_new: 'كلمة المرور الجديدة',
+  change_pwd_confirm: 'تأكيد كلمة المرور الجديدة',
+  change_pwd_submit: 'تحديث كلمة المرور والدخول للنظام',
+  change_pwd_match_err: 'كلمة المرور وتأكيدها غير متطابقين.',
+  change_pwd_diff_err: 'يجب أن تختلف كلمة المرور الجديدة عن كلمة المرور الحالية.',
+  change_pwd_success: 'تم تغيير كلمة المرور بنجاح!',
+  policy_len: '10 خانات على الأقل',
+  policy_upper: 'حرف كبير واحد على الأقل (A-Z)',
+  policy_lower: 'حرف صغير واحد على الأقل (a-z)',
+  policy_digit: 'رقم واحد على الأقل (0-9)',
+  policy_symbol: 'رمز خاص واحد على الأقل (!@#$%...)',
+  otp_card_title: 'إطلاق النظام الأول: كلمة المرور المؤقتة لمدير النظام',
+  otp_card_desc: 'تم توليد كلمة مرور لمرة واحدة لحساب admin بصورة مؤقتة وآمنة:',
+  otp_copy_btn: 'نسخ الرمز',
+  otp_copied: 'تم نسخ كلمة المرور المؤقتة للحافظة',
+  otp_dismiss_btn: 'حفظت الرمز — إخفاء',
+  otp_regenerate_link: 'هل فقدت كلمة المرور المؤقتة؟ إعادة توليد كلمة مرور لمرة واحدة',
+  otp_regenerated_success: 'تمت إعادة توليد كلمة المرور المؤقتة بنجاح',
 } as const;
 
 export type TranslationKey = keyof typeof ar;

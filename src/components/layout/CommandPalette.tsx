@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { t } from '../../i18n/ar';
 import { cn } from '../../core/utils';
+import { isRouteImplemented } from '../../app/routeStatus';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -80,11 +81,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const filteredCommands = commands.filter(
-    (c) =>
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+
+  const filteredCommands = commands.filter((c) => {
+    // Hide unimplemented placeholder routes
+    if (!isRouteImplemented(c.path)) return false;
+
+    // Rules file only in demo mode
+    if (c.path === '/rules' && !isDemoMode) return false;
+
+    return (
       c.title.toLowerCase().includes(query.toLowerCase()) ||
       c.category.toLowerCase().includes(query.toLowerCase())
-  );
+    );
+  });
 
   const handleSelect = (path: string) => {
     navigate(path);

@@ -1,5 +1,6 @@
 import { db } from '../core/db';
 import { CryptoService } from '../core/services/crypto';
+import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { NumberRangeService } from '../core/services/NumberRangeService';
 import { SYSTEM_ROLES } from '../core/services/RbacService';
 import type {
@@ -158,32 +159,77 @@ export class DatabaseSeeder {
       { id: 'r-viewer', code: SYSTEM_ROLES.VIEWER, name: 'مستعرض فقط (Read-Only Viewer)', description: 'استعراض البيانات الأساسية والشاشات دون إمكانية التعديل', permissionCodes: ['MM_VIEW', 'WM_VIEW', 'TM_VIEW', 'AM_VIEW', 'FI_VIEW', 'MD_VIEW'], isSystem: true },
     ];
 
-    // 3. Demo / Non-Demo Users Selection
-    const defaultSalt = 'e8f7b2c14a9018d423985710bcdef012';
+    // 3. Demo / Non-Demo Users Selection (with distinct cryptographic random salt per user)
     const now = new Date().toISOString();
     const isDemoMode = typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE === 'true';
 
     let demoUsers: User[] = [];
 
     if (isDemoMode) {
-      const defaultHash = await CryptoService.hashPassword('Admin@123', defaultSalt);
-      demoUsers = [
-        { id: 'u-admin', username: 'admin', fullName: 'م. أحمد الشمري (المدير العام)', email: 'admin@gulfenergy.sa', roleId: 'r-admin', roleCode: SYSTEM_ROLES.ADMIN, roleName: 'مدير النظام', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-proc-mgr', username: 'proc.mgr', fullName: 'أ. فهد الدوسري (مدير المشتريات)', email: 'fahad@gulfenergy.sa', roleId: 'r-proc-mgr', roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-proc-off', username: 'proc.off', fullName: 'سارة القحطاني (مسؤولة المشتريات)', email: 'sara@gulfenergy.sa', roleId: 'r-proc-off', roleCode: SYSTEM_ROLES.PROCUREMENT_OFFICER, roleName: 'موظف مشتريات', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-wh-clerk', username: 'wh.clerk', fullName: 'سلطان المطيري (أمين المستودع)', email: 'sultan@gulfenergy.sa', roleId: 'r-wh-clerk', roleCode: SYSTEM_ROLES.WAREHOUSE_CLERK, roleName: 'أمين مستودع', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-flt-mgr', username: 'flt.mgr', fullName: 'خالد العنزي (مدير اللوجستيات)', email: 'khaled@gulfenergy.sa', roleId: 'r-flt-mgr', roleCode: SYSTEM_ROLES.FLEET_MANAGER, roleName: 'مدير الأسطول', companyCode: '1000', plantCode: '1200', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-acc', username: 'accountant', fullName: 'محمد الحربي (محاسب مالي)', email: 'm.harbi@gulfenergy.sa', roleId: 'r-acc', roleCode: SYSTEM_ROLES.ACCOUNTANT, roleName: 'محاسب مالي', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-fin-mgr', username: 'fin.mgr', fullName: 'عبدالعزيز العتيبي (المدير المالي)', email: 'a.otaibi@gulfenergy.sa', roleId: 'r-fin-mgr', roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'مدير مالي', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-auditor', username: 'auditor', fullName: 'نورة السبيعي (مدقق مالي وتشغيلي)', email: 'noura@gulfenergy.sa', roleId: 'r-auditor', roleCode: SYSTEM_ROLES.AUDITOR, roleName: 'مدقق داخلي', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-asset-mgr', username: 'asset.mgr', fullName: 'م. طارق الزهراني (مدير الأصول والصيانة)', email: 'tariq@gulfenergy.sa', roleId: 'r-asset-mgr', roleCode: SYSTEM_ROLES.ASSET_MANAGER, roleName: 'مدير أصول', companyCode: '1000', plantCode: '1300', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-viewer', username: 'viewer', fullName: 'ريم الغامدي (مستعرض عمليات)', email: 'reem@gulfenergy.sa', roleId: 'r-viewer', roleCode: SYSTEM_ROLES.VIEWER, roleName: 'مستعرض فقط', companyCode: '1000', plantCode: '1100', passwordHash: defaultHash, passwordSalt: defaultSalt, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+      // 10 demo users with demo password Admin@123, each with its own unique random salt
+      interface DemoUserTemplate {
+        id: string;
+        username: string;
+        fullName: string;
+        email: string;
+        roleId: string;
+        roleCode: string;
+        roleName: string;
+        companyCode: string;
+        plantCode: string;
+        failedLoginAttempts: number;
+        isLocked: boolean;
+        mustChangePassword: boolean;
+        createdAt: string;
+        updatedAt: string;
+        isDeleted: boolean;
+      }
+
+      const demoUserTemplates: DemoUserTemplate[] = [
+        { id: 'u-admin', username: 'admin', fullName: 'م. أحمد الشمري (المدير العام)', email: 'admin@gulfenergy.sa', roleId: 'r-admin', roleCode: SYSTEM_ROLES.ADMIN, roleName: 'مدير النظام', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-proc-mgr', username: 'proc.mgr', fullName: 'أ. فهد الدوسري (مدير المشتريات)', email: 'fahad@gulfenergy.sa', roleId: 'r-proc-mgr', roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-proc-off', username: 'proc.off', fullName: 'سارة القحطاني (مسؤولة المشتريات)', email: 'sara@gulfenergy.sa', roleId: 'r-proc-off', roleCode: SYSTEM_ROLES.PROCUREMENT_OFFICER, roleName: 'موظف مشتريات', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-wh-clerk', username: 'wh.clerk', fullName: 'سلطان المطيري (أمين المستودع)', email: 'sultan@gulfenergy.sa', roleId: 'r-wh-clerk', roleCode: SYSTEM_ROLES.WAREHOUSE_CLERK, roleName: 'أمين مستودع', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-flt-mgr', username: 'flt.mgr', fullName: 'خالد العنزي (مدير اللوجستيات)', email: 'khaled@gulfenergy.sa', roleId: 'r-flt-mgr', roleCode: SYSTEM_ROLES.FLEET_MANAGER, roleName: 'مدير الأسطول', companyCode: '1000', plantCode: '1200', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-acc', username: 'accountant', fullName: 'محمد الحربي (محاسب مالي)', email: 'm.harbi@gulfenergy.sa', roleId: 'r-acc', roleCode: SYSTEM_ROLES.ACCOUNTANT, roleName: 'محاسب مالي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-fin-mgr', username: 'fin.mgr', fullName: 'عبدالعزيز العتيبي (المدير المالي)', email: 'a.otaibi@gulfenergy.sa', roleId: 'r-fin-mgr', roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'مدير مالي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-auditor', username: 'auditor', fullName: 'نورة السبيعي (مدقق مالي وتشغيلي)', email: 'noura@gulfenergy.sa', roleId: 'r-auditor', roleCode: SYSTEM_ROLES.AUDITOR, roleName: 'مدقق داخلي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-asset-mgr', username: 'asset.mgr', fullName: 'م. طارق الزهراني (مدير الأصول والصيانة)', email: 'tariq@gulfenergy.sa', roleId: 'r-asset-mgr', roleCode: SYSTEM_ROLES.ASSET_MANAGER, roleName: 'مدير أصول', companyCode: '1000', plantCode: '1300', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-viewer', username: 'viewer', fullName: 'ريم الغامدي (مستعرض عمليات)', email: 'reem@gulfenergy.sa', roleId: 'r-viewer', roleCode: SYSTEM_ROLES.VIEWER, roleName: 'مستعرض فقط', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
       ];
+
+      for (const t of demoUserTemplates) {
+        const userSalt = CryptoService.generateSalt();
+        const userHash = await CryptoService.hashPassword('Admin@123', userSalt);
+        const fullUser: User = {
+          id: t.id,
+          username: t.username,
+          fullName: t.fullName,
+          email: t.email,
+          roleId: t.roleId,
+          roleCode: t.roleCode,
+          roleName: t.roleName,
+          companyCode: t.companyCode,
+          plantCode: t.plantCode,
+          failedLoginAttempts: t.failedLoginAttempts,
+          isLocked: t.isLocked,
+          mustChangePassword: t.mustChangePassword,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          isDeleted: t.isDeleted,
+          passwordSalt: userSalt,
+          passwordHash: userHash,
+        };
+        demoUsers.push(fullUser);
+      }
     } else {
-      // Non-demo mode: create ONLY admin user with mustChangePassword=true and random one-time password
-      const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
-      const generatedOtp = `Adm#${randomPart}!9`;
-      const adminHash = await CryptoService.hashPassword(generatedOtp, defaultSalt);
+      // Non-demo mode: create ONLY admin user with mustChangePassword=true and random 16-character unambiguous OTP
+      const generatedOtp = CryptoService.generateSecureOtp(16);
+      const adminSalt = CryptoService.generateSalt();
+      const adminHash = await CryptoService.hashPassword(generatedOtp, adminSalt);
+
+      // Hand the plaintext OTP strictly to in-memory / sessionStorage FirstBootSecret. Never write to DB/storage!
+      FirstBootSecret.set(generatedOtp);
 
       demoUsers = [
         {
@@ -197,7 +243,7 @@ export class DatabaseSeeder {
           companyCode: '1000',
           plantCode: '1100',
           passwordHash: adminHash,
-          passwordSalt: defaultSalt,
+          passwordSalt: adminSalt,
           failedLoginAttempts: 0,
           isLocked: false,
           mustChangePassword: true,
@@ -206,17 +252,6 @@ export class DatabaseSeeder {
           isDeleted: false,
         },
       ];
-
-      // Save initial OTP for first boot display
-      await db.settings.put({
-        id: 'set-initial-admin-otp',
-        key: 'INITIAL_ADMIN_OTP',
-        value: generatedOtp,
-        category: 'security',
-        description: 'كلمة مرور لمرة واحدة لحساب المدير الأول',
-        updatedAt: now,
-        isDeleted: false,
-      });
     }
 
     // 4. Enterprise Structure (1 Company, 3 Plants, 6 Storage Locations)
@@ -1337,40 +1372,40 @@ export class DatabaseSeeder {
         db.budgets,
       ],
       async () => {
-        await db.permissions.bulkAdd(permissions);
-        await db.roles.bulkAdd(roles);
-        await db.users.bulkAdd(demoUsers);
-        await db.companies.add(company);
-        await db.plants.bulkAdd(plants);
-        await db.storageLocations.bulkAdd(storageLocations);
-        await db.costCenters.bulkAdd(costCenters);
-        await db.glAccounts.bulkAdd(glAccounts);
-        await db.materialGroups.bulkAdd(materialGroups);
-        await db.units.bulkAdd(units);
-        await db.materials.bulkAdd(materials);
-        await db.vendors.bulkAdd(vendors);
-        await db.customers.bulkAdd(customers);
-        await db.vehicles.bulkAdd(vehicles);
-        await db.drivers.bulkAdd(drivers);
-        await db.assets.bulkAdd(assets);
-        await db.assetTransfers.bulkAdd(assetTransfers);
-        await db.assetValuations.bulkAdd(assetValuations);
-        await db.depreciationRuns.bulkAdd(depreciationRuns);
-        await db.purchaseOrders.bulkAdd(purchaseOrders);
-        await db.goodsReceipts.bulkAdd(goodsReceipts);
-        await db.vendorInvoices.bulkAdd(vendorInvoices);
-        await db.stockBalances.bulkAdd(stockBalances);
-        await db.stockLedger.bulkAdd(stockLedger);
-        await db.materialDocuments.bulkAdd(materialDocuments);
-        await db.physicalInventoryDocs.bulkAdd(samplePiDocs);
-        await db.inventoryAlerts.bulkAdd(inventoryAlerts);
-        await db.auctionRecords.bulkAdd(auctionRecords);
-        await db.trips.bulkAdd(trips);
-        await db.fuelLogs.bulkAdd(fuelLogs);
-        await db.fuelAnomalyAlerts.bulkAdd(fuelAnomalyAlerts);
-        await db.maintenanceOrders.bulkAdd(maintenanceOrders);
-        await db.preventiveSchedules.bulkAdd(preventiveSchedules);
-        await db.budgets.bulkAdd(budgets);
+        await db.permissions.bulkPut(permissions);
+        await db.roles.bulkPut(roles);
+        await db.users.bulkPut(demoUsers);
+        await db.companies.put(company);
+        await db.plants.bulkPut(plants);
+        await db.storageLocations.bulkPut(storageLocations);
+        await db.costCenters.bulkPut(costCenters);
+        await db.glAccounts.bulkPut(glAccounts);
+        await db.materialGroups.bulkPut(materialGroups);
+        await db.units.bulkPut(units);
+        await db.materials.bulkPut(materials);
+        await db.vendors.bulkPut(vendors);
+        await db.customers.bulkPut(customers);
+        await db.vehicles.bulkPut(vehicles);
+        await db.drivers.bulkPut(drivers);
+        await db.assets.bulkPut(assets);
+        await db.assetTransfers.bulkPut(assetTransfers);
+        await db.assetValuations.bulkPut(assetValuations);
+        await db.depreciationRuns.bulkPut(depreciationRuns);
+        await db.purchaseOrders.bulkPut(purchaseOrders);
+        await db.goodsReceipts.bulkPut(goodsReceipts);
+        await db.vendorInvoices.bulkPut(vendorInvoices);
+        await db.stockBalances.bulkPut(stockBalances);
+        await db.stockLedger.bulkPut(stockLedger);
+        await db.materialDocuments.bulkPut(materialDocuments);
+        await db.physicalInventoryDocs.bulkPut(samplePiDocs);
+        await db.inventoryAlerts.bulkPut(inventoryAlerts);
+        await db.auctionRecords.bulkPut(auctionRecords);
+        await db.trips.bulkPut(trips);
+        await db.fuelLogs.bulkPut(fuelLogs);
+        await db.fuelAnomalyAlerts.bulkPut(fuelAnomalyAlerts);
+        await db.maintenanceOrders.bulkPut(maintenanceOrders);
+        await db.preventiveSchedules.bulkPut(preventiveSchedules);
+        await db.budgets.bulkPut(budgets);
       }
     );
 

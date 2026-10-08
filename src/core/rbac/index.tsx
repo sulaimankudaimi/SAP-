@@ -43,11 +43,16 @@ export interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requiredAuth, children }) => {
-  const { isAuthenticated, isAutoLocked, role } = useAuthStore();
+  const { isAuthenticated, user, isAutoLocked, role } = useAuthStore();
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Force password change if required, allowing ONLY /change-password
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (requiredAuth && role) {

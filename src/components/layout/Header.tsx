@@ -14,6 +14,7 @@ import {
   Activity,
   UserCheck,
   ExternalLink,
+  KeyRound,
 } from 'lucide-react';
 import { t } from '../../i18n/ar';
 import { useToast } from '../ui/Toast';
@@ -22,6 +23,7 @@ import { Button } from '../ui/Button';
 import { useAuthStore } from '../../core/auth/useAuthStore';
 import { TCodeBar } from './TCodeBar';
 import { NotificationService } from '../../core/services/NotificationService';
+import { isRouteImplemented } from '../../app/routeStatus';
 import type { Notification } from '../../types/models';
 
 export interface HeaderProps {
@@ -31,7 +33,9 @@ export interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
   const navigate = useNavigate();
   const { success } = useToast();
-  const { user, role, logout, recordActivity } = useAuthStore();
+  const { user, role, logout, recordActivity, can } = useAuthStore();
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+  const canSysView = can({ module: 'SYS', activity: 'view' });
 
   // Record activity on interactions for idle timeout
   useEffect(() => {
@@ -100,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
       );
     }
     setShowNotifications(false);
-    if (item.link) {
+    if (item.link && isRouteImplemented(item.link)) {
       navigate(item.link);
     }
   };
@@ -158,15 +162,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
             <ChevronDown className="w-3 h-3 text-[#64748B]" />
           </button>
 
-          {/* Quick link to /admin/dev verification cockpit */}
-          <button
-            onClick={() => navigate('/admin/dev')}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-colors"
-            title="لوحة التحقق الفني للمحرك وقاعدة البيانات"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>لوحة فحص المحرك</span>
-          </button>
+          {/* Quick link to /admin/dev verification cockpit (Demo Mode & SYS_VIEW only) */}
+          {isDemoMode && canSysView && (
+            <button
+              onClick={() => navigate('/admin/dev')}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
+              title="لوحة التحقق الفني للمحرك وقاعدة البيانات"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>لوحة فحص المحرك</span>
+            </button>
+          )}
 
           {/* Notifications Dropdown */}
           <div className="relative">
@@ -310,27 +316,31 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
                   <span>تغيير سياق العمل</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    navigate('/admin/dev');
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
-                >
-                  <Activity className="w-4 h-4 text-[#0FA37F]" />
-                  <span>فحص المحرك والبيانات (Dev)</span>
-                </button>
+                {isDemoMode && canSysView && (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/admin/dev');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Activity className="w-4 h-4 text-[#0FA37F]" />
+                    <span>فحص المحرك والبيانات (Dev)</span>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    navigate('/admin/diagnostics');
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
-                >
-                  <Shield className="w-4 h-4 text-[#2563EB]" />
-                  <span>سجلات التشخيص وصحة النظام</span>
-                </button>
+                {canSysView && (
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/admin/diagnostics');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Shield className="w-4 h-4 text-[#2563EB]" />
+                    <span>سجلات التشخيص وصحة النظام</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -341,6 +351,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
                 >
                   <UserCheck className="w-4 h-4 text-[#F59E0B]" />
                   <span>عن النظام واختصارات المفاتيح</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    navigate('/change-password');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#0F172A] hover:bg-[#F4F7FB] rounded-lg transition-colors cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4 text-[#0FA37F]" />
+                  <span>{t('nav_change_password')}</span>
                 </button>
 
                 <div className="border-t border-[#E5EAF2] my-1" />

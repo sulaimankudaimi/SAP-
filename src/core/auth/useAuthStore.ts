@@ -31,6 +31,7 @@ interface AuthState {
   logout: () => void;
   recordActivity: () => void;
   setLocked: (locked: boolean) => void;
+  refreshUser: () => Promise<void>;
   unlock: (password: string) => Promise<boolean>;
   can: (
     required: AuthObject,
@@ -190,6 +191,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setLocked: (locked: boolean) => {
     set({ isAutoLocked: locked });
+  },
+
+  refreshUser: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const fresh = await userRepository.getById(currentUser.id);
+    if (fresh) {
+      set({ user: fresh });
+    }
   },
 
   unlock: async (password: string): Promise<boolean> => {

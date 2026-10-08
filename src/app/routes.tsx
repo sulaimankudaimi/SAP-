@@ -4,6 +4,23 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { ProtectedRoute } from '../core/rbac';
 import { t } from '../i18n/ar';
 import { PlaceholderPage } from '../components/layout/PlaceholderPage';
+import { getDevRouteDecision } from './routeStatus';
+import { useAuthStore } from '../core/auth/useAuthStore';
+import { RbacService } from '../core/services/RbacService';
+
+// Wrapper for developer / demo-only pages (/admin/dev, /rules)
+const DevRouteWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+  const role = useAuthStore((s) => s.role);
+  const hasSysView = Boolean(role && RbacService.hasPermission(role, { module: 'SYS', activity: 'view' }));
+  const decision = getDevRouteDecision(isDemoMode, hasSysView);
+
+  if (decision !== 'render') {
+    return <NotFoundPage />;
+  }
+
+  return <>{children}</>;
+};
 
 // Arabic Skeleton Loading Fallback for Lazy-Loaded Routes
 const PageLoadingFallback: React.FC = () => (
@@ -34,6 +51,7 @@ const PageLoadingFallback: React.FC = () => (
 // Lazy Loaded Core Pages
 const DashboardPage = lazy(() => import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const LoginPage = lazy(() => import('../pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const ChangePasswordPage = lazy(() => import('../pages/ChangePasswordPage').then((m) => ({ default: m.ChangePasswordPage })));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 const ProjectRulesPage = lazy(() => import('../pages/ProjectRulesPage').then((m) => ({ default: m.ProjectRulesPage })));
 const DevAdminPage = lazy(() => import('../pages/DevAdminPage').then((m) => ({ default: m.DevAdminPage })));
@@ -106,6 +124,16 @@ export const AppRoutes: React.FC = () => {
         {/* Standalone Login Screen */}
         <Route path="/login" element={<LoginPage />} />
 
+        {/* Forced / Dedicated Change Password Screen outside AppLayout */}
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePasswordPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Main ERP Layout Shell protected by authentication */}
         <Route
           path="/"
@@ -118,13 +146,41 @@ export const AppRoutes: React.FC = () => {
           {/* Dashboard */}
           <Route index element={<DashboardPage />} />
           <Route path="home" element={<DashboardPage />} />
-          <Route path="rules" element={<ProjectRulesPage />} />
+          <Route
+            path="rules"
+            element={
+              <DevRouteWrapper>
+                <ProjectRulesPage />
+              </DevRouteWrapper>
+            }
+          />
           <Route path="about" element={<AboutPage />} />
 
-          {/* Developer Verification & Diagnostics */}
-          <Route path="admin/dev" element={<DevAdminPage />} />
-          <Route path="admin/diagnostics" element={<DiagnosticsPage />} />
-          <Route path="diagnostics" element={<DiagnosticsPage />} />
+          {/* Developer Verification (Demo Mode & SYS_VIEW only) & Diagnostics (Guarded by SYS_VIEW) */}
+          <Route
+            path="admin/dev"
+            element={
+              <DevRouteWrapper>
+                <DevAdminPage />
+              </DevRouteWrapper>
+            }
+          />
+          <Route
+            path="admin/diagnostics"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'SYS', activity: 'view' }}>
+                <DiagnosticsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="diagnostics"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'SYS', activity: 'view' }}>
+                <DiagnosticsPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Procurement Routes (Guarded by MM_VIEW) */}
           <Route
