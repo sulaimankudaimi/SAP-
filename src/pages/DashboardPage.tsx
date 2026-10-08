@@ -12,6 +12,8 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Clock,
+  AlertTriangle,
+  HardDriveDownload,
 } from 'lucide-react';
 import { useAuthStore } from '../core/auth/useAuthStore';
 import { useToast } from '../components/ui/Toast';
@@ -20,6 +22,7 @@ import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
 import { ScreenSkeleton } from '../components/ui/Skeleton';
 import { formatCurrency, formatNumber } from '../core/utils';
+import { BackupService } from '../modules/admin/services/BackupService';
 import {
   DashboardService,
   type DashboardKPISummary,
@@ -57,6 +60,12 @@ export const DashboardPage: React.FC = () => {
   const [recentPOs, setRecentPOs] = useState<PurchaseOrder[]>([]);
   const [criticalStock, setCriticalStock] = useState<CriticalStockItem[]>([]);
   const [operationalKPIs, setOperationalKPIs] = useState<OperationalKPIs | null>(null);
+  const [backupReminder, setBackupReminder] = useState<{
+    needsReminder: boolean;
+    daysSinceLastBackup: number | null;
+    reminderDays: number;
+    lastBackupDate: string | null;
+  } | null>(null);
 
   // Role Permissions Checks (Role-aware widgets)
   const canViewProcurement = can({ module: 'MM', activity: 'view' });
@@ -68,7 +77,7 @@ export const DashboardPage: React.FC = () => {
   const loadDashboardData = useCallback(async (days: 30 | 90 | 365 = 30) => {
     setIsLoading(true);
     try {
-      const [kpis, trends, spend, plants, pos, stockAlerts, opKpis] = await Promise.all([
+      const [kpis, trends, spend, plants, pos, stockAlerts, opKpis, reminder] = await Promise.all([
         DashboardService.getKPISummary(),
         DashboardService.getProcurementTrends(days),
         DashboardService.getSpendDistribution(),
@@ -76,6 +85,7 @@ export const DashboardPage: React.FC = () => {
         DashboardService.getLatestPurchaseOrders(5),
         DashboardService.getCriticalStockAlerts(),
         DashboardService.getOperationalKPIs(),
+        BackupService.checkBackupReminder().catch(() => null),
       ]);
 
       setKpiSummary(kpis);
@@ -85,6 +95,9 @@ export const DashboardPage: React.FC = () => {
       setRecentPOs(pos);
       setCriticalStock(stockAlerts);
       setOperationalKPIs(opKpis);
+      if (reminder) {
+        setBackupReminder(reminder);
+      }
 
       const now = new Date();
       setLastUpdated(now.toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -165,6 +178,36 @@ export const DashboardPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Backup Reminder Warning Banner */}
+      {backupReminder?.needsReminder && (
+        <div className="bg-amber-50 border-s-4 border-amber-500 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs animate-in fade-in-50">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="space-y-0.5 text-start">
+              <h4 className="text-xs font-bold text-amber-900">
+                تنبيه أمان البيانات: لم يتم إنشاء نسخة احتياطية مشفرة مؤخراً!
+              </h4>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                {backupReminder.daysSinceLastBackup === null
+                  ? 'لم يتم إنشاء أي نسخة احتياطية مشفرة للنظام حتى الآن. يوصى بإنشاء نسخة دورية لحفظ السجلات المحاسبية والعمليات.'
+                  : `مرت ${backupReminder.daysSinceLastBackup} يوماً منذ آخر عملية نسخ احتياطي (${backupReminder.lastBackupDate?.slice(0, 10)}). الحد الأقصى المسموح به هو ${backupReminder.reminderDays} أيام.`}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/admin/backup')}
+            className="shrink-0 bg-amber-600 hover:bg-amber-700 border-none text-white shadow-xs"
+          >
+            <HardDriveDownload className="w-4 h-4 me-1.5" />
+            إنشاء نسخة احتياطية الآن
+          </Button>
+        </div>
+      )}
 
       {/* 2. Row 1: 4 StatCards (Role-aware & Clickable to respective modules) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

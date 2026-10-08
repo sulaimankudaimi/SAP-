@@ -43,6 +43,12 @@ export function exportToCSV<T extends Record<string, unknown>>(data: T[], filena
   exportToCsv(filename, data);
 }
 
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error || 'خطأ غير متوقع');
+}
+
 export function exportToCsv<T extends Record<string, unknown>>(
   filename: string,
   data: T[],
@@ -69,13 +75,4 @@ export function exportToCsv<T extends Record<string, unknown>>(
   // Prepend UTF-8 BOM so Excel on Windows properly displays Arabic text
   const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}.csv`;
   void downloadCsvFile(cleanFilename, csvRows.join('\n'));
-}
-
-export function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-    return (err as { message: string }).message;
-  }
-  return 'حدث خطأ غير متوقع';
 }

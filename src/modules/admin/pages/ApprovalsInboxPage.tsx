@@ -16,6 +16,7 @@ import {
   Check,
   X,
   Building,
+  Printer,
 } from 'lucide-react';
 import { Breadcrumbs } from '../../../components/ui/Breadcrumbs';
 import { Card } from '../../../components/ui/Card';
@@ -27,7 +28,8 @@ import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { ApprovalService } from '../../../core/services/ApprovalService';
 import { db } from '../../../core/db';
-import type { ApprovalRequest, WorkflowDocumentType } from '../../../types/models';
+import { PrintDocumentModal } from '../../../components/common/PrintDocumentModal';
+import type { ApprovalRequest, WorkflowDocumentType, PrintDocumentType } from '../../../types/models';
 
 export const ApprovalsInboxPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -43,6 +45,12 @@ export const ApprovalsInboxPage: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [actionComment, setActionComment] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  const getPrintDocType = (docType: WorkflowDocumentType): PrintDocumentType => {
+    if (docType === 'PAYMENT') return 'VOUCHER';
+    return 'PO';
+  };
 
   const loadRequests = async () => {
     setIsLoading(true);
@@ -159,7 +167,7 @@ export const ApprovalsInboxPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={loadRequests}>
+            <Button variant="secondary" onClick={loadRequests}>
               <RefreshCw className="w-4 h-4 me-1.5" />
               تحديث
             </Button>
@@ -285,7 +293,7 @@ export const ApprovalsInboxPage: React.FC = () => {
                         {req.documentNumber}
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="blue">{req.documentType}</Badge>
+                        <Badge variant="in_progress">{req.documentType}</Badge>
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold text-[#0FA37F]">
                         {req.amount.toLocaleString()} {req.currency}
@@ -304,16 +312,16 @@ export const ApprovalsInboxPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         {req.status === 'approved' ? (
-                          <Badge variant="green">معتمد بالكامل</Badge>
+                          <Badge variant="approved">معتمد بالكامل</Badge>
                         ) : req.status === 'rejected' ? (
-                          <Badge variant="red">مرفوض</Badge>
+                          <Badge variant="rejected">مرفوض</Badge>
                         ) : (
-                          <Badge variant="amber">بانتظار الاعتماد</Badge>
+                          <Badge variant="pending">بانتظار الاعتماد</Badge>
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <Button
-                          variant={canAct ? 'primary' : 'outline'}
+                          variant={canAct ? 'primary' : 'secondary'}
                           size="sm"
                           onClick={() => handleOpenActionModal(req)}
                         >
@@ -423,9 +431,9 @@ export const ApprovalsInboxPage: React.FC = () => {
                     </div>
 
                     <div>
-                      {st.status === 'approved' && <Badge variant="green">معتمد</Badge>}
-                      {st.status === 'rejected' && <Badge variant="red">مرفوض</Badge>}
-                      {st.status === 'pending' && <Badge variant="amber">بانتظار الإجراء</Badge>}
+                      {st.status === 'approved' && <Badge variant="approved">معتمد</Badge>}
+                      {st.status === 'rejected' && <Badge variant="rejected">مرفوض</Badge>}
+                      {st.status === 'pending' && <Badge variant="pending">بانتظار الإجراء</Badge>}
                     </div>
                   </div>
                 ))}
@@ -446,43 +454,86 @@ export const ApprovalsInboxPage: React.FC = () => {
                   className="w-full text-xs p-2.5 rounded-xl border border-[#E5EAF2] bg-white focus:outline-hidden focus:border-[#0FA37F]"
                 />
 
-                <div className="flex items-center justify-end gap-2 pt-1">
+                <div className="flex items-center justify-between pt-1">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => setSelectedRequest(null)}
+                    variant="secondary"
+                    onClick={() => setShowPrintModal(true)}
                   >
-                    إغلاق
+                    <Printer className="w-4 h-4 me-1.5" />
+                    معاينة الطباعة الرسمية
                   </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    disabled={isProcessing}
-                    onClick={() => handleProcessAction('reject')}
-                  >
-                    <XCircle className="w-4 h-4 me-1.5" />
-                    رفض الطلب
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    disabled={isProcessing}
-                    onClick={() => handleProcessAction('approve')}
-                  >
-                    <CheckCircle2 className="w-4 h-4 me-1.5" />
-                    موافقة واعتماد
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setSelectedRequest(null)}
+                    >
+                      إغلاق
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={isProcessing}
+                      onClick={() => handleProcessAction('reject')}
+                    >
+                      <XCircle className="w-4 h-4 me-1.5" />
+                      رفض الطلب
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      disabled={isProcessing}
+                      onClick={() => handleProcessAction('approve')}
+                    >
+                      <CheckCircle2 className="w-4 h-4 me-1.5" />
+                      موافقة واعتماد
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="flex justify-end pt-2">
-                <Button variant="outline" onClick={() => setSelectedRequest(null)}>
+              <div className="flex items-center justify-between pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowPrintModal(true)}
+                >
+                  <Printer className="w-4 h-4 me-1.5" />
+                  معاينة الطباعة الرسمية
+                </Button>
+                <Button variant="secondary" onClick={() => setSelectedRequest(null)}>
                   إغلاق
                 </Button>
               </div>
             )}
           </div>
         </Modal>
+      )}
+
+      {/* Official Print Layout Modal */}
+      {selectedRequest && (
+        <PrintDocumentModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          documentType={getPrintDocType(selectedRequest.documentType)}
+          documentNumber={selectedRequest.documentNumber}
+          partyName={selectedRequest.requesterUserName}
+          date={selectedRequest.createdAt?.slice(0, 10)}
+          total={selectedRequest.amount}
+          currency={selectedRequest.currency}
+          notes={`طلب اعتماد مالي رقم: ${selectedRequest.documentNumber} - مقدم من: ${selectedRequest.requesterUserName}`}
+          items={[
+            {
+              code: selectedRequest.documentNumber,
+              description: `مستند اعتماد ${selectedRequest.documentType} - القيمة الإجمالية المصرح بها`,
+              quantity: 1,
+              unit: 'EA',
+              unitPrice: selectedRequest.amount / 1.15,
+              total: selectedRequest.amount / 1.15,
+            },
+          ]}
+        />
       )}
     </div>
   );

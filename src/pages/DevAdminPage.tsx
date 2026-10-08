@@ -443,11 +443,11 @@ export const DevAdminPage: React.FC = () => {
                   <td className="py-2.5 px-3">
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        log.action === 'CREATE'
+                        log.action === 'CREATE' || log.action === 'LOGIN' || log.action === 'ACCOUNT_UNLOCKED'
                           ? 'bg-emerald-100 text-emerald-700'
-                          : log.action === 'UPDATE'
+                          : log.action === 'UPDATE' || log.action === 'PASSWORD_CHANGED'
                           ? 'bg-blue-100 text-blue-700'
-                          : log.action === 'DELETE'
+                          : log.action === 'DELETE' || log.action === 'LOGIN_FAILED' || log.action === 'ACCOUNT_LOCKED'
                           ? 'bg-red-100 text-red-700'
                           : 'bg-amber-100 text-amber-700'
                       }`}

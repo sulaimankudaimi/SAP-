@@ -34,6 +34,11 @@ export async function saveFileUniversal(
   }
 
   // 2. Web Browser Fallback (Blob + ObjectURL)
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    // Non-browser (Node.js test or SSR) environment: safe no-op for downloader
+    return;
+  }
+
   let blob: Blob;
   if (data instanceof Blob) {
     blob = data;

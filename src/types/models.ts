@@ -59,6 +59,7 @@ export interface UserSession {
 }
 
 export interface User {
+  [key: string]: unknown;
   id: string;
   username: string;
   fullName: string;
@@ -1081,11 +1082,22 @@ export interface Notification {
   isDeleted: boolean;
 }
 
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'STATUS_CHANGE'
+  | 'LOGIN'
+  | 'LOGIN_FAILED'
+  | 'ACCOUNT_LOCKED'
+  | 'ACCOUNT_UNLOCKED'
+  | 'PASSWORD_CHANGED';
+
 export interface AuditLog {
   id: string;
   userId: string;
   userName: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE';
+  action: AuditAction;
   entity: string;
   entityId: string;
   before?: Record<string, unknown> | null;

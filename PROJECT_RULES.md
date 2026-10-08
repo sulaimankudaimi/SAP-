@@ -40,6 +40,7 @@ ARCHITECTURE RULES
 
 SECURITY RULES
 - No default/auto sessions; no password hashes outside the DB; session tokens must be HMAC-signed; every service method that mutates data must call requirePermission(); audit entries must always carry the real acting user; no hardcoded fallback user/cost-center IDs.
+- Every repository write must run under an authenticated actor OR an explicit { system: true, userName } context OR an authentication-event context { userId, userName }. Never rely on implicit defaults.
 
 WORKING PROTOCOL
 - Implement ONLY what the current prompt asks. Do not refactor unrelated files.

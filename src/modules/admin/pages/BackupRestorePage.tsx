@@ -213,7 +213,7 @@ export const BackupRestorePage: React.FC = () => {
         id: 'set-backup-reminder-days',
         key: 'BACKUP_REMINDER_DAYS',
         value: String(reminderDays),
-        category: 'system',
+        category: 'general',
         description: 'عدد الأيام المسموح بها قبل إظهار تحذير النسخ الاحتياطي في لوحة التحكم',
         updatedAt: new Date().toISOString(),
         isDeleted: false,
@@ -274,7 +274,7 @@ export const BackupRestorePage: React.FC = () => {
               </p>
             </div>
           </div>
-          <Badge variant="amber">تحذير أمان</Badge>
+          <Badge variant="pending">تحذير أمان</Badge>
         </div>
       )}
 
@@ -330,7 +330,7 @@ export const BackupRestorePage: React.FC = () => {
                 <HardDriveDownload className="w-5 h-5 text-[#0FA37F]" />
                 <h3 className="text-sm font-bold text-[#0F172A]">إنشاء وتصدير نسخة مشفرة</h3>
               </div>
-              <Badge variant="green">AES-256-GCM</Badge>
+              <Badge variant="approved">AES-256-GCM</Badge>
             </div>
           }
         >
@@ -433,7 +433,7 @@ export const BackupRestorePage: React.FC = () => {
                 <RotateCcw className="w-5 h-5 text-blue-600" />
                 <h3 className="text-sm font-bold text-[#0F172A]">استعادة البيانات من نسخة مشفرة</h3>
               </div>
-              <Badge variant="blue">Rollback Protected</Badge>
+              <Badge variant="in_progress">Rollback Protected</Badge>
             </div>
           }
         >
@@ -480,7 +480,7 @@ export const BackupRestorePage: React.FC = () => {
 
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               className="w-full"
               onClick={handlePreview}
               disabled={isPreviewing || !restoreFileContent || !restorePassphrase}
@@ -502,7 +502,7 @@ export const BackupRestorePage: React.FC = () => {
               <div className="space-y-3 p-3 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[#0F172A]">نتائج فحص النسخة الاحتياطية</span>
-                  <Badge variant="green">بصمة SHA-256 متطابقة</Badge>
+                  <Badge variant="approved">بصمة SHA-256 متطابقة</Badge>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>

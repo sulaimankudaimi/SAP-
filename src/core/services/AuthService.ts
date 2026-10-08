@@ -1,5 +1,7 @@
 import { userRepository, roleRepository } from '../repositories';
 import { CryptoService } from './crypto';
+import { AuditService } from './AuditService';
+import { db } from '../db';
 import type { User, Role } from '../../types/models';
 
 export interface AuthSession {
@@ -29,6 +31,7 @@ export class AuthService {
   /**
    * Authenticates user against salted PBKDF2 hash with automatic lockout protection.
    * Issues HMAC-SHA256 signed token.
+   * Performs user updates and audit logs atomically inside Dexie transaction.
    */
   static async login(username: string, password: string): Promise<AuthSession> {
     const cleanUsername = username.trim().toLowerCase();
@@ -41,6 +44,8 @@ export class AuthService {
       throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة.');
     }
 
+    const authContext = { userId: user.id, userName: user.username };
+
     // Check account lockout status
     if (user.isLocked) {
       if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
@@ -51,11 +56,33 @@ export class AuthService {
           `الحساب مقفل مؤقتاً لتجاوز المحاولات الخاطئة. يرجى المحاولة بعد ${remainingMinutes} دقيقة أو مراجعة مدير النظام.`
         );
       } else {
-        // Unlock expired lock
-        await userRepository.update(user.id, {
-          isLocked: false,
-          failedLoginAttempts: 0,
-        });
+        // Unlock expired lock atomically with ACCOUNT_UNLOCKED audit
+        try {
+          await db.transaction('rw', [db.users, db.auditLogs], async () => {
+            const freshUser = await db.users.get(user.id);
+            if (freshUser) {
+              const updatedUser = {
+                ...freshUser,
+                isLocked: false,
+                failedLoginAttempts: 0,
+                lockedUntil: undefined,
+                updatedAt: new Date().toISOString(),
+              };
+              await db.users.put(updatedUser);
+              await AuditService.log({
+                action: 'ACCOUNT_UNLOCKED',
+                entity: 'users',
+                entityId: user.id,
+                userId: user.id,
+                userName: user.username,
+                before: freshUser,
+                after: updatedUser,
+              });
+            }
+          });
+        } catch {
+          throw new Error('تعذر إلغاء قفل الحساب. يرجى المحاولة لاحقاً.');
+        }
       }
     }
 
@@ -73,11 +100,45 @@ export class AuthService {
         ? new Date(Date.now() + this.LOCKOUT_MINUTES * 60000).toISOString()
         : undefined;
 
-      await userRepository.update(user.id, {
-        failedLoginAttempts: attempts,
-        isLocked: isNowLocked,
-        lockedUntil,
-      });
+      try {
+        await db.transaction('rw', [db.users, db.auditLogs], async () => {
+          const freshUser = await db.users.get(user.id);
+          if (freshUser) {
+            const updatedUser = {
+              ...freshUser,
+              failedLoginAttempts: attempts,
+              isLocked: isNowLocked,
+              lockedUntil,
+              updatedAt: new Date().toISOString(),
+            };
+            await db.users.put(updatedUser);
+
+            // Log LOGIN_FAILED with attempt count (never log password)
+            await AuditService.log({
+              action: 'LOGIN_FAILED',
+              entity: 'users',
+              entityId: user.id,
+              userId: user.id,
+              userName: user.username,
+              after: { attempt: attempts, isNowLocked },
+            });
+
+            // If threshold reached, log ACCOUNT_LOCKED
+            if (isNowLocked) {
+              await AuditService.log({
+                action: 'ACCOUNT_LOCKED',
+                entity: 'users',
+                entityId: user.id,
+                userId: user.id,
+                userName: user.username,
+                after: { lockedUntil, reason: 'Max failed login attempts reached' },
+              });
+            }
+          }
+        });
+      } catch {
+        throw new Error('حدث خطأ أثناء معالجة تسجيل الدخول. يرجى المحاولة لاحقاً.');
+      }
 
       if (isNowLocked) {
         throw new Error(
@@ -91,13 +152,35 @@ export class AuthService {
       );
     }
 
-    // Login successful: reset failed attempts
+    // Login successful: reset failed attempts & record LOGIN audit in a single transaction
     const now = new Date().toISOString();
-    await userRepository.update(user.id, {
-      failedLoginAttempts: 0,
-      isLocked: false,
-      lastLoginAt: now,
-    });
+    try {
+      await db.transaction('rw', [db.users, db.auditLogs], async () => {
+        const freshUser = await db.users.get(user.id);
+        if (freshUser) {
+          const updatedUser = {
+            ...freshUser,
+            failedLoginAttempts: 0,
+            isLocked: false,
+            lockedUntil: undefined,
+            lastLoginAt: now,
+            updatedAt: now,
+          };
+          await db.users.put(updatedUser);
+
+          await AuditService.log({
+            action: 'LOGIN',
+            entity: 'users',
+            entityId: user.id,
+            userId: user.id,
+            userName: user.username,
+            after: { lastLoginAt: now },
+          });
+        }
+      });
+    } catch {
+      throw new Error('حدث خطأ في النظام أثناء توثيق الدخول.');
+    }
 
     const role = await roleRepository.getById(user.roleId);
     if (!role) {
@@ -131,13 +214,31 @@ export class AuthService {
       );
     }
 
+    const existingUser = await userRepository.getById(userId);
+    if (!existingUser) {
+      throw new Error('المستخدم غير موجود.');
+    }
+
     const salt = CryptoService.generateSalt();
     const hash = await CryptoService.hashPassword(newPlainPassword, salt);
 
-    await userRepository.update(userId, {
-      passwordSalt: salt,
-      passwordHash: hash,
-      mustChangePassword: false,
+    await userRepository.update(
+      userId,
+      {
+        passwordSalt: salt,
+        passwordHash: hash,
+        mustChangePassword: false,
+      },
+      { userId: existingUser.id, userName: existingUser.username }
+    );
+
+    await AuditService.log({
+      action: 'PASSWORD_CHANGED',
+      entity: 'users',
+      entityId: userId,
+      userId: existingUser.id,
+      userName: existingUser.username,
+      after: { mustChangePassword: false },
     });
   }
 }

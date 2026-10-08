@@ -134,13 +134,13 @@ export const ReportsCenterPage: React.FC = () => {
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
         {(
           [
-            { id: 'catalog', label: 'كتالوج التقارير الشامل', icon: FileText, count: allReports.length },
-            { id: 'runner', label: 'مشغل التقارير التفاعلي', icon: BarChart3 },
-            { id: 'dashboards', label: 'لوحات المؤشرات الإدارية', icon: TrendingUp },
-            { id: 'predictive', label: 'التحليلات التنبؤية وكشف الشذوذ', icon: Sparkles },
-            { id: 'kpis', label: 'مكتبة مؤشرات الأداء (KPIs)', icon: Target },
-            { id: 'snapshots', label: 'اللقطات المؤرشفة', icon: Camera },
-          ] as const
+            { id: 'catalog' as const, label: 'كتالوج التقارير الشامل', icon: FileText, count: allReports.length },
+            { id: 'runner' as const, label: 'مشغل التقارير التفاعلي', icon: BarChart3, count: undefined },
+            { id: 'dashboards' as const, label: 'لوحات المؤشرات الإدارية', icon: TrendingUp, count: undefined },
+            { id: 'predictive' as const, label: 'التحليلات التنبؤية وكشف الشذوذ', icon: Sparkles, count: undefined },
+            { id: 'kpis' as const, label: 'مكتبة مؤشرات الأداء (KPIs)', icon: Target, count: undefined },
+            { id: 'snapshots' as const, label: 'اللقطات المؤرشفة', icon: Camera, count: undefined },
+          ]
         ).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

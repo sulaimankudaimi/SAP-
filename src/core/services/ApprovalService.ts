@@ -211,16 +211,19 @@ export class ApprovalService {
       );
 
       // Notify requester of rejection
-      await notificationRepository.create({
-        id: `notif-${Date.now()}`,
-        userId: request.requesterUserId,
-        title: `تم رفض المستند: ${request.documentNumber}`,
-        message: `قام ${options.approver.fullName} برفض الطلب. السبب: ${options.comment || 'لا يوجد'}`,
-        type: 'approval',
-        isRead: false,
-        createdAt: now,
-        isDeleted: false,
-      });
+      await notificationRepository.create(
+        {
+          id: `notif-${Date.now()}`,
+          userId: request.requesterUserId,
+          title: `تم رفض المستند: ${request.documentNumber}`,
+          message: `قام ${options.approver.fullName} برفض الطلب. السبب: ${options.comment || 'لا يوجد'}`,
+          type: 'approval',
+          isRead: false,
+          createdAt: now,
+          isDeleted: false,
+        },
+        { userId: options.approver.id, userName: options.approver.fullName }
+      );
 
       return updated;
     }
@@ -248,16 +251,19 @@ export class ApprovalService {
       );
 
       // Notify requester of full approval
-      await notificationRepository.create({
-        id: `notif-${Date.now()}`,
-        userId: request.requesterUserId,
-        title: `تم اعتماد المستند نهائياً: ${request.documentNumber}`,
-        message: `تم استكمال كافة مراحل الاعتماد للمستند بنجاح.`,
-        type: 'approval',
-        isRead: false,
-        createdAt: now,
-        isDeleted: false,
-      });
+      await notificationRepository.create(
+        {
+          id: `notif-${Date.now()}`,
+          userId: request.requesterUserId,
+          title: `تم اعتماد المستند نهائياً: ${request.documentNumber}`,
+          message: `تم استكمال كافة مراحل الاعتماد للمستند بنجاح.`,
+          type: 'approval',
+          isRead: false,
+          createdAt: now,
+          isDeleted: false,
+        },
+        { userId: options.approver.id, userName: options.approver.fullName }
+      );
 
       return updated;
     } else {
@@ -275,16 +281,19 @@ export class ApprovalService {
       );
 
       // Notify next approver role
-      await notificationRepository.create({
-        id: `notif-${Date.now()}`,
-        userId: nextStep.roleCode,
-        title: `طلب اعتماد محال إليك: ${request.documentNumber}`,
-        message: `تم اعتماد المرحلة السابقة من قبل ${options.approver.fullName}. المستند بانتظار موافقتك.`,
-        type: 'approval',
-        isRead: false,
-        createdAt: now,
-        isDeleted: false,
-      });
+      await notificationRepository.create(
+        {
+          id: `notif-${Date.now()}`,
+          userId: nextStep.roleCode,
+          title: `طلب اعتماد محال إليك: ${request.documentNumber}`,
+          message: `تم اعتماد المرحلة السابقة من قبل ${options.approver.fullName}. المستند بانتظار موافقتك.`,
+          type: 'approval',
+          isRead: false,
+          createdAt: now,
+          isDeleted: false,
+        },
+        { userId: options.approver.id, userName: options.approver.fullName }
+      );
 
       return updated;
     }

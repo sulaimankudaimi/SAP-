@@ -8,9 +8,9 @@ import { Select } from '../../../components/ui/Select';
 import { Modal } from '../../../components/ui/Modal';
 import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
-import type { Vehicle, VehicleType } from '../../../types/models';
 import { getErrorMessage } from '../../../core/utils';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import type { Vehicle, VehicleType } from '../../../types/models';
 import {
   Truck,
   Search,

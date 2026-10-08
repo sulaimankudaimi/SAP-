@@ -57,39 +57,44 @@ async function getOrGenerateHmacKey(): Promise<CryptoKey> {
   }
 
   const idb = await openKeyDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = idb.transaction(IDB_KEY_STORE, 'readwrite');
+  
+  // 1. Try reading existing key first
+  const existingKey = await new Promise<CryptoKey | null>((resolve, reject) => {
+    const tx = idb.transaction(IDB_KEY_STORE, 'readonly');
     const store = tx.objectStore(IDB_KEY_STORE);
     const getReq = store.get(HMAC_KEY_ID);
-
-    getReq.onsuccess = async () => {
-      if (getReq.result && getReq.result.key) {
-        cachedHmacKey = getReq.result.key;
-        resolve(cachedHmacKey!);
-      } else {
-        try {
-          const generatedKey = await cryptoApi.subtle.generateKey(
-            {
-              name: 'HMAC',
-              hash: { name: 'SHA-256' },
-            },
-            false, // non-extractable per security spec
-            ['sign', 'verify']
-          );
-
-          const putReq = store.put({ id: HMAC_KEY_ID, key: generatedKey });
-          putReq.onsuccess = () => {
-            cachedHmacKey = generatedKey;
-            resolve(generatedKey);
-          };
-          putReq.onerror = () => reject(putReq.error);
-        } catch (err) {
-          reject(err);
-        }
-      }
+    getReq.onsuccess = () => {
+      resolve(getReq.result?.key || null);
     };
     getReq.onerror = () => reject(getReq.error);
   });
+
+  if (existingKey) {
+    cachedHmacKey = existingKey;
+    return cachedHmacKey;
+  }
+
+  // 2. Generate key outside of IDB transaction
+  const generatedKey = await cryptoApi.subtle.generateKey(
+    {
+      name: 'HMAC',
+      hash: { name: 'SHA-256' },
+    },
+    false, // non-extractable per security spec
+    ['sign', 'verify']
+  );
+
+  // 3. Save generated key in a fresh readwrite transaction
+  await new Promise<void>((resolve, reject) => {
+    const tx = idb.transaction(IDB_KEY_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_KEY_STORE);
+    const putReq = store.put({ id: HMAC_KEY_ID, key: generatedKey });
+    putReq.onsuccess = () => resolve();
+    putReq.onerror = () => reject(putReq.error);
+  });
+
+  cachedHmacKey = generatedKey;
+  return cachedHmacKey;
 }
 
 export class CryptoService {

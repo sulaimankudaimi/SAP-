@@ -1,7 +1,8 @@
 export interface ActionContext {
-  userId: string;
+  userId?: string;
   userName: string;
   ipAddress?: string;
+  system?: boolean;
 }
 
 export interface RepositoryQuery<T> {

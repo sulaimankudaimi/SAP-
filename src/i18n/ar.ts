@@ -83,6 +83,11 @@ export const ar = {
   nav_roles: 'الأدوار والصلاحيات',
   nav_audit_log: 'سجل التدقيق (Audit Log)',
   nav_settings: 'إعدادات النظام',
+  nav_backup: 'النسخ الاحتياطي والاستعادة (BR01)',
+  nav_workflow: 'سلاسل الاعتماد وسير العمل (SWDD)',
+  nav_approvals: 'صندوق طلبات الموافقة (SBWP)',
+  nav_print_templates: 'قوالب المطبوعات الرسمية (PRT01)',
+  nav_notifications: 'مركز الإشعارات والتنبيهات',
   nav_diagnostics: 'سجلات التشخيص وصحة النظام',
   nav_about: 'عن النظام والاختصارات',
 
@@ -252,11 +257,6 @@ export const ar = {
   nav_period_end: 'إقفال الفترات المالية',
   nav_financial_statements: 'القوائم المالية',
   nav_account_rules: 'قواعد التوجيه الآلي',
-  nav_backup: 'النسخ الاحتياطي والاستعادة',
-  nav_workflow: 'سير العمل والاعتمادات',
-  nav_approvals: 'طلبات الموافقة',
-  nav_notifications: 'مركز الإشعارات',
-  nav_print_templates: 'قوالب المطبوعات الرسمية',
 
   // Login
   login_title: 'بوابة الدخول للنظام المكتبي',

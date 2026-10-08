@@ -299,9 +299,9 @@ export const MasterDataHubPage: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <Badge
                     variant={
-                      a.action === 'CREATE'
+                      a.action === 'CREATE' || a.action === 'LOGIN' || a.action === 'ACCOUNT_UNLOCKED'
                         ? 'approved'
-                        : a.action === 'UPDATE'
+                        : a.action === 'UPDATE' || a.action === 'PASSWORD_CHANGED'
                         ? 'in_progress'
                         : a.action === 'STATUS_CHANGE'
                         ? 'in_review'

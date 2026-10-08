@@ -200,7 +200,7 @@ export const AssetDashboardPage: React.FC = () => {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} interval={0} angle={-15} textAnchor="end" />
                 <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  formatter={(val: number | string | undefined) => [`${Number(val || 0).toLocaleString('en-US')} SAR`, 'القيمة الدفترية']}
+                  formatter={(val: number | string | readonly (number | string)[] | undefined) => [`${Number(val || 0).toLocaleString('en-US')} SAR`, 'القيمة الدفترية']}
                   contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Bar dataKey="totalValue" fill="#0FA37F" radius={[6, 6, 0, 0]} />
@@ -244,7 +244,7 @@ export const AssetDashboardPage: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(val: number | string | undefined) => [val ?? 0, 'عدد الأصول']}
+                  formatter={(val: number | string | readonly (number | string)[] | undefined) => [val ?? 0, 'عدد الأصول']}
                   contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />

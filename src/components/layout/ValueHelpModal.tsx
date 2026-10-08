@@ -198,7 +198,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   <div className="space-y-0.5 text-start">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-xs text-[#0B2545]">{m.materialCode}</span>
-                      <Badge variant="blue">{m.groupCode || 'GRP'}</Badge>
+                      <Badge variant="in_progress">{m.groupCode || 'GRP'}</Badge>
                       {m.abcClass && <Badge variant="neutral">فئة {m.abcClass}</Badge>}
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{m.name}</p>
@@ -232,7 +232,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   <div className="space-y-0.5 text-start">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-xs text-[#0B2545]">{v.vendorCode}</span>
-                      <Badge variant="emerald">{v.category || 'مورد عام'}</Badge>
+                      <Badge variant="approved">{v.category || 'مورد عام'}</Badge>
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{v.name}</p>
                     <p className="text-[11px] text-[#64748B]">
@@ -265,7 +265,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   <div className="space-y-0.5 text-start">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-xs text-[#0B2545]">{c.code}</span>
-                      <Badge variant="amber">مركز تكلفة</Badge>
+                      <Badge variant="in_review">مركز تكلفة</Badge>
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{c.name}</p>
                     <p className="text-[11px] text-[#64748B]">المسؤول: {c.responsiblePerson || 'الإدارة المالية'}</p>
@@ -296,7 +296,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                   <div className="space-y-0.5 text-start">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-xs text-[#0B2545]">{p.code}</span>
-                      <Badge variant="blue">محطة / فرع</Badge>
+                      <Badge variant="in_progress">محطة / فرع</Badge>
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{p.name}</p>
                     <p className="text-[11px] text-[#64748B]">المدينة: {p.city || '—'}</p>
@@ -314,36 +314,34 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                 </div>
               ))
             )
+          ) : filteredGlAccounts.length === 0 ? (
+            <div className="p-8 text-center text-xs text-[#64748B]">لا توجد حسابات أستاذ مطابقة</div>
           ) : (
-            filteredGlAccounts.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#64748B]">لا توجد حسابات أستاذ مطابقة</div>
-            ) : (
-              filteredGlAccounts.map((g) => (
-                <div
-                  key={g.id}
-                  onClick={() => handleCopy(g.accountNumber, g.name)}
-                  className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer group"
-                >
-                  <div className="space-y-0.5 text-start">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs text-[#0B2545]">{g.accountNumber}</span>
-                      <Badge variant="neutral">{g.category || 'GL'}</Badge>
-                    </div>
-                    <p className="text-xs text-[#0F172A] font-semibold">{g.name}</p>
+            filteredGlAccounts.map((g) => (
+              <div
+                key={g.id}
+                onClick={() => handleCopy(g.accountNumber, g.name)}
+                className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer group"
+              >
+                <div className="space-y-0.5 text-start">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-[#0B2545]">{g.accountNumber}</span>
+                    <Badge variant="neutral">{g.category || 'GL'}</Badge>
                   </div>
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-lg border border-[#E5EAF2] group-hover:border-[#0FA37F] group-hover:text-[#0FA37F] text-[#64748B] transition-colors"
-                  >
-                    {copiedCode === g.accountNumber ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
+                  <p className="text-xs text-[#0F172A] font-semibold">{g.name}</p>
                 </div>
-              ))
-            )
+                <button
+                  type="button"
+                  className="p-1.5 rounded-lg border border-[#E5EAF2] group-hover:border-[#0FA37F] group-hover:text-[#0FA37F] text-[#64748B] transition-colors"
+                >
+                  {copiedCode === g.accountNumber ? (
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            ))
           )}
         </div>
 

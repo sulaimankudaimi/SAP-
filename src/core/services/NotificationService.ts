@@ -71,18 +71,20 @@ export class NotificationService {
     // 1. Contract Expiry Generator
     const contracts = await db.contracts.filter((c) => !c.isDeleted && c.status === 'active').toArray();
     for (const c of contracts) {
+      const contractNum = String(c.docNumber || c.contractNumber || c.id);
+      const vendorName = String(c.vendorName || c.vendorCode || '');
       if (c.validTo && c.validTo <= in30Days && !existingDocKeys.has(`CONTRACT:${c.id}`)) {
         newNotifications.push({
           id: `notif-cnt-${c.id}-${Date.now()}`,
           userId: 'ALL',
           title: 'تنبيه اقتراب انتهاء عقد توريد',
-          message: `عقد التوريد [${c.docNumber} - ${c.title || c.vendorCode}] ينتهي بتاريخ ${c.validTo}. يرجى مراجعة التجديد.`,
+          message: `عقد التوريد [${contractNum} - ${vendorName}] ينتهي بتاريخ ${c.validTo}. يرجى مراجعة التجديد.`,
           type: 'procurement',
           isRead: false,
           link: '/procurement/contracts',
           documentType: 'CONTRACT',
           documentId: c.id,
-          documentNumber: c.docNumber,
+          documentNumber: contractNum,
           createdAt: now.toISOString(),
           isDeleted: false,
         });

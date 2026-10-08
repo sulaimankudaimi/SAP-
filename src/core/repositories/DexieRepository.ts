@@ -83,7 +83,12 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
     if (typeof contextOrUserId === 'string') {
       return { userId: contextOrUserId, userName: userName || contextOrUserId };
     }
-    return contextOrUserId;
+    return {
+      userId: contextOrUserId.userId,
+      userName: contextOrUserId.userName,
+      ipAddress: contextOrUserId.ipAddress,
+      system: contextOrUserId.system,
+    };
   }
 
   async create(entity: T, contextOrUserId?: ActionContext | string, userName?: string): Promise<T> {

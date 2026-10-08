@@ -16,6 +16,8 @@ import {
   Menu,
   FileCode,
   Activity,
+  CheckCircle2,
+  Bell,
 } from 'lucide-react';
 import { cn } from '../../core/utils';
 import { t } from '../../i18n/ar';
@@ -136,12 +138,27 @@ export const navigationConfig: NavItemWithModule[] = [
     icon: BarChart3,
   },
   {
+    id: 'approvals',
+    path: '/approvals',
+    titleKey: 'nav_approvals',
+    icon: CheckCircle2,
+  },
+  {
+    id: 'notifications',
+    path: '/notifications',
+    titleKey: 'nav_notifications',
+    icon: Bell,
+  },
+  {
     id: 'admin',
     path: '/admin',
     titleKey: 'nav_admin',
     icon: ShieldCheck,
     requiredModule: 'ADM',
     children: [
+      { id: 'backup', path: '/admin/backup', titleKey: 'nav_backup' },
+      { id: 'workflow', path: '/admin/workflow', titleKey: 'nav_workflow' },
+      { id: 'print-templates', path: '/admin/print-templates', titleKey: 'nav_print_templates' },
       { id: 'dev-cockpit', path: '/admin/dev', titleKey: 'nav_audit_log' },
       { id: 'diagnostics', path: '/admin/diagnostics', titleKey: 'nav_diagnostics' },
       { id: 'users', path: '/admin/users', titleKey: 'nav_users' },

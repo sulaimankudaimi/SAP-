@@ -66,6 +66,16 @@ export const AuditHistoryTab: React.FC<AuditHistoryTabProps> = ({ entity, entity
         return <Badge variant="in_review">تغيير حالة (Status)</Badge>;
       case 'DELETE':
         return <Badge variant="critical">حذف / إلغاء (Delete)</Badge>;
+      case 'LOGIN':
+        return <Badge variant="approved">تسجيل دخول (Login)</Badge>;
+      case 'LOGIN_FAILED':
+        return <Badge variant="critical">فشل تسجيل الدخول (Failed)</Badge>;
+      case 'ACCOUNT_LOCKED':
+        return <Badge variant="critical">قفل الحساب (Locked)</Badge>;
+      case 'ACCOUNT_UNLOCKED':
+        return <Badge variant="in_progress">إلغاء قفل الحساب (Unlocked)</Badge>;
+      case 'PASSWORD_CHANGED':
+        return <Badge variant="in_review">تغيير كلمة المرور (Password)</Badge>;
       default:
         return <Badge variant="closed">{action}</Badge>;
     }

@@ -1,13 +1,24 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Info,
   ShieldCheck,
   Keyboard,
   CheckCircle2,
   Lock,
+  Terminal,
+  Search,
+  ExternalLink,
+  Filter,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+import { Input } from '../components/ui/Input';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { useToast } from '../components/ui/Toast';
+import { useAuthStore } from '../core/auth/useAuthStore';
+import { SAP_TCODES, TCodeService } from '../core/services/TCodeService';
 
 interface ShortcutItem {
   keys: string[];
@@ -16,7 +27,10 @@ interface ShortcutItem {
 }
 
 const SHORTCUTS: ShortcutItem[] = [
-  { keys: ['Ctrl', 'K'], action: 'فتح لوحة الأوامر الموحدة والتنقل السريع (Command Palette)', category: 'التنقل العام' },
+  { keys: ['Ctrl', 'K'], action: 'فتح لوحة الأوامر الموحدة والبحث السريع (Command Palette)', category: 'التنقل العام' },
+  { keys: ['Ctrl', 'N'], action: 'إنشاء سجل جديد في شاشة القائمة الحالية (New Document)', category: 'إدخال البيانات' },
+  { keys: ['Ctrl', 'S'], action: 'حفظ التعديلات في النموذج المفتوح أو النافذة المنبثقة (Save)', category: 'إدخال البيانات' },
+  { keys: ['F4'], action: 'فتح نافذة مساعد القيم والبحث المتقدم في الحقول المرجعية (Value Help)', category: 'مساعد الإدخال SAP' },
   { keys: ['Alt', 'H'], action: 'الانتقال إلى لوحة المعلومات والتحليلات الرئيسية', category: 'التنقل العام' },
   { keys: ['Alt', 'M'], action: 'فتح سجل المواد وإدارة الأصناف (SAP MM)', category: 'الموديولات' },
   { keys: ['Alt', 'W'], action: 'فتح شاشة أرصدة ومستودعات الطاقة (SAP WM)', category: 'الموديولات' },
@@ -27,10 +41,42 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Esc'], action: 'إغلاق النوافذ المنبثقة واللوحات الجانبية المفتوحة', category: 'النوافذ والحوارات' },
   { keys: ['Tab'], action: 'التنقل التتابعي للأمام بين الحقول والأزرار', category: 'إمكانية الوصول' },
   { keys: ['Shift', 'Tab'], action: 'التنقل التتابعي للخلف بين الحقول والأزرار', category: 'إمكانية الوصول' },
-  { keys: ['Space'], action: 'تحديد الخيارات والمربعات في الجداول', category: 'إمكانية الوصول' },
 ];
 
 export const AboutPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { role } = useAuthStore();
+  const { error, info } = useToast();
+
+  const [tcodeSearch, setTcodeSearch] = useState('');
+  const [selectedModule, setSelectedModule] = useState<string>('ALL');
+
+  const filteredCodes = useMemo(() => {
+    return SAP_TCODES.filter((item) => {
+      if (selectedModule !== 'ALL' && item.module !== selectedModule) {
+        return false;
+      }
+      if (!tcodeSearch) return true;
+      const q = tcodeSearch.toLowerCase().trim();
+      const matchCode = item.code.toLowerCase().includes(q);
+      const matchAr = item.descriptionArabic.toLowerCase().includes(q);
+      const matchEn = item.descriptionEnglish.toLowerCase().includes(q);
+      const matchPath = item.path.toLowerCase().includes(q);
+      return matchCode || matchAr || matchEn || matchPath;
+    });
+  }, [tcodeSearch, selectedModule]);
+
+  const handleExecuteTCode = (codeStr: string) => {
+    const res = TCodeService.resolveCode(codeStr, role);
+    if (!res.success) {
+      error('خطأ صلاحيات T-Code', res.error || 'غير مصرح بتشغيل هذه المعاملة.');
+      return;
+    }
+    if (res.targetPath) {
+      info(`تشغيل المعاملة [${res.code?.code}]`, res.code?.descriptionArabic || '');
+      navigate(res.targetPath);
+    }
+  };
   return (
     <div className="space-y-6" dir="rtl">
       {/* Header */}
@@ -166,6 +212,108 @@ export const AboutPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      </Card>
+
+      {/* SAP S/4HANA Transaction Codes Directory (T-Codes) */}
+      <Card
+        header={
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-[#0F172A] flex items-center gap-2">
+                <Terminal className="w-5 h-5 text-[#0FA37F]" />
+                <span>دليل رموز معاملات SAP S/4HANA (Transaction Codes Directory)</span>
+              </div>
+              <div className="text-xs text-[#64748B] font-normal mt-0.5">
+                فهرس شامل لكافة معاملات النظام المتاحة عبر شريط الأوامر العلوي (T-Code Bar) مع مطابقة الصلاحيات
+              </div>
+            </div>
+            <Badge variant="in_progress">{filteredCodes.length} معاملة مسجلة</Badge>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Filters & Search */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
+              {[
+                { id: 'ALL', label: 'كافة المعاملات' },
+                { id: 'MM', label: 'المشتريات (MM)' },
+                { id: 'WM', label: 'المخزون (WM)' },
+                { id: 'MD', label: 'البيانات الرئيسية (MD)' },
+                { id: 'FI', label: 'المالية (FI)' },
+                { id: 'CO', label: 'التكاليف (CO)' },
+                { id: 'AM', label: 'الأصول (AM)' },
+                { id: 'TM', label: 'الأسطول (TM)' },
+                { id: 'ADM', label: 'النظام (ADM)' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedModule(m.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    selectedModule === m.id
+                      ? 'bg-[#0FA37F] text-white shadow-xs'
+                      : 'bg-[#F4F7FB] text-[#64748B] hover:text-[#0F172A]'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-full sm:w-72">
+              <Input
+                value={tcodeSearch}
+                onChange={(e) => setTcodeSearch(e.target.value)}
+                placeholder="بحث برمز المعاملة أو الوصف..."
+                startIcon={<Search className="w-3.5 h-3.5 text-[#64748B]" />}
+              />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto rounded-xl border border-[#E5EAF2]">
+            <table className="w-full text-xs text-start">
+              <thead>
+                <tr className="bg-[#F4F7FB] text-[#64748B] border-b border-[#E5EAF2]">
+                  <th className="py-2.5 px-3 text-start font-semibold">رمز المعاملة (T-Code)</th>
+                  <th className="py-2.5 px-3 text-start font-semibold">الوحدة (Module)</th>
+                  <th className="py-2.5 px-3 text-start font-semibold">الوصف المعياري بالعربية</th>
+                  <th className="py-2.5 px-3 text-start font-semibold">SAP Standard Name</th>
+                  <th className="py-2.5 px-3 text-start font-semibold">المسار (Route)</th>
+                  <th className="py-2.5 px-3 text-center font-semibold">تشغيل سريع</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E5EAF2]">
+                {filteredCodes.map((tc) => (
+                  <tr key={tc.code} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-2.5 px-3">
+                      <span className="font-mono font-bold text-xs bg-slate-100 text-[#0B2545] px-2 py-0.5 rounded border border-[#E5EAF2]">
+                        {tc.code}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <Badge variant="neutral">{tc.module}</Badge>
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-[#0F172A]">{tc.descriptionArabic}</td>
+                    <td className="py-2.5 px-3 font-mono text-[#64748B]">{tc.descriptionEnglish}</td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{tc.path}</td>
+                    <td className="py-2.5 px-3 text-center">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleExecuteTCode(tc.code)}
+                        className="text-xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 me-1" />
+                        تشغيل
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Card>
     </div>

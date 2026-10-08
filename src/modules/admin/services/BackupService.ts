@@ -74,7 +74,7 @@ async function deriveAesKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, i
   return cryptoApi.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: salt as unknown as BufferSource,
       iterations,
       hash: 'SHA-256',
     },
@@ -230,7 +230,7 @@ export class BackupService {
       id: 'set-last-backup-timestamp',
       key: 'LAST_BACKUP_TIMESTAMP',
       value: now,
-      category: 'system',
+      category: 'general',
       description: 'تاريخ آخر نسخة احتياطية مشفرة للنظام',
       updatedAt: now,
       isDeleted: false,
@@ -293,9 +293,9 @@ export class BackupService {
     let decryptedBuffer: ArrayBuffer;
     try {
       decryptedBuffer = await cryptoApi.subtle.decrypt(
-        { name: 'AES-GCM', iv },
+        { name: 'AES-GCM', iv: iv as unknown as BufferSource },
         key,
-        ciphertext
+        ciphertext as unknown as BufferSource
       );
     } catch {
       throw new Error('كلمة المرور غير صحيحة، أو الملف المشفر تم العبث به (Decryption Failed).');

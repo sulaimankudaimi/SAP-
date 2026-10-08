@@ -1,12 +1,12 @@
 import { db } from '../db';
-import type { AuditLog } from '../../types/models';
+import type { AuditLog, AuditAction } from '../../types/models';
 import type { ActionContext } from '../repositories/IRepository';
 import { SessionContext } from '../security/SessionContext';
 
 export interface AuditLogOptions {
   userId?: string;
   userName?: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE';
+  action: AuditAction;
   entity: string;
   entityId: string;
   before?: Record<string, unknown> | null;
@@ -22,19 +22,14 @@ export class AuditService {
    * Enforces actor authenticity: requires an authenticated actor or explicit system flag.
    */
   static async log(
-    actionOrOptions:
-      | 'CREATE'
-      | 'UPDATE'
-      | 'DELETE'
-      | 'STATUS_CHANGE'
-      | AuditLogOptions,
+    actionOrOptions: AuditAction | AuditLogOptions,
     entityArg?: string,
     entityIdArg?: string,
     beforeArg?: Record<string, unknown> | null | undefined,
     afterArg?: Record<string, unknown> | null | undefined,
     contextArg?: ActionContext & { system?: boolean }
   ): Promise<void> {
-    let action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE';
+    let action: AuditAction;
     let entity: string;
     let entityId: string;
     let before: Record<string, unknown> | null | undefined;
@@ -53,7 +48,7 @@ export class AuditService {
       userId = actionOrOptions.userId || actionOrOptions.context?.userId;
       userName = actionOrOptions.userName || actionOrOptions.context?.userName;
       ipAddress = actionOrOptions.ipAddress || actionOrOptions.context?.ipAddress || '127.0.0.1 (Local Desktop)';
-      isSystem = Boolean(actionOrOptions.system);
+      isSystem = Boolean(actionOrOptions.system || actionOrOptions.context?.system);
     } else {
       action = actionOrOptions;
       entity = entityArg || '';

@@ -149,7 +149,7 @@ export const PrintTemplatesPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handlePrintTest}>
+            <Button variant="secondary" onClick={handlePrintTest}>
               <Printer className="w-4 h-4 me-1.5" />
               طباعة تجريبية
             </Button>

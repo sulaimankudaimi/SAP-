@@ -299,7 +299,7 @@ export const WorkflowConfigPage: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleResetToDefaults}>
+            <Button variant="secondary" onClick={handleResetToDefaults}>
               <RotateCcw className="w-4 h-4 me-1.5" />
               القيم الافتراضية
             </Button>
@@ -346,7 +346,7 @@ export const WorkflowConfigPage: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold text-[#0F172A]">{currentDocMeta?.label}</h2>
-            <Badge variant="blue">{currentDocMeta?.sapCode}</Badge>
+            <Badge variant="in_progress">{currentDocMeta?.sapCode}</Badge>
           </div>
           <p className="text-xs text-[#64748B]">{currentDocMeta?.description}</p>
         </div>
@@ -377,7 +377,7 @@ export const WorkflowConfigPage: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>المسار متصل تماماً: لا توجد أي فجوات مالية أو تداخلات (Zero Gaps & Overlaps).</span>
           </div>
-          <Badge variant="green">{rules.length} شرائح محكمة</Badge>
+          <Badge variant="approved">{rules.length} شرائح محكمة</Badge>
         </div>
       )}
 
@@ -417,7 +417,7 @@ export const WorkflowConfigPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(idx)}>
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenEditModal(idx)}>
                       تعديل الشريحة
                     </Button>
                     <Button variant="danger" size="sm" onClick={() => handleDeleteRule(idx)}>
@@ -508,7 +508,7 @@ export const WorkflowConfigPage: React.FC = () => {
                 <Users className="w-4 h-4 text-[#0FA37F]" />
                 <span>أدوار ومسؤولو مراحل الاعتماد (بالترتيب التتابعي)</span>
               </label>
-              <Button variant="outline" size="sm" onClick={handleAddStepToModal}>
+              <Button variant="secondary" size="sm" onClick={handleAddStepToModal}>
                 <Plus className="w-3.5 h-3.5 me-1" />
                 إضافة مرحلة تالية
               </Button>
@@ -555,7 +555,7 @@ export const WorkflowConfigPage: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-[#E5EAF2]">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
               إلغاء
             </Button>
             <Button variant="primary" onClick={handleSaveModal}>

@@ -5,6 +5,7 @@ import { RbacService } from '../services/RbacService';
 import { CryptoService } from '../services/crypto';
 import { userRepository, roleRepository } from '../repositories';
 import { SessionContext } from '../security/SessionContext';
+import { AuditService } from '../services/AuditService';
 
 const SESSION_STORAGE_KEY = 'gulf_auth_session';
 
@@ -202,6 +203,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
 
+    const authContext = { userId: dbUser.id, userName: dbUser.username };
+
     // Verify password against stored salt and hash
     const isValid = await CryptoService.verifyPassword(
       password,
@@ -216,23 +219,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ? new Date(Date.now() + 15 * 60000).toISOString()
         : undefined;
 
-      await userRepository.update(dbUser.id, {
-        failedLoginAttempts: attempts,
-        isLocked: isNowLocked,
-        lockedUntil,
-      });
+      await userRepository.update(
+        dbUser.id,
+        {
+          failedLoginAttempts: attempts,
+          isLocked: isNowLocked,
+          lockedUntil,
+        },
+        authContext
+      );
 
       if (isNowLocked) {
+        await AuditService.log({
+          action: 'ACCOUNT_LOCKED',
+          entity: 'users',
+          entityId: dbUser.id,
+          userId: dbUser.id,
+          userName: dbUser.username,
+          after: { lockedUntil, reason: 'Max failed unlock attempts reached' },
+        });
         get().logout();
       }
       return false;
     }
 
     // Reset failed attempts on success
-    await userRepository.update(dbUser.id, {
-      failedLoginAttempts: 0,
-      isLocked: false,
-    });
+    await userRepository.update(
+      dbUser.id,
+      {
+        failedLoginAttempts: 0,
+        isLocked: false,
+      },
+      authContext
+    );
 
     const role = get().role || (await roleRepository.getById(dbUser.roleId));
     if (role) {

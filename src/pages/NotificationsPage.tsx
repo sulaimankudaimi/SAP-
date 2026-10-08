@@ -170,7 +170,7 @@ export const NotificationsPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={handleGenerateSystemAlerts}
               disabled={isGenerating}
             >

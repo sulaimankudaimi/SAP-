@@ -18,7 +18,7 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
+  public override state: State = {
     hasError: false,
     error: null,
     errorInfo: null,
@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
     DiagnosticLogger.error('ErrorBoundary', error.message, error, {
       componentStack: errorInfo.componentStack ?? '',
@@ -66,7 +66,7 @@ System: Gulf Energy ERP (100% Offline)
     });
   };
 
-  public render() {
+  public override render() {
     if (this.state.hasError) {
       return (
         <div
