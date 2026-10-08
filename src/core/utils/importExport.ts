@@ -1,3 +1,5 @@
+import { DiagnosticLogger } from '../services/DiagnosticLogger';
+
 export interface ValidationResult<T> {
   totalRows: number;
   validRows: T[];
@@ -129,6 +131,8 @@ export function exportToCsv(data: Record<string, unknown>[], filename: string): 
       )
       .join('\n');
 
-  downloadCsvFile(filename, csvContent).catch(console.error);
+  downloadCsvFile(filename, csvContent).catch((err) => {
+    DiagnosticLogger.error('Export', 'CSV download failed', err);
+  });
 }
 

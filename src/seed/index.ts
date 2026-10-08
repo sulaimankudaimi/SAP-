@@ -58,7 +58,7 @@ export class DatabaseSeeder {
   /**
    * Clears all tables and performs fresh full seed.
    */
-  static async resetAndSeed(): Promise<void> {
+  static async resetAndSeed(options?: { demoMode?: boolean }): Promise<void> {
     const tableList = [
       db.users,
       db.roles,
@@ -115,13 +115,13 @@ export class DatabaseSeeder {
       await table.clear();
     }
 
-    await this.seed();
+    await this.seed(options);
   }
 
   /**
    * Executes rapid high-speed bulk seeding in under 5 seconds.
    */
-  static async seed(): Promise<void> {
+  static async seed(options?: { demoMode?: boolean }): Promise<void> {
     console.time('DB_SEED_TIMER');
 
     // 1. Initialize Number Ranges
@@ -161,7 +161,10 @@ export class DatabaseSeeder {
 
     // 3. Demo / Non-Demo Users Selection (with distinct cryptographic random salt per user)
     const now = new Date().toISOString();
-    const isDemoMode = typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE === 'true';
+    const isDemoMode =
+      options?.demoMode !== undefined
+        ? options.demoMode
+        : typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE === 'true';
 
     let demoUsers: User[] = [];
 

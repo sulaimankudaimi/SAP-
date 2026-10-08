@@ -5,6 +5,7 @@ import { Badge } from '../ui/Badge';
 import { useToast } from '../ui/Toast';
 import { db } from '../../core/db';
 import type { Material, Vendor, CostCenter, Plant, GLAccount } from '../../types/models';
+import { DiagnosticLogger } from '../../core/services/DiagnosticLogger';
 import { Search, Copy, Check, Package, Users, Building, MapPin, BookOpen } from 'lucide-react';
 
 interface ValueHelpModalProps {
@@ -59,7 +60,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
       setPlants(plts);
       setGlAccounts(gls);
     } catch (e) {
-      console.error(e);
+      DiagnosticLogger.error('ValueHelpModal', 'Failed to load value help data', e);
     } finally {
       setIsLoading(false);
     }

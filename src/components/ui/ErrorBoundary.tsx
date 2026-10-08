@@ -130,7 +130,7 @@ System: Gulf Energy ERP (100% Offline)
               </button>
 
               {this.state.showDetails && (
-                <div className="mt-3 p-3 bg-[#0B2545] text-emerald-400 rounded-xl font-mono text-[11px] overflow-x-auto max-h-60 leading-relaxed text-left" dir="ltr">
+                <div className="mt-3 p-3 bg-[#0B2545] text-emerald-400 rounded-xl font-mono text-[11px] overflow-x-auto max-h-60 leading-relaxed text-start" dir="ltr">
                   <div>{this.state.error?.stack || 'No Stack Available'}</div>
                   {this.state.errorInfo?.componentStack && (
                     <div className="mt-2 text-slate-300 pt-2 border-t border-slate-700">
