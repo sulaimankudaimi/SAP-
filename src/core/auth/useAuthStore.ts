@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../services/DiagnosticLogger';
 import { create } from 'zustand';
 import type { User, Role, AuthObject } from '../../types/models';
 import type { AuthSession } from '../services/AuthService';
@@ -289,5 +290,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 // Automatically attempt session restoration upon module load in browser
 if (typeof window !== 'undefined') {
-  useAuthStore.getState().restoreSession().catch(console.error);
+  useAuthStore.getState().restoreSession().catch((err: unknown) => { DiagnosticLogger.error('useAuthStore', 'Operation failed', err); });
 }

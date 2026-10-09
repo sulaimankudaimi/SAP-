@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../core/db';
 import { StatCard } from '../../../components/ui/StatCard';
@@ -61,7 +62,7 @@ export const StockBalancePage: React.FC = () => {
       setStorageLocations(slocs);
       setPlants(pls);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('StockBalancePage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل أرصدة المخزون');
     } finally {
       setIsLoading(false);

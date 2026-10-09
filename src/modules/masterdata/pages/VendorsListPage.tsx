@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ColumnDef } from '@tanstack/react-table';
@@ -78,7 +79,7 @@ export const VendorsListPage: React.FC = () => {
       const data = await db.vendors.toArray();
       setVendors(data.filter((v) => !v.isDeleted));
     } catch (err) {
-      console.error('Failed to load vendors:', err);
+      DiagnosticLogger.error('VendorsListPage', 'Failed to load vendors:', err);
     } finally {
       setLoading(false);
     }

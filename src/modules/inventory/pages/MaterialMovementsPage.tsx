@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../core/db';
 import { Button } from '../../../components/ui/Button';
@@ -51,7 +52,7 @@ export const MaterialMovementsPage: React.FC = () => {
       setLedgerEntries(ledger);
       setMaterialDocs(docs);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('MaterialMovementsPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل حركات المواد');
     } finally {
       setIsLoading(false);

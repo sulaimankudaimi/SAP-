@@ -25,6 +25,7 @@ import { NavItemConfig } from '../../types';
 import { useAuthStore } from '../../core/auth/useAuthStore';
 import type { ModuleCode } from '../../types/models';
 import { isRouteImplemented } from '../../app/routeStatus';
+import { useNavBadges } from '../../core/services/NavBadgeService';
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -126,11 +127,10 @@ export const navigationConfig: NavItemWithModule[] = [
     titleKey: 'nav_procurement',
     icon: ShoppingCart,
     requiredModule: 'MM',
-    badgeCount: 5,
     children: [
-      { id: 'pr', path: '/procurement/pr', titleKey: 'nav_pr', badgeCount: 3 },
+      { id: 'pr', path: '/procurement/pr', titleKey: 'nav_pr' },
       { id: 'rfq', path: '/procurement/rfq', titleKey: 'nav_rfq' },
-      { id: 'po', path: '/procurement/po', titleKey: 'nav_po', badgeCount: 2 },
+      { id: 'po', path: '/procurement/po', titleKey: 'nav_po' },
       { id: 'contracts', path: '/procurement/contracts', titleKey: 'nav_contracts' },
       { id: 'tenders', path: '/procurement/tenders', titleKey: 'nav_tenders' },
     ],
@@ -252,6 +252,7 @@ export const navigationConfig: NavItemWithModule[] = [
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse }) => {
   const location = useLocation();
   const can = useAuthStore((s) => s.can);
+  const navBadges = useNavBadges();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     procurement: true,
   });
@@ -312,6 +313,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
           const isDirectActive = location.pathname === item.path;
           const isActive = isDirectActive || isChildActive;
 
+          const itemBadge = item.id ? navBadges[item.id] : undefined;
+          const hasItemBadge = typeof itemBadge === 'number' && itemBadge > 0;
+
           if (hasChildren && !collapsed) {
             return (
               <div key={item.id} className="space-y-0.5">
@@ -329,9 +333,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
                     <span>{t(item.titleKey as Parameters<typeof t>[0])}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {item.badgeCount && (
+                    {hasItemBadge && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-[#0FA37F]/20 text-emerald-400 border border-[#0FA37F]/30 font-mono">
-                        {item.badgeCount}
+                        {itemBadge}
                       </span>
                     )}
                     <ChevronDown
@@ -344,6 +348,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
                   <div className="ps-8 pe-2 py-1 space-y-0.5 border-s border-[#13315C] ms-5 my-0.5">
                     {item.children!.map((sub) => {
                       const isSubActive = location.pathname === sub.path;
+                      const subBadge = sub.id ? navBadges[sub.id] : undefined;
+                      const hasSubBadge = typeof subBadge === 'number' && subBadge > 0;
                       return (
                         <NavLink
                           key={sub.id}
@@ -356,9 +362,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
                           )}
                         >
                           <span className="truncate">{t(sub.titleKey as Parameters<typeof t>[0])}</span>
-                          {sub.badgeCount && (
+                          {hasSubBadge && (
                             <span className="text-[9px] px-1 py-0.2 rounded bg-white/20 text-white font-mono">
-                              {sub.badgeCount}
+                              {subBadge}
                             </span>
                           )}
                         </NavLink>
@@ -388,9 +394,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse })
               {!collapsed && (
                 <div className="flex-1 flex items-center justify-between overflow-hidden">
                   <span className="truncate">{t(item.titleKey as Parameters<typeof t>[0])}</span>
-                  {item.badgeCount && (
+                  {hasItemBadge && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/20 text-white font-mono">
-                      {item.badgeCount}
+                      {itemBadge}
                     </span>
                   )}
                 </div>

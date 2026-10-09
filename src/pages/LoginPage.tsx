@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -80,7 +81,7 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     DatabaseSeeder.isSeeded().then(async (seeded) => {
       if (!seeded) {
-        await DatabaseSeeder.seed().catch(console.error);
+        await DatabaseSeeder.seed().catch((err: unknown) => { DiagnosticLogger.error('LoginPage', 'Operation failed', err); });
       }
       await checkOtpStatus();
     });
@@ -120,9 +121,10 @@ export const LoginPage: React.FC = () => {
       setSession(session);
       success('تم تسجيل الدخول بنجاح', `مرحباً بك، ${session.user.fullName} (${session.role.name})`);
 
-      // Clear FirstBootSecret upon login
-      FirstBootSecret.clear();
-      setInitialOtp(null);
+      // Update local OTP state if bootstrap admin cleared the secret
+      if (!FirstBootSecret.get()) {
+        setInitialOtp(null);
+      }
 
       // Route destination: if mustChangePassword, guard will route to /change-password, else target
       if (session.user.mustChangePassword) {

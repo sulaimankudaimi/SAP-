@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -81,7 +82,7 @@ export const VendorDetailPage: React.FC = () => {
       setInvoices(purchases.invoices);
       setTotalSpent(purchases.totalAmount);
     } catch (err) {
-      console.error('Failed to load vendor:', err);
+      DiagnosticLogger.error('VendorDetailPage', 'Failed to load vendor:', err);
     } finally {
       setLoading(false);
     }

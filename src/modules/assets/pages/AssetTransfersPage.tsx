@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -37,7 +38,7 @@ export const AssetTransfersPage: React.FC = () => {
       const list = await assetTransferRepository.list();
       setTransfers(list.filter((t: AssetTransfer) => !t.isDeleted).reverse());
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('AssetTransfersPage', 'Error occurred', err);
     } finally {
       setLoading(false);
     }

@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -34,7 +35,7 @@ export const AssetReportsPage: React.FC = () => {
       });
       setAssets(all);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('AssetReportsPage', 'Error occurred', err);
     } finally {
       setLoading(false);
     }

@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { StatCard } from '../../../components/ui/StatCard';
@@ -30,7 +31,7 @@ export const AssetDisposalsPage: React.FC = () => {
       const all = await AssetService.getAssets({ status: 'Disposed' });
       setDisposedAssets(all);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('AssetDisposalsPage', 'Error occurred', err);
     } finally {
       setLoading(false);
     }

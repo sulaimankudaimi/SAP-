@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { FleetService } from '../services/FleetService';
 import { MaintenanceOrderModal } from '../components/MaintenanceOrderModal';
@@ -47,7 +48,7 @@ export const FleetMaintenancePage: React.FC = () => {
       setOrders(orderList);
       setSchedules(schedList);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FleetMaintenancePage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل بيانات الصيانة');
     } finally {
       setIsLoading(false);

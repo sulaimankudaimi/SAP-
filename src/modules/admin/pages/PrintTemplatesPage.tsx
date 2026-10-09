@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import {
   Printer,
@@ -84,7 +85,7 @@ export const PrintTemplatesPage: React.FC = () => {
       const data = await PrintTemplateService.getTemplate(docType);
       setTemplate(data);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('PrintTemplatesPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل قالب الطباعة.');
     } finally {
       setIsLoading(false);

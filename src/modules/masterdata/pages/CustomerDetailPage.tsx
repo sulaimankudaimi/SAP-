@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -59,7 +60,7 @@ export const CustomerDetailPage: React.FC = () => {
       setCustomer(cust);
       setEditForm(cust);
     } catch (err) {
-      console.error('Failed to load customer:', err);
+      DiagnosticLogger.error('CustomerDetailPage', 'Failed to load customer:', err);
     } finally {
       setLoading(false);
     }

@@ -54,7 +54,7 @@ export const DiagnosticsPage: React.FC = () => {
       ];
       setDbTableStats(stats);
     } catch (e) {
-      console.error(e);
+      DiagnosticLogger.error('DiagnosticsPage', 'Error occurred', e);
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export const DiagnosticsPage: React.FC = () => {
     const filename = `gulf_erp_diagnostics_${new Date().toISOString().slice(0, 10)}.json`;
     downloadJsonFile(filename, jsonStr)
       .then(() => success('تم التصدير', 'تم تصدير ملف تقرير التشخيص بنجاح'))
-      .catch((e) => console.error(e));
+      .catch((e: unknown) => { DiagnosticLogger.error('DiagnosticsPage', 'Operation failed', e); });
   };
 
   const filteredLogs = logs.filter((log) => {

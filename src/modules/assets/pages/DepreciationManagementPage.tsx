@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -47,7 +48,7 @@ export const DepreciationManagementPage: React.FC = () => {
       const history = await depreciationRepository.list();
       setRunsHistory(history.filter((r: DepreciationRun) => !r.isDeleted).reverse());
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('DepreciationManagementPage', 'Error occurred', err);
     }
   };
 

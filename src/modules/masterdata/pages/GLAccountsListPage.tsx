@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -55,7 +56,7 @@ export const GLAccountsListPage: React.FC = () => {
       const data = await db.glAccounts.toArray();
       setAccounts(data.filter((a) => !a.isDeleted));
     } catch (err) {
-      console.error('Failed to load GL accounts:', err);
+      DiagnosticLogger.error('GLAccountsListPage', 'Failed to load GL accounts:', err);
     } finally {
       setLoading(false);
     }

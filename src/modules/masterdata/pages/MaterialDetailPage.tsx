@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -96,7 +97,7 @@ export const MaterialDetailPage: React.FC = () => {
       setTotalStockQty(stock.totalQuantity);
       setTotalStockVal(stock.totalValue);
     } catch (err) {
-      console.error('Failed to load material detail:', err);
+      DiagnosticLogger.error('MaterialDetailPage', 'Failed to load material detail:', err);
     } finally {
       setLoading(false);
     }

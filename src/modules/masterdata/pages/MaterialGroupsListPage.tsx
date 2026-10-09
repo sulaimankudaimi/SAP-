@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -65,7 +66,7 @@ export const MaterialGroupsListPage: React.FC = () => {
       });
       setMaterialsCountByGroup(counts);
     } catch (err) {
-      console.error('Failed to load material groups:', err);
+      DiagnosticLogger.error('MaterialGroupsListPage', 'Failed to load material groups:', err);
     } finally {
       setLoading(false);
     }

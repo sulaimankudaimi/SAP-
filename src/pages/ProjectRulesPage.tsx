@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../core/services/DiagnosticLogger';
 import React from 'react';
 import { Card } from '../components/ui/Card';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
@@ -78,7 +79,7 @@ WORKING PROTOCOL
             onClick={() => {
               saveFileUniversal('PROJECT_RULES.md', rulesContent, [
                 { name: 'Markdown Document (*.md)', extensions: ['md'] },
-              ]).catch(console.error);
+              ]).catch((err: unknown) => { DiagnosticLogger.error('ProjectRulesPage', 'Operation failed', err); });
             }}
           >
             تحميل نسخة MD

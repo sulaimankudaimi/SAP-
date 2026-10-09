@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import * as XLSX from 'xlsx';
 import type { ReportColumn } from '../../../types/models';
 
@@ -80,7 +81,7 @@ export class ExportService {
         .saveFile(finalFileName, new Uint8Array(u8), [
           { name: 'Excel Workbook (*.xlsx)', extensions: ['xlsx'] },
         ])
-        .catch(console.error);
+        .catch((err: unknown) => { DiagnosticLogger.error('ExportService', 'Operation failed', err); });
     } else {
       XLSX.writeFile(wb, finalFileName);
     }

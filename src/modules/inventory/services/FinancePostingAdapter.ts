@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import type { MaterialDocument, IFinancePostingService } from '../../../types/models';
 import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
 import { SessionContext } from '../../../core/security/SessionContext';
@@ -59,7 +60,7 @@ export class FinancePostingAdapter implements IFinancePostingService {
         return res;
       }
     } catch (e) {
-      console.error('[FinancePostingAdapter] Error posting to General Ledger:', e);
+      DiagnosticLogger.error('FinancePostingAdapter', '[FinancePostingAdapter] Error posting to General Ledger:', e);
       return { success: false, jeDocNumber: '' };
     }
   }

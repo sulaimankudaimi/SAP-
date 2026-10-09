@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ColumnDef } from '@tanstack/react-table';
@@ -90,7 +91,7 @@ export const MaterialsListPage: React.FC = () => {
       setMaterialGroups(grps.filter((g) => !g.isDeleted));
       setUnits(uns.filter((u) => !u.isDeleted));
     } catch (err) {
-      console.error('Failed to load materials data:', err);
+      DiagnosticLogger.error('MaterialsListPage', 'Failed to load materials data:', err);
     } finally {
       setLoading(false);
     }

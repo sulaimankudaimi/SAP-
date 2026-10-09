@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
@@ -67,7 +68,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
         }
       }
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FuelLogModal', 'Error occurred', err);
     }
   };
 

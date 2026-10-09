@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -42,7 +43,7 @@ export const NotificationsPage: React.FC = () => {
       const list = await NotificationService.getNotifications();
       setNotifications(list);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('NotificationsPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل الإشعارات من قاعدة البيانات.');
     } finally {
       setIsLoading(false);
@@ -61,7 +62,7 @@ export const NotificationsPage: React.FC = () => {
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('NotificationsPage', 'Error occurred', err);
     }
   };
 
@@ -97,7 +98,7 @@ export const NotificationsPage: React.FC = () => {
         info('فحص التنبيهات', 'كافة المعاملات والعمليات التشغيلية منتظمة ولا توجد تنبيهات جديدة.');
       }
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('NotificationsPage', 'Error occurred', err);
       error('خطأ', 'فشل تشغيل محرك فحص التنبيهات الآلي.');
     } finally {
       setIsGenerating(false);

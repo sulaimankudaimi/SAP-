@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
@@ -58,7 +59,7 @@ export const AssetRegisterPage: React.FC = () => {
       });
       setAssets(list);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('AssetRegisterPage', 'Error occurred', err);
     } finally {
       setLoading(false);
     }

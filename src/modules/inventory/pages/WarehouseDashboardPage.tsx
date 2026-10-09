@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
@@ -101,7 +102,7 @@ export const WarehouseDashboardPage: React.FC = () => {
       const todayLedger = ledger.filter((l) => l.postingDate >= '2026-09-01');
       setTodayMovements(todayLedger);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('WarehouseDashboardPage', 'Error occurred', err);
       error('خطأ في تحميل البيانات', 'تعذر تحميل بيانات لوحة تحكم المستودعات');
     } finally {
       setIsLoading(false);

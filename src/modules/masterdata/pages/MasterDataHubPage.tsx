@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -84,7 +85,7 @@ export const MasterDataHubPage: React.FC = () => {
         setExpiringVendorsCount(expiring.length);
         setRecentAudits(audits);
       } catch (err) {
-        console.error('Failed to load Master Data Hub:', err);
+        DiagnosticLogger.error('MasterDataHubPage', 'Failed to load Master Data Hub:', err);
       } finally {
         setLoading(false);
       }

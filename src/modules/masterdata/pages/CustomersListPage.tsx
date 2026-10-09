@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ColumnDef } from '@tanstack/react-table';
@@ -66,7 +67,7 @@ export const CustomersListPage: React.FC = () => {
       const data = await db.customers.toArray();
       setCustomers(data.filter((c) => !c.isDeleted));
     } catch (err) {
-      console.error('Failed to load customers:', err);
+      DiagnosticLogger.error('CustomersListPage', 'Failed to load customers:', err);
     } finally {
       setLoading(false);
     }

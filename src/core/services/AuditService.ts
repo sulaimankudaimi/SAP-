@@ -2,6 +2,7 @@ import { db } from '../db';
 import type { AuditLog, AuditAction } from '../../types/models';
 import type { ActionContext } from '../repositories/IRepository';
 import { SessionContext } from '../security/SessionContext';
+import { redactSnapshot } from '../security/auditRedaction';
 
 export interface AuditLogOptions {
   userId?: string;
@@ -77,6 +78,12 @@ export class AuditService {
       }
     }
 
+    // Centrally redact sensitive keys (password hashes, salts, tokens, secrets)
+    const { before: redactedBefore, after: redactedAfter } = redactSnapshot(
+      before ? JSON.parse(JSON.stringify(before)) : null,
+      after ? JSON.parse(JSON.stringify(after)) : null
+    );
+
     const logEntry: AuditLog = {
       id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
       userId,
@@ -84,8 +91,8 @@ export class AuditService {
       action,
       entity,
       entityId,
-      before: before ? JSON.parse(JSON.stringify(before)) : null,
-      after: after ? JSON.parse(JSON.stringify(after)) : null,
+      before: (redactedBefore as Record<string, unknown> | null) ?? null,
+      after: (redactedAfter as Record<string, unknown> | null) ?? null,
       timestamp: new Date().toISOString(),
       ipAddress,
     };

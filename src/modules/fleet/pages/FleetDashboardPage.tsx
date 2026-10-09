@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { FleetService, FleetSummaryKPIs } from '../services/FleetService';
 import { telemetryService, VehicleTelemetry } from '../services/TelemetryService';
@@ -71,7 +72,7 @@ export const FleetDashboardPage: React.FC = () => {
       setUpcomingSchedules(schedules);
       setActiveTrips(trips);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FleetDashboardPage', 'Error occurred', err);
     }
   };
 

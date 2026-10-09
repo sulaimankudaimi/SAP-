@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -72,7 +73,7 @@ export const LocationsListPage: React.FC = () => {
       setPlants(pls.filter((p) => !p.isDeleted));
       setStorageLocations(sls.filter((s) => !s.isDeleted));
     } catch (err) {
-      console.error('Failed to load locations:', err);
+      DiagnosticLogger.error('LocationsListPage', 'Failed to load locations:', err);
     } finally {
       setLoading(false);
     }

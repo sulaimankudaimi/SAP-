@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../core/db';
 import { StatCard } from '../../../components/ui/StatCard';
@@ -34,7 +35,7 @@ export const PhysicalInventoryPage: React.FC = () => {
       const docs = await db.physicalInventoryDocs.reverse().toArray();
       setPiDocs(docs);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('PhysicalInventoryPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل مستندات الجرد الفعلي');
     } finally {
       setIsLoading(false);

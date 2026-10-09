@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
@@ -95,7 +96,7 @@ export const FinancialCockpitPage: React.FC = () => {
           : `فترة ${currentMonth} / 2026 (مقفلة)`
       );
     } catch (e: unknown) {
-      console.error(e);
+      DiagnosticLogger.error('FinancialCockpitPage', 'Error occurred', e);
     } finally {
       setIsLoading(false);
     }

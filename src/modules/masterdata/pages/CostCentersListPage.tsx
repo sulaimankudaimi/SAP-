@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -55,7 +56,7 @@ export const CostCentersListPage: React.FC = () => {
       const data = await db.costCenters.toArray();
       setCostCenters(data.filter((c) => !c.isDeleted));
     } catch (err) {
-      console.error('Failed to load cost centers:', err);
+      DiagnosticLogger.error('CostCentersListPage', 'Failed to load cost centers:', err);
     } finally {
       setLoading(false);
     }

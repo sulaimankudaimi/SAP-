@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Upload,
@@ -42,7 +43,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({ entityType
       const data = await MasterDataService.getAttachments(entityType, entityId);
       setAttachments(data);
     } catch (err) {
-      console.error('Error loading attachments:', err);
+      DiagnosticLogger.error('AttachmentManager', 'Error loading attachments:', err);
     } finally {
       setLoading(false);
     }

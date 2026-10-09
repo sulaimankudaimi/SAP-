@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState } from 'react';
 import { History, Clock, User, ArrowRight, ShieldCheck } from 'lucide-react';
 import { MasterDataService } from '../services/MasterDataService';
@@ -25,7 +26,7 @@ export const AuditHistoryTab: React.FC<AuditHistoryTabProps> = ({ entity, entity
         const data = await MasterDataService.getChangeHistory(entity, entityId);
         if (mounted) setLogs(data);
       } catch (err) {
-        console.error('Failed to load audit logs:', err);
+        DiagnosticLogger.error('AuditHistoryTab', 'Failed to load audit logs:', err);
       } finally {
         if (mounted) setLoading(false);
       }

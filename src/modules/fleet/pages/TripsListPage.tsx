@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { FleetService } from '../services/FleetService';
 import { TripModal } from '../components/TripModal';
@@ -40,7 +41,7 @@ export const TripsListPage: React.FC = () => {
       const list = await FleetService.getTrips();
       setTrips(list);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('TripsListPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل سجل الرحلات');
     } finally {
       setIsLoading(false);

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../core/db';
-import { AuthService } from '../core/services/AuthService';
+import { AuthService, _resetThrottleMapForTesting } from '../core/services/AuthService';
 import { CryptoService } from '../core/services/crypto';
 import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { SecurityMigrationService } from '../core/services/SecurityMigrationService';
@@ -13,6 +13,7 @@ import type { User, Role } from '../types/models';
 describe('Credential Hardening & Lifecycle Security Tests', () => {
   beforeEach(async () => {
     FirstBootSecret.clear();
+    _resetThrottleMapForTesting();
     await db.users.clear();
     await db.roles.clear();
     await db.settings.clear();

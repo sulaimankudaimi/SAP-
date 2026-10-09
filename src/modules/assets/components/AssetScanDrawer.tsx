@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Drawer } from '../../../components/ui/Drawer';
@@ -44,7 +45,7 @@ export const AssetScanDrawer: React.FC<AssetScanDrawerProps> = ({ isOpen, onClos
       const asset = await AssetService.getAssetByIdOrCode(val);
       setMatchedAsset(asset);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('AssetScanDrawer', 'Error occurred', err);
       setMatchedAsset(null);
     } finally {
       setIsSearching(false);

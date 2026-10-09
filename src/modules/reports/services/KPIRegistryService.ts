@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { db } from '../../../core/db';
 import type { KPIResult, ReportCategory } from '../../../types/models';
 
@@ -305,7 +306,7 @@ export class KPIRegistryService {
           relatedReportId: item.relatedReportId,
         });
       } catch (e) {
-        console.error(`Failed to calculate KPI ${item.key}:`, e);
+        DiagnosticLogger.error('KPIRegistryService', `Failed to calculate KPI ${item.key}:`, e);
       }
     }
 

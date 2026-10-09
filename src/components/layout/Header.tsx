@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -69,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
       const list = await NotificationService.getNotifications({ userId: user?.id });
       setNotifications(list);
     } catch (e) {
-      console.error('Failed to load notifications in header', e);
+      DiagnosticLogger.error('Header', 'Failed to load notifications in header', e);
     }
   };
 
@@ -92,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
       await NotificationService.markAllAsRead(user?.id);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch (e) {
-      console.error(e);
+      DiagnosticLogger.error('Header', 'Error occurred', e);
     }
   };
 

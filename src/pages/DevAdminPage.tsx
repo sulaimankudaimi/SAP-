@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../core/services/DiagnosticLogger';
 import React, { useState, useEffect } from 'react';
 import { db } from '../core/db';
 import { DatabaseSeeder } from '../seed';
@@ -77,7 +78,7 @@ export const DevAdminPage: React.FC = () => {
       const logs = await AuditService.getLogs({ limit: 10 });
       setRecentAuditLogs(logs);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('DevAdminPage', 'Error occurred', err);
     } finally {
       setLoadingStats(false);
     }

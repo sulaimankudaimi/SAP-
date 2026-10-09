@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { FleetService } from '../services/FleetService';
 import { FuelLogModal } from '../components/FuelLogModal';
@@ -43,7 +44,7 @@ export const FuelManagementPage: React.FC = () => {
       setFuelLogs(logs);
       setAnomalyAlerts(alerts);
     } catch (err) {
-      console.error(err);
+      DiagnosticLogger.error('FuelManagementPage', 'Error occurred', err);
       error('خطأ', 'تعذر تحميل بيانات الوقود');
     } finally {
       setIsLoading(false);

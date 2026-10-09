@@ -1,3 +1,4 @@
+import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import {
@@ -64,7 +65,7 @@ export const UnitsListPage: React.FC = () => {
       });
       setMaterialsCountByUnit(counts);
     } catch (err) {
-      console.error('Failed to load units:', err);
+      DiagnosticLogger.error('UnitsListPage', 'Failed to load units:', err);
     } finally {
       setLoading(false);
     }
