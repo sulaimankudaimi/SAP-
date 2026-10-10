@@ -1,15 +1,27 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, type Plugin } from 'vite';
+
+export const injectCspPlugin: Plugin = {
+  name: 'inject-csp',
+  apply: 'build',
+  transformIndexHtml(html: string) {
+    const cspContent =
+      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+    const metaTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}" />`;
+    return html.replace(/<head>/i, `<head>\n    ${metaTag}`);
+  },
+};
 
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), injectCspPlugin],
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname, '.'),
+        '@': path.resolve(fileURLToPath(new URL('.', import.meta.url)), '.'),
       },
     },
     build: {

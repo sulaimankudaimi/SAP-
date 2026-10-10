@@ -1,6 +1,7 @@
 import { db } from '../../../core/db';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
+import { TolerancePolicyService } from '../../../core/services/TolerancePolicyService';
 import type { VendorInvoice, BlockingReason, PurchaseOrder, GoodsReceipt } from '../../../types/models';
 
 export interface MatchResult {
@@ -19,12 +20,9 @@ export interface MatchResult {
 }
 
 export class ThreeWayMatchService {
-  // Default tolerances (SAP standard defaults)
-  static readonly PRICE_TOLERANCE_PERCENT = 3.0; // 3%
-  static readonly QUANTITY_TOLERANCE_PERCENT = 5.0; // 5%
-
   /**
    * Performs 3-Way Match between Vendor Invoice, Purchase Order, and Goods Receipt(s).
+   * Reads configured tolerance policy for the company code (or global fallback).
    */
   static async evaluateInvoice(invoice: VendorInvoice): Promise<MatchResult> {
     const reasons: BlockingReason[] = [];
@@ -55,6 +53,9 @@ export class ThreeWayMatchService {
       };
     }
 
+    const companyCode = po.companyCode;
+    const tolerances = await TolerancePolicyService.get(companyCode);
+
     // Find linked Goods Receipts
     let grs: GoodsReceipt[] = [];
     if (invoice.poNumber) {
@@ -78,19 +79,19 @@ export class ThreeWayMatchService {
     const invTotalQty = invoice.items.reduce((acc, it) => acc + (it.quantity || 1), 0);
     const poTotalAmount = po.totalAmount || 0;
 
-    // Check quantity discrepancy
+    // Check quantity discrepancy against configured policy
     if (grs.length > 0 && invTotalQty > 0) {
       const qtyDiff = invTotalQty - grTotalQty;
       const qtyDiffPct = grTotalQty > 0 ? (qtyDiff / grTotalQty) * 100 : 100;
-      if (qtyDiffPct > this.QUANTITY_TOLERANCE_PERCENT) {
+      if (qtyDiffPct > tolerances.quantityPercent) {
         reasons.push('QuantityMismatch');
       }
     }
 
-    // Check price/amount variance
+    // Check price/amount variance against configured policy
     const priceDiff = invoice.totalAmount - poTotalAmount;
     const priceDiffPct = poTotalAmount > 0 ? (priceDiff / poTotalAmount) * 100 : 0;
-    if (priceDiffPct > this.PRICE_TOLERANCE_PERCENT && priceDiff > 100) {
+    if (priceDiffPct > tolerances.pricePercent && priceDiff > tolerances.amountAbsolute) {
       reasons.push('PriceVariance');
     }
 

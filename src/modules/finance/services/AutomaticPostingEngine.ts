@@ -166,11 +166,140 @@ export class AutomaticPostingEngine {
   }
 
   /**
+   * Helper to execute idempotent posting with stable registration.
+   * If already posted, returns existing journalDocNumber.
+   */
+  static async executeIdempotentPosting(options: {
+    sourceType: string;
+    sourceId: string;
+    event?: string;
+    createEntry: () => Promise<JournalEntry>;
+    additionalTxTables?: Dexie.Table<unknown, string>[];
+    onPersist?: (je: JournalEntry) => Promise<void>;
+  }): Promise<{ success: boolean; jeDocNumber: string; isDuplicate?: boolean }> {
+    const event = options.event || 'POST';
+
+    // Check existing registration
+    const existing = await db.postingRegistry
+      .where('[sourceType+sourceId+event]')
+      .equals([options.sourceType, options.sourceId, event])
+      .first();
+
+    if (existing) {
+      return { success: true, jeDocNumber: existing.journalDocNumber, isDuplicate: true };
+    }
+
+    try {
+      const journalEntry = await options.createEntry();
+      const now = new Date().toISOString();
+
+      const regEntry: import('../../../types/models').PostingRegistryEntry = {
+        id: `reg-${options.sourceType}-${options.sourceId}-${event}-${Date.now()}`,
+        sourceType: options.sourceType,
+        sourceId: options.sourceId,
+        event,
+        journalDocNumber: journalEntry.docNumber,
+        createdAt: now,
+      };
+
+      const txTables = [
+        db.journalEntries,
+        db.postingRegistry,
+        db.numberRanges,
+        db.auditLogs,
+        ...(options.additionalTxTables || []),
+      ];
+
+      await db.transaction('rw', txTables, async () => {
+        // Double check inside transaction for race conditions
+        const innerExisting = await db.postingRegistry
+          .where('[sourceType+sourceId+event]')
+          .equals([options.sourceType, options.sourceId, event])
+          .first();
+
+        if (innerExisting) {
+          return;
+        }
+
+        await db.journalEntries.add(journalEntry);
+        await db.postingRegistry.add(regEntry);
+
+        if (options.onPersist) {
+          await options.onPersist(journalEntry);
+        }
+
+        await AuditService.log({
+          userId: journalEntry.createdBy,
+          action: 'CREATE',
+          entity: 'JournalEntry',
+          entityId: journalEntry.id,
+          after: journalEntry as unknown as Record<string, unknown>,
+        });
+      });
+
+      return { success: true, jeDocNumber: journalEntry.docNumber };
+    } catch (err: unknown) {
+      // In case of concurrent race condition catching ConstraintError
+      const isConstraintErr = err && typeof err === 'object' && (err as { name?: string }).name === 'ConstraintError';
+      if (isConstraintErr) {
+        const raceExisting = await db.postingRegistry
+          .where('[sourceType+sourceId+event]')
+          .equals([options.sourceType, options.sourceId, event])
+          .first();
+        if (raceExisting) {
+          return { success: true, jeDocNumber: raceExisting.journalDocNumber, isDuplicate: true };
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Reverses a registered posting exactly once.
+   */
+  static async reversePosting(options: {
+    sourceType: string;
+    sourceId: string;
+    event?: string;
+    reason: string;
+    userId: string;
+  }): Promise<{ success: boolean; reversalDocNumber: string }> {
+    const event = options.event || 'POST';
+    const regEntry = await db.postingRegistry
+      .where('[sourceType+sourceId+event]')
+      .equals([options.sourceType, options.sourceId, event])
+      .first();
+
+    if (!regEntry) {
+      throw new Error(`لا يوجد قيد محاسبي مسجل للعملية (${options.sourceType} - ${options.sourceId}).`);
+    }
+
+    if (regEntry.isReversed) {
+      throw new Error(`تم عكس هذا القيد مسبقاً بموجب المستند ${regEntry.reversalDocNumber}. لا يمكن عكس القيد أكثر من مرة.`);
+    }
+
+    // Call FinanceService.reverseJournalEntry
+    const revJe = await FinanceService.reverseJournalEntry(
+      regEntry.journalDocNumber,
+      options.reason,
+      options.userId
+    );
+
+    const now = new Date().toISOString();
+    await db.postingRegistry.update(regEntry.id, {
+      isReversed: true,
+      reversedAt: now,
+      reversalDocNumber: revJe.docNumber,
+    });
+
+    return { success: true, reversalDocNumber: revJe.docNumber };
+  }
+
+  /**
    * Posts Goods Receipt (MIGO - 101):
    * Debit: Inventory Account (e.g. 120010)
    * Credit: GR-IR Clearing Account (e.g. 201020)
    * Document Type: 'WE' (Goods Receipt)
-   * Releases budget commitment or converts to actual.
    */
   static async postGoodsReceipt(params: {
     grDocNumber: string;
@@ -194,65 +323,57 @@ export class AutomaticPostingEngine {
     const rule = await this.getRule('GR');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.postingDate);
 
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
-
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: params.postingDate,
-      documentDate: params.postingDate,
-      documentType: 'WE',
-      headerText: `استلام مخزني بضاعة واردة - مستند ${params.grDocNumber}${params.poNumber ? ` (أمر شراء ${params.poNumber})` : ''}`,
-      reference: params.grDocNumber,
-      totalDebit: params.amount,
-      totalCredit: params.amount,
-      lines: [
-        {
-          lineNumber: 1,
-          postingKey: rule.postingKeyDebit,
-          accountNumber: rule.debitAccountNumber,
-          accountName: rule.debitAccountName,
-          debit: params.amount,
-          credit: 0,
-          costCenter: params.costCenter,
-          lineText: `إثبات مخزون بضاعة مستلمة - ${params.grDocNumber}`,
-        },
-        {
-          lineNumber: 2,
-          postingKey: rule.postingKeyCredit,
-          accountNumber: rule.creditAccountNumber,
-          accountName: rule.creditAccountName,
-          debit: 0,
-          credit: params.amount,
-          costCenter: params.costCenter,
-          lineText: `مقاصة وسيط بضاعة واردة وفواتير غير مستلمة GR/IR`,
-        },
-      ],
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+    return await this.executeIdempotentPosting({
+      sourceType: 'GOODS_RECEIPT',
+      sourceId: params.grDocNumber,
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: params.postingDate,
+          documentDate: params.postingDate,
+          documentType: 'WE',
+          headerText: `استلام مخزني بضاعة واردة - مستند ${params.grDocNumber}${params.poNumber ? ` (أمر شراء ${params.poNumber})` : ''}`,
+          reference: params.grDocNumber,
+          totalDebit: params.amount,
+          totalCredit: params.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: params.amount,
+              credit: 0,
+              costCenter: params.costCenter,
+              lineText: `إثبات مخزون بضاعة مستلمة - ${params.grDocNumber}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: rule.creditAccountName,
+              debit: 0,
+              credit: params.amount,
+              costCenter: params.costCenter,
+              lineText: `مقاصة وسيط بضاعة واردة وفواتير غير مستلمة GR/IR`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
     });
-
-    return { success: true, jeDocNumber: docNumber };
   }
 
   /**
@@ -273,9 +394,6 @@ export class AutomaticPostingEngine {
     );
     const rule = await this.getRule('IR');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(inv.postingDate || inv.invoiceDate);
-
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
 
     const netAmount = Math.round((inv.netAmount || (inv.totalAmount - (inv.vatAmount || 0))) * 100) / 100;
     const vatAmount = Math.round((inv.vatAmount || 0) * 100) / 100;
@@ -315,52 +433,49 @@ export class AutomaticPostingEngine {
       lineText: `استحقاق فاتورة مورد ${inv.vendorInvoiceNumber} (${inv.vendorName || inv.vendorCode})`,
     });
 
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: inv.postingDate || inv.invoiceDate,
-      documentDate: inv.invoiceDate,
-      documentType: 'RE',
-      headerText: `فاتورة مشتريات مورد - ${inv.docNumber} (${inv.vendorInvoiceNumber})`,
-      reference: inv.docNumber,
-      totalDebit: totalAmount,
-      totalCredit: totalAmount,
-      lines,
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.vendorInvoices, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-      await db.vendorInvoices.update(inv.id, {
-        jeDocNumber: docNumber,
-        updatedAt: now,
-      });
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+    return await this.executeIdempotentPosting({
+      sourceType: 'VENDOR_INVOICE',
+      sourceId: inv.id,
+      additionalTxTables: [db.vendorInvoices as unknown as Dexie.Table<unknown, string>],
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: inv.postingDate || inv.invoiceDate,
+          documentDate: inv.invoiceDate,
+          documentType: 'RE',
+          headerText: `فاتورة مشتريات مورد - ${inv.docNumber} (${inv.vendorInvoiceNumber})`,
+          reference: inv.docNumber,
+          totalDebit: totalAmount,
+          totalCredit: totalAmount,
+          lines,
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+      onPersist: async (je) => {
+        await db.vendorInvoices.update(inv.id, {
+          jeDocNumber: je.docNumber,
+          updatedAt: new Date().toISOString(),
+        });
+      },
     });
-
-    return { success: true, jeDocNumber: docNumber };
   }
 
   /**
    * Posts Goods Issue to Cost Center (MIGO - 201):
-   * Debit: Consumption Expense (501010 or 603010)
+   * Debit: Consumption Expense (501010)
    * Credit: Inventory Account (120010)
-   * Updates Cost Center actual budget consumption.
    */
   static async postGoodsIssue(params: {
     giDocNumber: string;
@@ -379,85 +494,75 @@ export class AutomaticPostingEngine {
     const rule = await this.getRule('GI');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.postingDate);
 
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
+    return await this.executeIdempotentPosting({
+      sourceType: 'GOODS_ISSUE',
+      sourceId: params.giDocNumber,
+      additionalTxTables: [db.budgets as unknown as Dexie.Table<unknown, string>],
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: params.postingDate,
+          documentDate: params.postingDate,
+          documentType: 'SA',
+          headerText: `صرف مخزون تشغيلي لمركز تكلفة ${params.costCenter} - مستند ${params.giDocNumber}`,
+          reference: params.giDocNumber,
+          totalDebit: params.amount,
+          totalCredit: params.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: params.amount,
+              credit: 0,
+              costCenter: params.costCenter,
+              lineText: `استهلاك مخزون تشغيلي لمركز تكلفة ${params.costCenter}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: rule.creditAccountName,
+              debit: 0,
+              credit: params.amount,
+              costCenter: params.costCenter,
+              lineText: `تخفيض رصيد المخزون - صرف بضاعة`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+      onPersist: async () => {
+        const budget = await db.budgets
+          .where({ costCenter: params.costCenter, fiscalYear })
+          .first();
 
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: params.postingDate,
-      documentDate: params.postingDate,
-      documentType: 'SA',
-      headerText: `صرف مخزون تشغيلي لمركز تكلفة ${params.costCenter} - مستند ${params.giDocNumber}`,
-      reference: params.giDocNumber,
-      totalDebit: params.amount,
-      totalCredit: params.amount,
-      lines: [
-        {
-          lineNumber: 1,
-          postingKey: rule.postingKeyDebit,
-          accountNumber: rule.debitAccountNumber,
-          accountName: rule.debitAccountName,
-          debit: params.amount,
-          credit: 0,
-          costCenter: params.costCenter,
-          lineText: `استهلاك مخزون تشغيلي لمركز تكلفة ${params.costCenter}`,
-        },
-        {
-          lineNumber: 2,
-          postingKey: rule.postingKeyCredit,
-          accountNumber: rule.creditAccountNumber,
-          accountName: rule.creditAccountName,
-          debit: 0,
-          credit: params.amount,
-          costCenter: params.costCenter,
-          lineText: `تخفيض رصيد المخزون - صرف بضاعة`,
-        },
-      ],
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.budgets, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-
-      // Update actuals in cost center budget if exists
-      const budget = await db.budgets
-        .where({ costCenter: params.costCenter, fiscalYear })
-        .first();
-
-      if (budget) {
-        budget.actualAmount += params.amount;
-        budget.availableAmount = budget.allocatedAmount - budget.committedAmount - budget.actualAmount;
-        await db.budgets.put(budget);
-      }
-
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+        if (budget) {
+          budget.actualAmount += params.amount;
+          budget.availableAmount = budget.allocatedAmount - budget.committedAmount - budget.actualAmount;
+          await db.budgets.put(budget);
+        }
+      },
     });
-
-    return { success: true, jeDocNumber: docNumber };
   }
 
   /**
    * Posts Vendor Payment (F-53 / F110):
    * Debit: Vendor Payable (201010)
    * Credit: Bank (101010)
-   * Credit: Cash Discount if taken
-   * Document Type: 'KZ'
    */
   static async postVendorPayment(params: {
     payment: Payment;
@@ -471,9 +576,6 @@ export class AutomaticPostingEngine {
     const pay = params.payment;
     const rule = await this.getRule('PAYMENT');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(pay.paymentDate);
-
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
 
     const discount = Math.round((params.discountTaken || 0) * 100) / 100;
     const grossAmount = Math.round(pay.amount * 100) / 100;
@@ -512,52 +614,47 @@ export class AutomaticPostingEngine {
       });
     }
 
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: pay.paymentDate,
-      documentDate: pay.paymentDate,
-      documentType: 'KZ',
-      headerText: `سند صرف وسداد مورد - ${pay.docNumber} (${pay.vendorName || pay.vendorCode})`,
-      reference: pay.docNumber,
-      totalDebit: grossAmount,
-      totalCredit: grossAmount,
-      lines,
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.payments, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-      await db.payments.update(pay.id, {
-        jeDocNumber: docNumber,
-        updatedAt: now,
-      });
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+    return await this.executeIdempotentPosting({
+      sourceType: 'VENDOR_PAYMENT',
+      sourceId: pay.id,
+      additionalTxTables: [db.payments as unknown as Dexie.Table<unknown, string>],
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: pay.paymentDate,
+          documentDate: pay.paymentDate,
+          documentType: 'KZ',
+          headerText: `سند صرف وسداد مورد - ${pay.docNumber} (${pay.vendorName || pay.vendorCode})`,
+          reference: pay.docNumber,
+          totalDebit: grossAmount,
+          totalCredit: grossAmount,
+          lines,
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+      onPersist: async (je) => {
+        await db.payments.update(pay.id, {
+          jeDocNumber: je.docNumber,
+          updatedAt: new Date().toISOString(),
+        });
+      },
     });
-
-    return { success: true, jeDocNumber: docNumber };
   }
 
   /**
    * Posts Customer Invoice (FB70 - DR):
-   * Debit: Accounts Receivable (110010)
-   * Credit: Revenue (401010)
-   * Credit: Output VAT (202010)
    */
   static async postCustomerInvoice(params: {
     invoice: CustomerInvoice;
@@ -570,9 +667,6 @@ export class AutomaticPostingEngine {
     );
     const rule = await this.getRule('AR_INV');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(inv.postingDate || inv.invoiceDate);
-
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
 
     const netAmount = Math.round(inv.netAmount * 100) / 100;
     const vatAmount = Math.round(inv.vatAmount * 100) / 100;
@@ -611,51 +705,47 @@ export class AutomaticPostingEngine {
       });
     }
 
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: inv.postingDate || inv.invoiceDate,
-      documentDate: inv.invoiceDate,
-      documentType: 'DR',
-      headerText: `فاتورة مبيعات عميل - ${inv.docNumber} (${inv.customerName})`,
-      reference: inv.docNumber,
-      totalDebit: totalAmount,
-      totalCredit: totalAmount,
-      lines,
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.customerInvoices, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-      await db.customerInvoices.update(inv.id, {
-        jeDocNumber: docNumber,
-        updatedAt: now,
-      });
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+    return await this.executeIdempotentPosting({
+      sourceType: 'CUSTOMER_INVOICE',
+      sourceId: inv.id,
+      additionalTxTables: [db.customerInvoices as unknown as Dexie.Table<unknown, string>],
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: inv.postingDate || inv.invoiceDate,
+          documentDate: inv.invoiceDate,
+          documentType: 'DR',
+          headerText: `فاتورة مبيعات عميل - ${inv.docNumber} (${inv.customerName})`,
+          reference: inv.docNumber,
+          totalDebit: totalAmount,
+          totalCredit: totalAmount,
+          lines,
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+      onPersist: async (je) => {
+        await db.customerInvoices.update(inv.id, {
+          jeDocNumber: je.docNumber,
+          updatedAt: new Date().toISOString(),
+        });
+      },
     });
-
-    return { success: true, jeDocNumber: docNumber };
   }
 
   /**
    * Posts Customer Receipt (F-28 - DZ):
-   * Debit: Bank (101010)
-   * Credit: Accounts Receivable (110010)
    */
   static async postCustomerReceipt(params: {
     receipt: CustomerReceipt;
@@ -669,66 +759,272 @@ export class AutomaticPostingEngine {
     const rule = await this.getRule('AR_PAY');
     const { fiscalYear, period } = await FinanceService.validatePeriodOpen(rec.receiptDate);
 
-    const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-    const now = new Date().toISOString();
-
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: rec.receiptDate,
-      documentDate: rec.receiptDate,
-      documentType: 'DZ',
-      headerText: `سند قبض وتحصيل عميل - ${rec.docNumber} (${rec.customerName})`,
-      reference: rec.docNumber,
-      totalDebit: rec.amount,
-      totalCredit: rec.amount,
-      lines: [
-        {
-          lineNumber: 1,
-          postingKey: rule.postingKeyDebit,
-          accountNumber: rule.debitAccountNumber,
-          accountName: rule.debitAccountName,
-          debit: rec.amount,
-          credit: 0,
-          lineText: `إيداع بنكي متحصلات عميل ${rec.customerName} - حساب ${rec.bankAccount}`,
-        },
-        {
-          lineNumber: 2,
-          postingKey: rule.postingKeyCredit,
-          accountNumber: rule.creditAccountNumber,
-          accountName: `${rule.creditAccountName} - [${rec.customerCode}]`,
-          debit: 0,
-          credit: rec.amount,
-          lineText: `تسوية وتخفيض رصيد ذمة العميل ${rec.customerName}`,
-        },
-      ],
-      createdBy: params.createdBy,
-      createdAt: now,
-      updatedBy: params.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    await db.transaction('rw', [db.journalEntries, db.customerReceipts, db.auditLogs], async () => {
-      await db.journalEntries.add(journalEntry);
-      await db.customerReceipts.update(rec.id, {
-        jeDocNumber: docNumber,
-        updatedAt: now,
-      });
-      await AuditService.log({
-        userId: params.createdBy,
-        action: 'CREATE',
-        entity: 'JournalEntry',
-        entityId: journalEntry.id,
-        after: journalEntry as unknown as Record<string, unknown>,
-      });
+    return await this.executeIdempotentPosting({
+      sourceType: 'CUSTOMER_RECEIPT',
+      sourceId: rec.id,
+      additionalTxTables: [db.customerReceipts as unknown as Dexie.Table<unknown, string>],
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: rec.receiptDate,
+          documentDate: rec.receiptDate,
+          documentType: 'DZ',
+          headerText: `سند قبض وتحصيل عميل - ${rec.docNumber} (${rec.customerName})`,
+          reference: rec.docNumber,
+          totalDebit: rec.amount,
+          totalCredit: rec.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: rec.amount,
+              credit: 0,
+              lineText: `إيداع بنكي متحصلات عميل ${rec.customerName} - حساب ${rec.bankAccount}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: `${rule.creditAccountName} - [${rec.customerCode}]`,
+              debit: 0,
+              credit: rec.amount,
+              lineText: `تسوية وتخفيض رصيد ذمة العميل ${rec.customerName}`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+      onPersist: async (je) => {
+        await db.customerReceipts.update(rec.id, {
+          jeDocNumber: je.docNumber,
+          updatedAt: new Date().toISOString(),
+        });
+      },
     });
+  }
 
-    return { success: true, jeDocNumber: docNumber };
+  /**
+   * Fleet Integration: Idempotent Trip Cost GL Posting
+   */
+  static async postTripCost(params: {
+    tripDocNumber: string;
+    vehiclePlate: string;
+    amount: number;
+    postingDate: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    if (params.amount <= 0) return { success: true, jeDocNumber: '' };
+
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: params.amount }
+    );
+    const rule = await this.getRule('FUEL');
+    const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.postingDate);
+
+    return await this.executeIdempotentPosting({
+      sourceType: 'FLEET_TRIP',
+      sourceId: params.tripDocNumber,
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: params.postingDate,
+          documentDate: params.postingDate,
+          documentType: 'SA',
+          headerText: `تكاليف تشغيل رحلة الشاحنة [${params.vehiclePlate}] - رحلة ${params.tripDocNumber}`,
+          reference: params.tripDocNumber,
+          totalDebit: params.amount,
+          totalCredit: params.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: params.amount,
+              credit: 0,
+              lineText: `مصروف تشغيل وقود وبدلات رحلة ${params.tripDocNumber}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: rule.creditAccountName,
+              debit: 0,
+              credit: params.amount,
+              lineText: `إثبات مستحقات / بنك عن رحلة ${params.tripDocNumber}`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+    });
+  }
+
+  /**
+   * Fleet Integration: Idempotent Fuel Log GL Posting
+   */
+  static async postFuelCost(params: {
+    fuelLogId: string;
+    vehiclePlate: string;
+    amount: number;
+    date: string;
+    stationName: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    if (params.amount <= 0) return { success: true, jeDocNumber: '' };
+
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: params.amount }
+    );
+    const rule = await this.getRule('FUEL');
+    const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.date);
+
+    return await this.executeIdempotentPosting({
+      sourceType: 'FLEET_FUEL',
+      sourceId: params.fuelLogId,
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: params.date,
+          documentDate: params.date,
+          documentType: 'SA',
+          headerText: `تموين وقود مركبة [${params.vehiclePlate}] - محطة ${params.stationName}`,
+          reference: params.fuelLogId,
+          totalDebit: params.amount,
+          totalCredit: params.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: params.amount,
+              credit: 0,
+              lineText: `مصروف وقود شاحنة ${params.vehiclePlate}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: rule.creditAccountName,
+              debit: 0,
+              credit: params.amount,
+              lineText: `سداد تموين وقود - ${params.stationName}`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+    });
+  }
+
+  /**
+   * Fleet Integration: Idempotent Maintenance Cost GL Posting
+   */
+  static async postMaintenanceCost(params: {
+    orderDocNumber: string;
+    vehiclePlate: string;
+    amount: number;
+    completionDate: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    if (params.amount <= 0) return { success: true, jeDocNumber: '' };
+
+    requirePermission(
+      { module: 'FI', activity: 'post' },
+      { amount: params.amount }
+    );
+    const rule = await this.getRule('MAINT');
+    const { fiscalYear, period } = await FinanceService.validatePeriodOpen(params.completionDate);
+
+    return await this.executeIdempotentPosting({
+      sourceType: 'FLEET_MAINT',
+      sourceId: params.orderDocNumber,
+      createEntry: async () => {
+        const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        const now = new Date().toISOString();
+        return {
+          id: `je-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period,
+          postingDate: params.completionDate,
+          documentDate: params.completionDate,
+          documentType: 'SA',
+          headerText: `تكاليف صيانة الشاحنة [${params.vehiclePlate}] - أمر ${params.orderDocNumber}`,
+          reference: params.orderDocNumber,
+          totalDebit: params.amount,
+          totalCredit: params.amount,
+          lines: [
+            {
+              lineNumber: 1,
+              postingKey: rule.postingKeyDebit,
+              accountNumber: rule.debitAccountNumber,
+              accountName: rule.debitAccountName,
+              debit: params.amount,
+              credit: 0,
+              lineText: `مصروف عمالة وقطع صيانة أمر ${params.orderDocNumber}`,
+            },
+            {
+              lineNumber: 2,
+              postingKey: rule.postingKeyCredit,
+              accountNumber: rule.creditAccountNumber,
+              accountName: rule.creditAccountName,
+              debit: 0,
+              credit: params.amount,
+              lineText: `إثبات مستحقات صيانة أمر ${params.orderDocNumber}`,
+            },
+          ],
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+      },
+    });
   }
 }

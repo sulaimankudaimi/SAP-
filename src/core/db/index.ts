@@ -96,6 +96,7 @@ export class GulfErpDatabase extends Dexie {
   reportSnapshots!: Table<import('../../types/models').ReportSnapshot, string>;
   approvalRules!: Table<import('../../types/models').ApprovalRule, string>;
   printTemplates!: Table<import('../../types/models').PrintTemplate, string>;
+  postingRegistry!: Table<import('../../types/models').PostingRegistryEntry, string>;
 
   constructor() {
     super('gulf_erp');
@@ -161,6 +162,11 @@ export class GulfErpDatabase extends Dexie {
     // Version 2: Index baseUnit on materials for high-speed MasterDataService where/count lookups
     this.version(2).stores({
       materials: 'id, materialCode, groupCode, abcClass, baseUnit, isDeleted',
+    });
+
+    // Version 3: Idempotent posting registry with compound unique index
+    this.version(3).stores({
+      postingRegistry: 'id, &[sourceType+sourceId+event], sourceType, sourceId, event, journalDocNumber, createdAt',
     });
   }
 }

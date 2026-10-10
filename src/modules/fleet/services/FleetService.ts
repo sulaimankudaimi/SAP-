@@ -2,6 +2,7 @@ import { db } from '../../../core/db';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { InventoryService } from '../../inventory/services/InventoryService';
+import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
 import { requirePermission } from '../../../core/security/SessionContext';
 import type {
   Vehicle,
@@ -307,53 +308,61 @@ export class FleetService {
 
     requirePermission({ module: 'TM', activity: 'create' }, { plant: input.originPlant });
 
-    const docNumber = await NumberRangeService.getNextNumber('TRIP', '2026');
     const now = new Date().toISOString();
+    let trip!: Trip;
 
-    const trip: Trip = {
-      id: `trip-${Date.now()}`,
-      docNumber,
-      status: 'in_progress', // Active dispatched
-      vehicleId: input.vehicleId,
-      vehiclePlate: vehicle.plateNumber,
-      driverId: input.driverId,
-      driverName: driver.name,
-      originPlant: input.originPlant,
-      destinationLocation: input.destinationLocation,
-      cargoType: input.cargoType,
-      cargoVolumeLiters: input.cargoVolumeLiters,
-      scheduledDeparture: input.scheduledDeparture,
-      scheduledArrival: input.scheduledArrival,
-      actualDeparture: now.slice(0, 16).replace('T', ' '),
-      startOdometer: input.startOdometer,
-      createdBy: userId,
-      createdAt: now,
-      updatedBy: userId,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    await db.transaction(
+      'rw',
+      [db.trips, db.vehicles, db.drivers, db.numberRanges, db.auditLogs],
+      async () => {
+        const docNumber = await NumberRangeService.getNextNumber('TRIP', '2026');
 
-    // Update vehicle and driver status to on_trip
-    await db.vehicles.update(vehicle.id, {
-      status: 'on_trip',
-      assignedDriverId: driver.id,
-      assignedDriverName: driver.name,
-    });
+        trip = {
+          id: `trip-${Date.now()}`,
+          docNumber,
+          status: 'in_progress', // Active dispatched
+          vehicleId: input.vehicleId,
+          vehiclePlate: vehicle.plateNumber,
+          driverId: input.driverId,
+          driverName: driver.name,
+          originPlant: input.originPlant,
+          destinationLocation: input.destinationLocation,
+          cargoType: input.cargoType,
+          cargoVolumeLiters: input.cargoVolumeLiters,
+          scheduledDeparture: input.scheduledDeparture,
+          scheduledArrival: input.scheduledArrival,
+          actualDeparture: now.slice(0, 16).replace('T', ' '),
+          startOdometer: input.startOdometer,
+          createdBy: userId,
+          createdAt: now,
+          updatedBy: userId,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
 
-    await db.drivers.update(driver.id, {
-      status: 'on_trip',
-    });
+        // Update vehicle and driver status to on_trip
+        await db.vehicles.update(vehicle.id, {
+          status: 'on_trip',
+          assignedDriverId: driver.id,
+          assignedDriverName: driver.name,
+        });
 
-    await db.trips.add(trip);
+        await db.drivers.update(driver.id, {
+          status: 'on_trip',
+        });
 
-    await AuditService.log({
-      userId,
-      action: 'CREATE',
-      entity: 'Trip',
-      entityId: trip.id,
-      after: trip as unknown as Record<string, unknown>,
-    });
+        await db.trips.add(trip);
+
+        await AuditService.log({
+          userId,
+          action: 'CREATE',
+          entity: 'Trip',
+          entityId: trip.id,
+          after: trip as unknown as Record<string, unknown>,
+        });
+      }
+    );
 
     return trip;
   }
@@ -404,7 +413,16 @@ export class FleetService {
     const allowance = input.driverAllowanceCost || Math.round(distanceKm * 0.35); // 0.35 SAR/km standard driver allowance
     const totalTripCost = fuelCost + allowance;
 
-    const accountingDocNumber = `ACC-TRIP-2026-${trip.docNumber.split('-')[2] || '000001'}`;
+    // Idempotent GL posting for trip completion costs
+    const postRes = await AutomaticPostingEngine.postTripCost({
+      tripDocNumber: trip.docNumber,
+      vehiclePlate: trip.vehiclePlate,
+      amount: totalTripCost,
+      postingDate: arrivalTime.split(' ')[0] || now.split('T')[0],
+      createdBy: userId,
+    });
+
+    const accountingDocNumber = postRes.jeDocNumber || `ACC-TRIP-2026-${trip.docNumber.split('-')[2] || '000001'}`;
 
     const updatedTrip: Trip = {
       ...trip,
@@ -424,31 +442,33 @@ export class FleetService {
       version: trip.version + 1,
     };
 
-    await db.trips.put(updatedTrip);
+    await db.transaction('rw', [db.trips, db.vehicles, db.drivers, db.auditLogs], async () => {
+      await db.trips.put(updatedTrip);
 
-    // Free vehicle and update its odometer
-    await db.vehicles.update(trip.vehicleId, {
-      status: 'available',
-      currentOdometer: input.endOdometer,
-    });
-
-    // Free driver and update driver statistics
-    const driver = await db.drivers.get(trip.driverId);
-    if (driver) {
-      await db.drivers.update(driver.id, {
+      // Free vehicle and update its odometer
+      await db.vehicles.update(trip.vehicleId, {
         status: 'available',
-        totalTripsCompleted: (driver.totalTripsCompleted || 0) + 1,
-        totalDistanceKm: (driver.totalDistanceKm || 0) + distanceKm,
+        currentOdometer: input.endOdometer,
       });
-    }
 
-    await AuditService.log({
-      userId,
-      action: 'STATUS_CHANGE',
-      entity: 'Trip',
-      entityId: trip.id,
-      before: trip as unknown as Record<string, unknown>,
-      after: updatedTrip as unknown as Record<string, unknown>,
+      // Free driver and update driver statistics
+      const driver = await db.drivers.get(trip.driverId);
+      if (driver) {
+        await db.drivers.update(driver.id, {
+          status: 'available',
+          totalTripsCompleted: (driver.totalTripsCompleted || 0) + 1,
+          totalDistanceKm: (driver.totalDistanceKm || 0) + distanceKm,
+        });
+      }
+
+      await AuditService.log({
+        userId,
+        action: 'STATUS_CHANGE',
+        entity: 'Trip',
+        entityId: trip.id,
+        before: trip as unknown as Record<string, unknown>,
+        after: updatedTrip as unknown as Record<string, unknown>,
+      });
     });
 
     return updatedTrip;
@@ -487,7 +507,7 @@ export class FleetService {
     const totalCost = input.quantityLiters * input.costPerLiter;
     requirePermission({ module: 'TM', activity: 'create' }, { amount: totalCost });
 
-    // Calculate consumption L/100km using previous fuel log
+    // Calculate consumption L/100km using previous fuel log (pre-computed before transaction)
     const prevLogs = await db.fuelLogs
       .where('vehicleId')
       .equals(input.vehicleId)
@@ -541,13 +561,6 @@ export class FleetService {
       isDeleted: false,
     };
 
-    await db.fuelLogs.add(fuelLog);
-
-    // Update vehicle odometer if higher
-    if (input.odometer > vehicle.currentOdometer) {
-      await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
-    }
-
     let anomalyAlert: FuelAnomalyAlert | undefined = undefined;
 
     if (isAnomaly) {
@@ -569,16 +582,42 @@ export class FleetService {
         status: 'active',
         isDeleted: false,
       };
-
-      await db.fuelAnomalyAlerts.add(anomalyAlert);
     }
 
-    await AuditService.log({
-      userId,
-      action: 'CREATE',
-      entity: 'FuelLog',
-      entityId: logId,
-      after: fuelLog as unknown as Record<string, unknown>,
+    // Wrap persistence and updates atomically
+    await db.transaction(
+      'rw',
+      [db.fuelLogs, db.vehicles, db.fuelAnomalyAlerts, db.auditLogs],
+      async () => {
+        await db.fuelLogs.add(fuelLog);
+
+        // Update vehicle odometer if higher
+        if (input.odometer > vehicle.currentOdometer) {
+          await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
+        }
+
+        if (anomalyAlert) {
+          await db.fuelAnomalyAlerts.add(anomalyAlert);
+        }
+
+        await AuditService.log({
+          userId,
+          action: 'CREATE',
+          entity: 'FuelLog',
+          entityId: logId,
+          after: fuelLog as unknown as Record<string, unknown>,
+        });
+      }
+    );
+
+    // Idempotent GL posting for fuel cost
+    await AutomaticPostingEngine.postFuelCost({
+      fuelLogId: logId,
+      vehiclePlate: vehicle.plateNumber,
+      amount: totalCost,
+      date: input.date,
+      stationName: input.stationName,
+      createdBy: userId,
     });
 
     return { fuelLog, anomalyAlert };
@@ -737,15 +776,17 @@ export class FleetService {
       version: order.version + 1,
     };
 
-    await db.maintenanceOrders.put(updatedOrder);
+    await db.transaction('rw', [db.maintenanceOrders, db.auditLogs], async () => {
+      await db.maintenanceOrders.put(updatedOrder);
 
-    await AuditService.log({
-      userId,
-      action: 'UPDATE',
-      entity: 'MaintenanceOrder',
-      entityId: order.id,
-      before: order as unknown as Record<string, unknown>,
-      after: updatedOrder as unknown as Record<string, unknown>,
+      await AuditService.log({
+        userId,
+        action: 'UPDATE',
+        entity: 'MaintenanceOrder',
+        entityId: order.id,
+        before: order as unknown as Record<string, unknown>,
+        after: updatedOrder as unknown as Record<string, unknown>,
+      });
     });
 
     return { order: updatedOrder, materialDocNumber: movementResult.docNumber };
@@ -783,26 +824,37 @@ export class FleetService {
       version: order.version + 1,
     };
 
-    await db.maintenanceOrders.put(updatedOrder);
+    await db.transaction('rw', [db.maintenanceOrders, db.vehicles, db.auditLogs], async () => {
+      await db.maintenanceOrders.put(updatedOrder);
 
-    // Return vehicle to available status and advance maintenance milestone
-    const vehicle = await db.vehicles.get(order.vehicleId);
-    if (vehicle) {
-      const nextDue = (vehicle.currentOdometer || 0) + 10000;
-      await db.vehicles.update(vehicle.id, {
-        status: 'available',
-        lastMaintenanceDate: input.completionDate,
-        nextMaintenanceOdometer: nextDue,
+      // Return vehicle to available status and advance maintenance milestone
+      const vehicle = await db.vehicles.get(order.vehicleId);
+      if (vehicle) {
+        const nextDue = (vehicle.currentOdometer || 0) + 10000;
+        await db.vehicles.update(vehicle.id, {
+          status: 'available',
+          lastMaintenanceDate: input.completionDate,
+          nextMaintenanceOdometer: nextDue,
+        });
+      }
+
+      await AuditService.log({
+        userId,
+        action: 'STATUS_CHANGE',
+        entity: 'MaintenanceOrder',
+        entityId: order.id,
+        before: order as unknown as Record<string, unknown>,
+        after: updatedOrder as unknown as Record<string, unknown>,
       });
-    }
+    });
 
-    await AuditService.log({
-      userId,
-      action: 'STATUS_CHANGE',
-      entity: 'MaintenanceOrder',
-      entityId: order.id,
-      before: order as unknown as Record<string, unknown>,
-      after: updatedOrder as unknown as Record<string, unknown>,
+    // Idempotent GL posting for completed maintenance actual cost
+    await AutomaticPostingEngine.postMaintenanceCost({
+      orderDocNumber: order.docNumber,
+      vehiclePlate: order.vehiclePlate,
+      amount: actualCost,
+      completionDate: input.completionDate,
+      createdBy: userId,
     });
 
     return updatedOrder;

@@ -74,6 +74,7 @@ export interface User {
   plantCode: string;
   passwordHash: string;
   passwordSalt: string;
+  passwordIterations?: number;
   failedLoginAttempts: number;
   isLocked: boolean;
   lockedUntil?: string;
@@ -1290,5 +1291,18 @@ export interface PrintTemplate {
   showStampBlock: boolean;
   bankDetails?: string;
   updatedAt: string;
+}
+
+// Idempotent Posting Registry Model (Dexie v3)
+export interface PostingRegistryEntry {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  event: string;
+  journalDocNumber: string;
+  createdAt: string;
+  isReversed?: boolean;
+  reversedAt?: string;
+  reversalDocNumber?: string;
 }
 

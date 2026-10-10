@@ -96,7 +96,7 @@ export class AuthService {
     // Unknown username: throttle, dummy verify for timing equalization, then throw generic error
     if (!user) {
       await applyFailureThrottle(cleanUsername);
-      await CryptoService.verifyPassword(password, DUMMY_SALT, DUMMY_HASH);
+      await CryptoService.verifyPassword(password, DUMMY_SALT, DUMMY_HASH, CryptoService.CURRENT_ITERATIONS);
       recordFailureInThrottle(cleanUsername);
       throw new Error(GENERIC_CREDENTIAL_ERROR);
     }
@@ -105,7 +105,7 @@ export class AuthService {
     if (user.isLocked) {
       if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
         await applyFailureThrottle(cleanUsername);
-        await CryptoService.verifyPassword(password, DUMMY_SALT, DUMMY_HASH);
+        await CryptoService.verifyPassword(password, DUMMY_SALT, DUMMY_HASH, CryptoService.CURRENT_ITERATIONS);
         recordFailureInThrottle(cleanUsername);
         throw new Error(GENERIC_CREDENTIAL_ERROR);
       } else {
@@ -139,13 +139,29 @@ export class AuthService {
       }
     }
 
-    // Verify Password Hash
+    // Verify Password Hash using stored iterations count (defaulting to 100,000 for legacy users)
+    let userIterations = user.passwordIterations ?? CryptoService.LEGACY_ITERATIONS;
     await applyFailureThrottle(cleanUsername);
-    const isValid = await CryptoService.verifyPassword(
+    let isValid = await CryptoService.verifyPassword(
       password,
       user.passwordSalt,
-      user.passwordHash
+      user.passwordHash,
+      userIterations
     );
+
+    // If passwordIterations was missing and 100k failed, check CURRENT_ITERATIONS in case user had default hash
+    if (!isValid && user.passwordIterations === undefined) {
+      const isCurrentDefaultValid = await CryptoService.verifyPassword(
+        password,
+        user.passwordSalt,
+        user.passwordHash,
+        CryptoService.CURRENT_ITERATIONS
+      );
+      if (isCurrentDefaultValid) {
+        isValid = true;
+        userIterations = CryptoService.CURRENT_ITERATIONS;
+      }
+    }
 
     if (!isValid) {
       recordFailureInThrottle(cleanUsername);
@@ -202,14 +218,19 @@ export class AuthService {
     // Clear throttle record on valid credentials
     clearThrottle(cleanUsername);
 
-    // Check if user has a legacy fixed salt that needs transparent upgrade
+    // Check if user has a legacy fixed salt or iterations < 600,000 that needs transparent upgrade
     const isLegacySalt = (this.LEGACY_SALTS as readonly string[]).includes(user.passwordSalt);
+    const isLegacyIterations = userIterations < CryptoService.CURRENT_ITERATIONS;
+    const needsUpgrade = isLegacySalt || isLegacyIterations;
+
     let finalSalt = user.passwordSalt;
     let finalHash = user.passwordHash;
+    let finalIterations = userIterations;
 
-    if (isLegacySalt) {
+    if (needsUpgrade) {
       finalSalt = CryptoService.generateSalt();
-      finalHash = await CryptoService.hashPassword(password, finalSalt);
+      finalIterations = CryptoService.CURRENT_ITERATIONS;
+      finalHash = await CryptoService.hashPassword(password, finalSalt, finalIterations);
     }
 
     // Login successful: reset failed attempts & record LOGIN audit in a single transaction
@@ -224,6 +245,7 @@ export class AuthService {
             ...freshUser,
             passwordSalt: finalSalt,
             passwordHash: finalHash,
+            passwordIterations: finalIterations,
             failedLoginAttempts: 0,
             isLocked: false,
             lockedUntil: undefined,
@@ -242,17 +264,22 @@ export class AuthService {
             after: {
               lastLoginAt: now,
               saltUpgraded: isLegacySalt,
+              iterationsUpgraded: isLegacyIterations,
             },
           });
 
-          if (isLegacySalt) {
+          if (needsUpgrade) {
             await AuditService.log({
               action: 'UPDATE',
               entity: 'users',
               entityId: user.id,
               userId: user.id,
               userName: user.username,
-              after: { reason: 'Cryptographic Salt Upgrade to Random Salt' },
+              after: {
+                reason: isLegacyIterations
+                  ? 'Cryptographic PBKDF2 Iteration Upgrade to 600,000'
+                  : 'Cryptographic Salt Upgrade to Random Salt',
+              },
             });
           }
         }
@@ -304,11 +331,21 @@ export class AuthService {
     }
 
     // 1. Verify current password
-    const isCurrentValid = await CryptoService.verifyPassword(
+    const currentIterations = existingUser.passwordIterations ?? CryptoService.LEGACY_ITERATIONS;
+    let isCurrentValid = await CryptoService.verifyPassword(
       currentPlainPassword,
       existingUser.passwordSalt,
-      existingUser.passwordHash
+      existingUser.passwordHash,
+      currentIterations
     );
+    if (!isCurrentValid && existingUser.passwordIterations === undefined) {
+      isCurrentValid = await CryptoService.verifyPassword(
+        currentPlainPassword,
+        existingUser.passwordSalt,
+        existingUser.passwordHash,
+        CryptoService.CURRENT_ITERATIONS
+      );
+    }
     if (!isCurrentValid) {
       throw new Error('كلمة المرور الحالية غير صحيحة.');
     }
@@ -325,9 +362,13 @@ export class AuthService {
       );
     }
 
-    // 4. Generate fresh random salt & PBKDF2 hash
+    // 4. Generate fresh random salt & PBKDF2 hash with 600,000 iterations
     const newSalt = CryptoService.generateSalt();
-    const newHash = await CryptoService.hashPassword(newPlainPassword, newSalt);
+    const newHash = await CryptoService.hashPassword(
+      newPlainPassword,
+      newSalt,
+      CryptoService.CURRENT_ITERATIONS
+    );
 
     const authContext = { userId: existingUser.id, userName: existingUser.username };
 
@@ -336,6 +377,7 @@ export class AuthService {
       {
         passwordSalt: newSalt,
         passwordHash: newHash,
+        passwordIterations: CryptoService.CURRENT_ITERATIONS,
         mustChangePassword: false,
         updatedAt: new Date().toISOString(),
       },
@@ -376,10 +418,14 @@ export class AuthService {
       throw new Error('تم تغيير كلمة المرور مسبقاً وتأكيد الهوية.');
     }
 
-    // Generate 16-character unambiguous OTP
+    // Generate 16-character unambiguous OTP with 600,000 iterations
     const newOtp = CryptoService.generateSecureOtp(16);
     const newSalt = CryptoService.generateSalt();
-    const newHash = await CryptoService.hashPassword(newOtp, newSalt);
+    const newHash = await CryptoService.hashPassword(
+      newOtp,
+      newSalt,
+      CryptoService.CURRENT_ITERATIONS
+    );
 
     const now = new Date().toISOString();
 
@@ -391,6 +437,7 @@ export class AuthService {
         {
           passwordSalt: newSalt,
           passwordHash: newHash,
+          passwordIterations: CryptoService.CURRENT_ITERATIONS,
           failedLoginAttempts: 0,
           isLocked: false,
           lockedUntil: undefined,

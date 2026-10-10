@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AuthService } from '../core/services/AuthService';
+import { injectCspPlugin } from '../../vite.config';
 
 /**
  * Static Architectural & Security Guard Tests
@@ -354,4 +355,94 @@ describe('Static Security & Architecture Guards', () => {
       expect(violations).toHaveLength(0);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Guard 5: Content-Security-Policy & Build Injection Guards
+  // ---------------------------------------------------------------------------
+  describe('5. Content-Security-Policy & Build Injection Guards', () => {
+    it('fails if index.html contains the string Content-Security-Policy', () => {
+      const indexPath = path.resolve(SRC_DIR, '..', 'index.html');
+      const indexContent = fs.readFileSync(indexPath, 'utf-8');
+      expect(indexContent.includes('Content-Security-Policy')).toBe(false);
+    });
+
+    it('the inject-csp plugin output contains exactly one CSP tag', () => {
+      const sampleHtml = '<!doctype html>\n<html>\n  <head>\n    <title>Test</title>\n  </head>\n  <body></body>\n</html>';
+      const transform = injectCspPlugin.transformIndexHtml;
+      expect(typeof transform).toBe('function');
+
+      if (typeof transform === 'function') {
+        const transformFn = transform as unknown as (html: string) => string;
+        const transformedHtml = transformFn(sampleHtml);
+        const matches = transformedHtml.match(/http-equiv=["']Content-Security-Policy["']/gi) || [];
+        expect(matches).toHaveLength(1);
+        expect(transformedHtml).toContain("default-src 'self'");
+        expect(transformedHtml).toContain("script-src 'self'");
+        expect(transformedHtml).toContain("object-src 'none'");
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard 6: Runtime Offline Guard & Prototype Accessor Safety
+  // ---------------------------------------------------------------------------
+  describe('6. Runtime Offline Guard & Accessor Safety', () => {
+    it('initializes without throwing even if window.fetch has only a getter', async () => {
+      const { initializeOfflineGuard } = await import('../core/security/offlineGuard');
+      // Create a simulated window with a getter-only fetch property on its prototype
+      const proto = {};
+      let originalCalled = false;
+      Object.defineProperty(proto, 'fetch', {
+        get() {
+          return () => {
+            originalCalled = true;
+            return Promise.resolve(new Response('ok'));
+          };
+        },
+        configurable: true,
+      });
+
+      const mockWindow = Object.create(proto) as unknown as Window & typeof globalThis;
+      Object.defineProperty(mockWindow, 'location', {
+        value: { origin: 'https://app.local' },
+        configurable: true,
+      });
+
+      // Assign to globalThis.window temporarily
+      const prevWindow = (globalThis as Record<string, unknown>).window;
+      try {
+        (globalThis as Record<string, unknown>).window = mockWindow;
+        expect(() => initializeOfflineGuard()).not.toThrow();
+
+        // Check that fetch is now intercepted
+        expect(typeof mockWindow.fetch).toBe('function');
+
+        // Local request should proceed through original fetch
+        await mockWindow.fetch('/local/path');
+        expect(originalCalled).toBe(true);
+
+        // External request should be blocked
+        await expect(mockWindow.fetch('https://evil.external.api/data')).rejects.toThrow();
+      } finally {
+        (globalThis as Record<string, unknown>).window = prevWindow;
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard 7: Documentation Truthfulness Guard
+  // ---------------------------------------------------------------------------
+  describe('7. Documentation Truthfulness Guard', () => {
+    it('fails if README or PROJECT_RULES contains the word IStorageAdapter', () => {
+      const readmePath = path.resolve(SRC_DIR, '..', 'README.md');
+      const projectRulesPath = path.resolve(SRC_DIR, '..', 'PROJECT_RULES.md');
+
+      const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
+      const rulesContent = fs.existsSync(projectRulesPath) ? fs.readFileSync(projectRulesPath, 'utf-8') : '';
+
+      expect(readmeContent.includes('IStorageAdapter')).toBe(false);
+      expect(rulesContent.includes('IStorageAdapter')).toBe(false);
+    });
+  });
 });
+

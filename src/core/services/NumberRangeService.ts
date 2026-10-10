@@ -9,7 +9,7 @@ export class NumberRangeService {
   static async getNextNumber(docType: string, fiscalYear: string = '2026'): Promise<string> {
     const rangeId = `${docType.toUpperCase()}-${fiscalYear}`;
 
-    return await db.transaction('rw', db.numberRanges, async () => {
+    const executeIncrement = async (): Promise<string> => {
       let range = await db.numberRanges.get(rangeId);
 
       if (!range) {
@@ -35,6 +35,19 @@ export class NumberRangeService {
       });
 
       return `${range.prefix}-${fiscalYear}-${String(nextNum).padStart(6, '0')}`;
+    };
+
+    // If an ambient transaction that includes numberRanges is already active, join it directly
+    if (db.isOpen() && db.numberRanges) {
+      const activeTx = (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+      if (activeTx?.storeNames?.includes('numberRanges')) {
+        return await executeIncrement();
+      }
+    }
+
+    // Otherwise, execute inside a coordinated transaction on numberRanges
+    return await db.transaction('rw', db.numberRanges, async () => {
+      return await executeIncrement();
     });
   }
 

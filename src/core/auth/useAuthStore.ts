@@ -54,7 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   restoreSession: async (): Promise<boolean> => {
     try {
-      if (typeof window === 'undefined') {
+      if (typeof window === 'undefined' && typeof localStorage === 'undefined') {
         set({ isAuthenticated: false, isBootRestoring: false });
         SessionContext.clearActor();
         return false;
@@ -113,7 +113,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return true;
     } catch (err) {
-      console.warn('Boot session verification failed, redirecting to login:', err);
+      DiagnosticLogger.warn(
+        'AuthStore',
+        `Boot session verification failed, redirecting to login: ${err instanceof Error ? err.message : String(err)}`
+      );
       try {
         localStorage.removeItem(SESSION_STORAGE_KEY);
       } catch {

@@ -98,7 +98,9 @@ async function getOrGenerateHmacKey(): Promise<CryptoKey> {
 }
 
 export class CryptoService {
-  private static ITERATIONS = 100000;
+  static readonly CURRENT_ITERATIONS = 600000;
+  static readonly LEGACY_ITERATIONS = 100000;
+  static readonly ITERATIONS = 600000;
   private static KEY_LENGTH = 32; // 256 bits
 
   /**
@@ -130,8 +132,13 @@ export class CryptoService {
 
   /**
    * Hashes a password with salt using PBKDF2 + SHA-256.
+   * Defaults to 600,000 iterations per OWASP PBKDF2-HMAC-SHA256 guidance.
    */
-  static async hashPassword(password: string, salt: string): Promise<string> {
+  static async hashPassword(
+    password: string,
+    salt: string,
+    iterations: number = this.CURRENT_ITERATIONS
+  ): Promise<string> {
     const encoder = new TextEncoder();
     const passwordBuffer = encoder.encode(password);
     const saltBuffer = encoder.encode(salt);
@@ -149,7 +156,7 @@ export class CryptoService {
       {
         name: 'PBKDF2',
         salt: saltBuffer,
-        iterations: this.ITERATIONS,
+        iterations,
         hash: 'SHA-256',
       },
       baseKey,
@@ -161,14 +168,15 @@ export class CryptoService {
   }
 
   /**
-   * Verifies a plain password against stored salt and hash.
+   * Verifies a plain password against stored salt and hash using the provided iteration count.
    */
   static async verifyPassword(
     password: string,
     salt: string,
-    storedHash: string
+    storedHash: string,
+    iterations: number = this.CURRENT_ITERATIONS
   ): Promise<boolean> {
-    const computedHash = await this.hashPassword(password, salt);
+    const computedHash = await this.hashPassword(password, salt, iterations);
     return computedHash === storedHash;
   }
 

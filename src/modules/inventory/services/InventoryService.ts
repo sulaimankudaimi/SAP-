@@ -192,25 +192,7 @@ export class InventoryService {
     const postingDate = payload.postingDate || now.split('T')[0];
     const documentDate = payload.documentDate || postingDate;
 
-    // 1. Availability Checks for Outbound Movements (201, 261, 301, 311, 551, 702, 102)
-    const isOutbound = ['102', '201', '261', '301', '311', '551', '702'].includes(payload.movementType);
-    if (isOutbound && !allowNegative) {
-      for (const item of payload.items) {
-        const itemSloc = item.storageLocation || payload.storageLocation;
-        const currentBal = await this.getOrCreateBalance(item.materialCode, payload.plantCode, itemSloc);
-        if (currentBal.unrestrictedQty < item.quantity) {
-          throw new Error(
-            `لا يمكن إتمام الصرف / التحويل: الرصيد المتاح للصنف [${item.materialCode}] في الموقع [${itemSloc}] هو (${currentBal.unrestrictedQty} ${currentBal.unit})، وهو أقل من الكمية المطلوبة (${item.quantity}).`
-          );
-        }
-      }
-    }
-
-    // 2. Generate Material Document Number (SAP MBLNR)
-    const docNumber = await NumberRangeService.getNextNumber('MATDOC', '2026');
-
-    // 3. Process items and update stock
-    const processedItems: MaterialDocumentItem[] = [];
+    let materialDocument!: MaterialDocument;
 
     await db.transaction(
       'rw',
@@ -221,9 +203,18 @@ export class InventoryService {
         db.materials,
         db.purchaseOrders,
         db.goodsReceipts,
+        db.journalEntries,
+        db.postingRegistry,
+        db.numberRanges,
+        db.budgets,
         db.auditLogs,
       ],
       async () => {
+        // 2. Generate Material Document Number (SAP MBLNR) inside atomic transaction
+        const docNumber = await NumberRangeService.getNextNumber('MATDOC', '2026');
+
+        // 3. Process items and update stock
+        const processedItems: MaterialDocumentItem[] = [];
         let lineIdx = 10;
 
         for (const item of payload.items) {
@@ -517,52 +508,52 @@ export class InventoryService {
             }
           }
         }
+
+        // 5. Construct and Save Material Document
+        materialDocument = {
+          id: `matdoc-${docNumber}`,
+          docNumber,
+          status: 'posted',
+          movementType: payload.movementType,
+          postingDate,
+          documentDate,
+          plantCode: payload.plantCode,
+          storageLocation: payload.storageLocation,
+          poNumber: payload.poNumber,
+          deliveryNoteNumber: payload.deliveryNoteNumber,
+          headerText: payload.headerText,
+          items: processedItems,
+          attachmentIds: payload.attachmentIds,
+          createdBy: payload.userId,
+          createdAt: now,
+          updatedBy: payload.userId,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
+
+        // Auto-post accounting entry via Finance Posting Hook
+        const financeRes = await financePostingService.postInventoryMovement(materialDocument);
+        materialDocument.accountingDocNumber = financeRes.jeDocNumber;
+
+        await db.materialDocuments.add(materialDocument);
+
+        // Write audit log entry
+        await AuditService.log({
+          userId: payload.userId,
+          userName: payload.userName || 'موظف المستودع',
+          action: 'CREATE',
+          entity: 'MaterialDocument',
+          entityId: materialDocument.id,
+          after: {
+            docNumber: materialDocument.docNumber,
+            movementType: materialDocument.movementType,
+            totalItems: materialDocument.items.length,
+            accountingDocNumber: materialDocument.accountingDocNumber,
+          },
+        });
       }
     );
-
-    // 5. Construct and Save Material Document
-    const materialDocument: MaterialDocument = {
-      id: `matdoc-${docNumber}`,
-      docNumber,
-      status: 'posted',
-      movementType: payload.movementType,
-      postingDate,
-      documentDate,
-      plantCode: payload.plantCode,
-      storageLocation: payload.storageLocation,
-      poNumber: payload.poNumber,
-      deliveryNoteNumber: payload.deliveryNoteNumber,
-      headerText: payload.headerText,
-      items: processedItems,
-      attachmentIds: payload.attachmentIds,
-      createdBy: payload.userId,
-      createdAt: now,
-      updatedBy: payload.userId,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
-
-    // Auto-post accounting entry via Finance Posting Hook (Phase 8 integration)
-    const financeRes = await financePostingService.postInventoryMovement(materialDocument);
-    materialDocument.accountingDocNumber = financeRes.jeDocNumber;
-
-    await db.materialDocuments.add(materialDocument);
-
-    // Write audit log entry
-    await AuditService.log({
-      userId: payload.userId,
-      userName: payload.userName || 'موظف المستودع',
-      action: 'CREATE',
-      entity: 'MaterialDocument',
-      entityId: materialDocument.id,
-      after: {
-        docNumber: materialDocument.docNumber,
-        movementType: materialDocument.movementType,
-        totalItems: materialDocument.items.length,
-        accountingDocNumber: materialDocument.accountingDocNumber,
-      },
-    });
 
     return materialDocument;
   }
@@ -1039,12 +1030,24 @@ export class InventoryService {
     }
 
     const now = new Date().toISOString();
-    await db.physicalInventoryDocs.update(piId, {
-      status: 'completed',
-      approvedBy: userId,
-      approvedAt: now,
-      postedDocNumber: materialDocNumbers.join(', '),
-      updatedAt: now,
+    await db.transaction('rw', [db.physicalInventoryDocs, db.auditLogs], async () => {
+      await db.physicalInventoryDocs.update(piId, {
+        status: 'completed',
+        approvedBy: userId,
+        approvedAt: now,
+        postedDocNumber: materialDocNumbers.join(', '),
+        updatedAt: now,
+      });
+
+      await AuditService.log({
+        userId,
+        userName,
+        action: 'STATUS_CHANGE',
+        entity: 'PhysicalInventoryDoc',
+        entityId: pi.docNumber,
+        before: { status: pi.status },
+        after: { status: 'completed', postedDocNumber: materialDocNumbers.join(', ') },
+      });
     });
 
     return {

@@ -41,6 +41,7 @@ import type {
   Trip,
   FuelAnomalyAlert,
   PreventiveSchedule,
+  Setting,
 } from '../types/models';
 import type { StatusVariant } from '../types';
 import { FinanceService } from '../modules/finance/services/FinanceService';
@@ -109,6 +110,7 @@ export class DatabaseSeeder {
       db.customerReceipts,
       db.costAllocationCycles,
       db.internalOrders,
+      db.postingRegistry,
     ];
 
     for (const table of tableList) {
@@ -203,7 +205,11 @@ export class DatabaseSeeder {
 
       for (const t of demoUserTemplates) {
         const userSalt = CryptoService.generateSalt();
-        const userHash = await CryptoService.hashPassword('Admin@123', userSalt);
+        const userHash = await CryptoService.hashPassword(
+          'Admin@123',
+          userSalt,
+          CryptoService.LEGACY_ITERATIONS
+        );
         const fullUser: User = {
           id: t.id,
           username: t.username,
@@ -222,6 +228,7 @@ export class DatabaseSeeder {
           isDeleted: t.isDeleted,
           passwordSalt: userSalt,
           passwordHash: userHash,
+          passwordIterations: CryptoService.LEGACY_ITERATIONS,
         };
         demoUsers.push(fullUser);
       }
@@ -229,7 +236,11 @@ export class DatabaseSeeder {
       // Non-demo mode: create ONLY admin user with mustChangePassword=true and random 16-character unambiguous OTP
       const generatedOtp = CryptoService.generateSecureOtp(16);
       const adminSalt = CryptoService.generateSalt();
-      const adminHash = await CryptoService.hashPassword(generatedOtp, adminSalt);
+      const adminHash = await CryptoService.hashPassword(
+        generatedOtp,
+        adminSalt,
+        CryptoService.CURRENT_ITERATIONS
+      );
 
       // Hand the plaintext OTP strictly to in-memory / sessionStorage FirstBootSecret. Never write to DB/storage!
       FirstBootSecret.set(generatedOtp);
@@ -247,6 +258,7 @@ export class DatabaseSeeder {
           plantCode: '1100',
           passwordHash: adminHash,
           passwordSalt: adminSalt,
+          passwordIterations: CryptoService.CURRENT_ITERATIONS,
           failedLoginAttempts: 0,
           isLocked: false,
           mustChangePassword: true,
@@ -1414,5 +1426,37 @@ export class DatabaseSeeder {
 
     // 21. Seed Financial Accounting & Controlling (Periods, GL entries, account rules)
     await FinanceService.seedFinanceIfEmpty();
+
+    // 22. Seed Explicit Initial Company Tolerance Policy (3% price / 5% quantity / 0 SAR absolute)
+    const initialToleranceSettings: Setting[] = [
+      {
+        id: 'set-tolerance-price-pct',
+        key: 'tolerance.price.percent',
+        value: '3',
+        category: 'general',
+        description: 'initial company policy, editable',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-tolerance-qty-pct',
+        key: 'tolerance.quantity.percent',
+        value: '5',
+        category: 'general',
+        description: 'initial company policy, editable',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-tolerance-amt-abs',
+        key: 'tolerance.amount.absolute',
+        value: '0',
+        category: 'general',
+        description: 'initial company policy, editable',
+        updatedAt: now,
+        isDeleted: false,
+      },
+    ];
+    await db.settings.bulkPut(initialToleranceSettings);
   }
 }
