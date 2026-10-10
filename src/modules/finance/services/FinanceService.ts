@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import { db } from '../../../core/db';
 import {
   journalRepository,
@@ -178,36 +179,44 @@ export class FinanceService {
       }
     }
 
-    const docNumber = await NumberRangeService.getNextNumber('JE', input.fiscalYear);
-    const now = new Date().toISOString();
+    const txTables = [
+      db.journalEntries,
+      db.numberRanges,
+      db.auditLogs,
+    ];
 
-    const journalEntry: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber,
-      status: input.isParked ? 'draft' : 'posted',
-      companyCode: input.companyCode || '1000',
-      fiscalYear: input.fiscalYear,
-      period: input.period,
-      postingDate: input.postingDate,
-      documentDate: input.documentDate,
-      documentType: input.documentType,
-      headerText: input.headerText,
-      reference: input.reference,
-      totalDebit,
-      totalCredit,
-      lines: formattedLines,
-      isParked: !!input.isParked,
-      parkedBy: input.isParked ? input.createdBy : undefined,
-      attachments: input.attachments || [],
-      createdBy: input.createdBy,
-      createdAt: now,
-      updatedBy: input.createdBy,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    let journalEntry!: JournalEntry;
 
-    await db.transaction('rw', [db.journalEntries, db.auditLogs], async () => {
+    const executeCreate = async () => {
+      const docNumber = await NumberRangeService.getNextNumber('JE', input.fiscalYear);
+      const now = new Date().toISOString();
+
+      journalEntry = {
+        id: `je-${docNumber}`,
+        docNumber,
+        status: input.isParked ? 'draft' : 'posted',
+        companyCode: input.companyCode || '1000',
+        fiscalYear: input.fiscalYear,
+        period: input.period,
+        postingDate: input.postingDate,
+        documentDate: input.documentDate,
+        documentType: input.documentType,
+        headerText: input.headerText,
+        reference: input.reference,
+        totalDebit,
+        totalCredit,
+        lines: formattedLines,
+        isParked: !!input.isParked,
+        parkedBy: input.isParked ? input.createdBy : undefined,
+        attachments: input.attachments || [],
+        createdBy: input.createdBy,
+        createdAt: now,
+        updatedBy: input.createdBy,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
       await db.journalEntries.add(journalEntry);
       await AuditService.log({
         userId: input.createdBy,
@@ -216,7 +225,17 @@ export class FinanceService {
         entityId: journalEntry.id,
         after: journalEntry as unknown as Record<string, unknown>,
       });
-    });
+    };
+
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    const ambientStores = currentTx?.storeNames || [];
+    const isAmbientCovering = Boolean(currentTx && ['journalEntries', 'numberRanges', 'auditLogs'].every((n) => ambientStores.includes(n)));
+
+    if (isAmbientCovering) {
+      await executeCreate();
+    } else {
+      await db.transaction('rw', txTables, executeCreate);
+    }
 
     return journalEntry;
   }
@@ -280,62 +299,82 @@ export class FinanceService {
     const postingDate = reversalDate || new Date().toISOString().split('T')[0];
     const { fiscalYear, period } = await this.validatePeriodOpen(postingDate);
 
-    // Generate reversal document number
-    const revDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+    const txTables = [
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.fiscalPeriods,
+    ];
 
-    // Invert lines (debits become credits, credits become debits)
-    const reversedLines: JournalEntryLine[] = original.lines.map((line) => ({
-      lineNumber: line.lineNumber,
-      postingKey: line.debit > 0 ? '50' : '40', // Invert posting keys
-      accountNumber: line.accountNumber,
-      accountName: line.accountName,
-      debit: line.credit, // Invert
-      credit: line.debit, // Invert
-      costCenter: line.costCenter,
-      internalOrder: line.internalOrder,
-      lineText: `عكس قيد: ${line.lineText || ''}`,
-    }));
+    let reversalDoc!: JournalEntry;
 
-    const now = new Date().toISOString();
+    const executeReverse = async () => {
+      // Generate reversal document number inside transaction
+      const revDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
 
-    const reversalDoc: JournalEntry = {
-      id: `je-${revDocNumber}`,
-      docNumber: revDocNumber,
-      status: 'posted',
-      companyCode: original.companyCode,
-      fiscalYear,
-      period,
-      postingDate,
-      documentDate: postingDate,
-      documentType: 'AB', // Storno / Reversal
-      headerText: `عكس القيد ${original.docNumber} - السبب: ${reason}`,
-      reference: original.docNumber,
-      totalDebit: original.totalCredit,
-      totalCredit: original.totalDebit,
-      lines: reversedLines,
-      createdBy: userId,
-      createdAt: now,
-      updatedBy: userId,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+      // Invert lines (debits become credits, credits become debits)
+      const reversedLines: JournalEntryLine[] = original.lines.map((line) => ({
+        lineNumber: line.lineNumber,
+        postingKey: line.debit > 0 ? '50' : '40', // Invert posting keys
+        accountNumber: line.accountNumber,
+        accountName: line.accountName,
+        debit: line.credit, // Invert
+        credit: line.debit, // Invert
+        costCenter: line.costCenter,
+        internalOrder: line.internalOrder,
+        lineText: `عكس قيد: ${line.lineText || ''}`,
+      }));
 
-    // Update original document to flag as reversed
-    const updatedOriginal: JournalEntry = {
-      ...original,
-      isReversed: true,
-      reversalDocNumber: revDocNumber,
-      reversalReason: reason,
-      reversedAt: now,
-      updatedBy: userId,
-      updatedAt: now,
-      version: original.version + 1,
-    };
+      const now = new Date().toISOString();
 
-    await db.transaction('rw', [db.journalEntries, db.auditLogs], async () => {
+      reversalDoc = {
+        id: `je-${revDocNumber}`,
+        docNumber: revDocNumber,
+        status: 'posted',
+        companyCode: original.companyCode,
+        fiscalYear,
+        period,
+        postingDate,
+        documentDate: postingDate,
+        documentType: 'AB', // Storno / Reversal
+        headerText: `عكس القيد ${original.docNumber} - السبب: ${reason}`,
+        reference: original.docNumber,
+        totalDebit: original.totalCredit,
+        totalCredit: original.totalDebit,
+        lines: reversedLines,
+        createdBy: userId,
+        createdAt: now,
+        updatedBy: userId,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
+      // Update original document to flag as reversed
+      const updatedOriginal: JournalEntry = {
+        ...original,
+        isReversed: true,
+        reversalDocNumber: revDocNumber,
+        reversalReason: reason,
+        reversedAt: now,
+        updatedBy: userId,
+        updatedAt: now,
+        version: original.version + 1,
+      };
+
       await db.journalEntries.add(reversalDoc);
       await db.journalEntries.put(updatedOriginal);
+
+      // If registered in postingRegistry, sync reversed status
+      const reg = await db.postingRegistry.where('journalDocNumber').equals(original.docNumber).first();
+      if (reg) {
+        await db.postingRegistry.update(reg.id, {
+          isReversed: true,
+          reversedAt: now,
+          reversalDocNumber: revDocNumber,
+        });
+      }
 
       await AuditService.log({
         userId,
@@ -353,7 +392,17 @@ export class FinanceService {
         entityId: reversalDoc.id,
         after: reversalDoc as unknown as Record<string, unknown>,
       });
-    });
+    };
+
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    const ambientStores = currentTx?.storeNames || [];
+    const isAmbientCovering = Boolean(currentTx && ['journalEntries', 'postingRegistry', 'numberRanges', 'auditLogs', 'fiscalPeriods'].every((n) => ambientStores.includes(n)));
+
+    if (isAmbientCovering) {
+      await executeReverse();
+    } else {
+      await db.transaction('rw', txTables, executeReverse);
+    }
 
     return reversalDoc;
   }

@@ -1,3 +1,4 @@
+import Dexie from 'dexie';
 import { db } from '../db';
 import type { NumberRange } from '../../types/models';
 
@@ -38,11 +39,9 @@ export class NumberRangeService {
     };
 
     // If an ambient transaction that includes numberRanges is already active, join it directly
-    if (db.isOpen() && db.numberRanges) {
-      const activeTx = (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
-      if (activeTx?.storeNames?.includes('numberRanges')) {
-        return await executeIncrement();
-      }
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    if (currentTx?.storeNames?.includes('numberRanges')) {
+      return await executeIncrement();
     }
 
     // Otherwise, execute inside a coordinated transaction on numberRanges

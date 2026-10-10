@@ -239,82 +239,104 @@ export class DepreciationEngine {
       { plant: options.plantCode, amount: preview.totalDepreciation }
     );
 
-    // Generate Document Numbers
-    const docNumber = await NumberRangeService.getNextNumber('DEP', options.fiscalYear);
-    const jeDocNumber = await NumberRangeService.getNextNumber('JE', options.fiscalYear);
-    const now = new Date().toISOString();
-    const postingDate = new Date().toISOString().split('T')[0];
+    const txTables = [
+      db.assets,
+      db.depreciationRuns,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+    ];
 
-    // 1. Create Balanced Journal Entry (SAP AFAB GL Document)
-    const je: JournalEntry = {
-      id: `je-${docNumber}`,
-      docNumber: jeDocNumber,
-      status: 'posted',
-      companyCode: options.companyCode,
-      fiscalYear: options.fiscalYear,
-      period: options.period,
-      postingDate,
-      documentDate: postingDate,
-      documentType: 'SA', // G/L account document
-      headerText: `إهلاك الأصول الثابتة - دورة ${options.period}/${options.fiscalYear} (مستند ${docNumber})`,
-      totalDebit: preview.totalDepreciation,
-      totalCredit: preview.totalDepreciation,
-      lines: [
-        {
-          lineNumber: 1,
-          accountNumber: '503010',
-          accountName: 'مصروف إهلاك الأصول الثابتة والمعدات',
-          debit: preview.totalDepreciation,
-          credit: 0,
-          costCenter: preview.items[0]?.costCenter || 'CC-1001',
-          lineText: `إهلاك شهري - دورة ${options.period}/${options.fiscalYear}`,
-        },
-        {
-          lineNumber: 2,
-          accountNumber: '150090',
-          accountName: 'مجمع إهلاك الأصول الثابتة',
-          debit: 0,
-          credit: preview.totalDepreciation,
-          lineText: `مجمع إهلاك الأصول - دورة ${options.period}/${options.fiscalYear}`,
-        },
-      ],
-      createdBy: options.user.id,
-      createdAt: now,
-      updatedBy: options.user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    let run!: DepreciationRun;
+    let je!: JournalEntry;
 
-    // 2. Create Depreciation Run record
-    const run: DepreciationRun = {
-      id: `dep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      docNumber,
-      status: 'approved',
-      companyCode: options.companyCode,
-      fiscalYear: options.fiscalYear,
-      period: options.period,
-      runDate: now,
-      runType: 'Monthly',
-      isSimulation: false,
-      totalDepreciationAmount: preview.totalDepreciation,
-      assetCount: preview.assetCount,
-      postedToGL: true,
-      journalEntryDocNumber: jeDocNumber,
-      items: preview.items,
-      createdBy: options.user.id,
-      createdAt: now,
-      updatedBy: options.user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    await db.transaction('rw', txTables, async () => {
+      // Generate Document Numbers inside transaction
+      const docNumber = await NumberRangeService.getNextNumber('DEP', options.fiscalYear);
+      const jeDocNumber = await NumberRangeService.getNextNumber('JE', options.fiscalYear);
+      const now = new Date().toISOString();
+      const postingDate = now.split('T')[0];
 
-    // Execute atomic-like persistence and asset updates
-    await db.transaction('rw', [db.assets, db.depreciationRuns, db.journalEntries, db.auditLogs], async () => {
+      // 1. Create Balanced Journal Entry (SAP AFAB GL Document)
+      je = {
+        id: `je-${docNumber}`,
+        docNumber: jeDocNumber,
+        status: 'posted',
+        companyCode: options.companyCode,
+        fiscalYear: options.fiscalYear,
+        period: options.period,
+        postingDate,
+        documentDate: postingDate,
+        documentType: 'SA', // G/L account document
+        headerText: `إهلاك الأصول الثابتة - دورة ${options.period}/${options.fiscalYear} (مستند ${docNumber})`,
+        totalDebit: preview.totalDepreciation,
+        totalCredit: preview.totalDepreciation,
+        lines: [
+          {
+            lineNumber: 1,
+            accountNumber: '503010',
+            accountName: 'مصروف إهلاك الأصول الثابتة والمعدات',
+            debit: preview.totalDepreciation,
+            credit: 0,
+            costCenter: preview.items[0]?.costCenter || 'CC-1001',
+            lineText: `إهلاك شهري - دورة ${options.period}/${options.fiscalYear}`,
+          },
+          {
+            lineNumber: 2,
+            accountNumber: '150090',
+            accountName: 'مجمع إهلاك الأصول الثابتة',
+            debit: 0,
+            credit: preview.totalDepreciation,
+            lineText: `مجمع إهلاك الأصول - دورة ${options.period}/${options.fiscalYear}`,
+          },
+        ],
+        createdBy: options.user.id,
+        createdAt: now,
+        updatedBy: options.user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
+      // 2. Create Depreciation Run record
+      run = {
+        id: `dep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        docNumber,
+        status: 'approved',
+        companyCode: options.companyCode,
+        fiscalYear: options.fiscalYear,
+        period: options.period,
+        runDate: now,
+        runType: 'Monthly',
+        isSimulation: false,
+        totalDepreciationAmount: preview.totalDepreciation,
+        assetCount: preview.assetCount,
+        postedToGL: true,
+        journalEntryDocNumber: jeDocNumber,
+        items: preview.items,
+        createdBy: options.user.id,
+        createdAt: now,
+        updatedBy: options.user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
       // Save JE and DepreciationRun
       await db.journalEntries.add(je);
       await db.depreciationRuns.add(run);
+
+      // Register posting
+      const regEntry: import('../../../types/models').PostingRegistryEntry = {
+        id: `reg-DEP_RUN-${options.fiscalYear}-${options.period}-POST-${Date.now()}`,
+        sourceType: 'DEP_RUN',
+        sourceId: `${options.fiscalYear}-${options.period}`,
+        event: 'POST',
+        journalDocNumber: jeDocNumber,
+        createdAt: now,
+      };
+      await db.postingRegistry.add(regEntry);
 
       // Update assets
       for (const item of preview.items) {
@@ -332,22 +354,22 @@ export class DepreciationEngine {
           });
         }
       }
-    });
 
-    await AuditService.log({
-      userId: options.user.id,
-      userName: options.user.fullName,
-      action: 'UPDATE',
-      entity: 'DepreciationRun',
-      entityId: run.docNumber,
-      after: {
-        docNumber: run.docNumber,
-        period: options.period,
-        fiscalYear: options.fiscalYear,
-        totalDepreciation: preview.totalDepreciation,
-        assetCount: preview.assetCount,
-        jeDocNumber,
-      },
+      await AuditService.log({
+        userId: options.user.id,
+        userName: options.user.fullName,
+        action: 'UPDATE',
+        entity: 'DepreciationRun',
+        entityId: run.docNumber,
+        after: {
+          docNumber: run.docNumber,
+          period: options.period,
+          fiscalYear: options.fiscalYear,
+          totalDepreciation: preview.totalDepreciation,
+          assetCount: preview.assetCount,
+          jeDocNumber: je.docNumber,
+        },
+      });
     });
 
     return { run, je };
@@ -376,52 +398,72 @@ export class DepreciationEngine {
       { amount: run.totalDepreciationAmount }
     );
 
-    const stornoDocNumber = await NumberRangeService.getNextNumber('JE', run.fiscalYear);
-    const now = new Date().toISOString();
-    const postingDate = now.split('T')[0];
+    const txTables = [
+      db.assets,
+      db.depreciationRuns,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+    ];
 
-    // Balanced Storno Journal Entry (Opposite debits/credits)
-    const stornoJe: JournalEntry = {
-      id: `je-storno-${run.docNumber}`,
-      docNumber: stornoDocNumber,
-      status: 'posted',
-      companyCode: run.companyCode,
-      fiscalYear: run.fiscalYear,
-      period: run.period,
-      postingDate,
-      documentDate: postingDate,
-      documentType: 'AB', // Accounting reversal document
-      headerText: `عكس قيد إهلاك دورة ${run.period}/${run.fiscalYear} - مستند ${run.docNumber} (سبب: ${options.reason})`,
-      totalDebit: run.totalDepreciationAmount,
-      totalCredit: run.totalDepreciationAmount,
-      lines: [
-        {
-          lineNumber: 1,
-          accountNumber: '150090',
-          accountName: 'مجمع إهلاك الأصول الثابتة (عكس)',
-          debit: run.totalDepreciationAmount,
-          credit: 0,
-          lineText: `عكس مجمع إهلاك دورة ${run.docNumber}`,
-        },
-        {
-          lineNumber: 2,
-          accountNumber: '503010',
-          accountName: 'مصروف إهلاك الأصول الثابتة والمعدات (عكس)',
-          debit: 0,
-          credit: run.totalDepreciationAmount,
-          costCenter: run.items[0]?.costCenter || 'CC-1001',
-          lineText: `عكس مصروف إهلاك دورة ${run.docNumber}`,
-        },
-      ],
-      createdBy: options.user.id,
-      createdAt: now,
-      updatedBy: options.user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    let stornoJe!: JournalEntry;
+    let reversedRun!: DepreciationRun;
 
-    await db.transaction('rw', [db.assets, db.depreciationRuns, db.journalEntries, db.auditLogs], async () => {
+    await db.transaction('rw', txTables, async () => {
+      const stornoDocNumber = await NumberRangeService.getNextNumber('JE', run.fiscalYear);
+      const now = new Date().toISOString();
+      const postingDate = now.split('T')[0];
+
+      // Balanced Storno Journal Entry (Opposite debits/credits)
+      stornoJe = {
+        id: `je-storno-${run.docNumber}`,
+        docNumber: stornoDocNumber,
+        status: 'posted',
+        companyCode: run.companyCode,
+        fiscalYear: run.fiscalYear,
+        period: run.period,
+        postingDate,
+        documentDate: postingDate,
+        documentType: 'AB', // Accounting reversal document
+        headerText: `عكس قيد إهلاك دورة ${run.period}/${run.fiscalYear} - مستند ${run.docNumber} (سبب: ${options.reason})`,
+        totalDebit: run.totalDepreciationAmount,
+        totalCredit: run.totalDepreciationAmount,
+        lines: [
+          {
+            lineNumber: 1,
+            accountNumber: '150090',
+            accountName: 'مجمع إهلاك الأصول الثابتة (عكس)',
+            debit: run.totalDepreciationAmount,
+            credit: 0,
+            lineText: `عكس مجمع إهلاك دورة ${run.docNumber}`,
+          },
+          {
+            lineNumber: 2,
+            accountNumber: '503010',
+            accountName: 'مصروف إهلاك الأصول الثابتة والمعدات (عكس)',
+            debit: 0,
+            credit: run.totalDepreciationAmount,
+            costCenter: run.items[0]?.costCenter || 'CC-1001',
+            lineText: `عكس مصروف إهلاك دورة ${run.docNumber}`,
+          },
+        ],
+        createdBy: options.user.id,
+        createdAt: now,
+        updatedBy: options.user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
+      reversedRun = {
+        ...run,
+        reversalDocNumber: stornoDocNumber,
+        status: 'rejected',
+        updatedAt: now,
+        updatedBy: options.user.id,
+      };
+
       // Save storno JE
       await db.journalEntries.add(stornoJe);
 
@@ -441,24 +483,32 @@ export class DepreciationEngine {
       }
 
       // Mark run as reversed
-      await db.depreciationRuns.update(run.id, {
-        reversalDocNumber: stornoDocNumber,
-        status: 'rejected', // marks as reversed
-        updatedAt: now,
+      await db.depreciationRuns.put(reversedRun);
+
+      // Mark registry row reversed if present
+      const reg = await db.postingRegistry
+        .where('[sourceType+sourceId+event]')
+        .equals(['DEP_RUN', `${run.fiscalYear}-${run.period}`, 'POST'])
+        .first();
+      if (reg) {
+        await db.postingRegistry.update(reg.id, {
+          isReversed: true,
+          reversedAt: now,
+          reversalDocNumber: stornoDocNumber,
+        });
+      }
+
+      await AuditService.log({
+        userId: options.user.id,
+        userName: options.user.fullName,
+        action: 'STATUS_CHANGE',
+        entity: 'DepreciationRun',
+        entityId: run.docNumber,
+        before: { status: 'approved' },
+        after: { status: 'rejected', reversalDocNumber: stornoDocNumber, reason: options.reason },
       });
     });
 
-    await AuditService.log({
-      userId: options.user.id,
-      userName: options.user.fullName,
-      action: 'STATUS_CHANGE',
-      entity: 'DepreciationRun',
-      entityId: run.docNumber,
-      before: { status: 'approved' },
-      after: { status: 'rejected', stornoDocNumber, reason: options.reason },
-    });
-
-    const updatedRun = (await depreciationRepository.getById(run.id))!;
-    return { reversedRun: updatedRun, stornoJe };
+    return { reversedRun, stornoJe };
   }
 }

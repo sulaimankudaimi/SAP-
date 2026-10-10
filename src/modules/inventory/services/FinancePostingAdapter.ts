@@ -33,8 +33,8 @@ export class FinancePostingAdapter implements IFinancePostingService {
         });
         return res;
       } else if (doc.movementType.startsWith('2') || doc.movementType === '201') {
-        // Goods Issue to Cost Center -> Dr. Consumption / Cr. Inventory
-        const costCenter = doc.items[0]?.costCenter;
+        // Goods Issue to Cost Center / Maintenance Order -> Dr. Consumption / Cr. Inventory
+        const costCenter = doc.items[0]?.costCenter || (doc.movementType === '261' ? 'CC-1001' : undefined);
         if (!costCenter) {
           throw new Error('خطأ ترحيل محاسبي: مركز التكلفة إلزامي لصرف المواد إلى مركز تكلفة (MIGO 201).');
         }
@@ -61,7 +61,7 @@ export class FinancePostingAdapter implements IFinancePostingService {
       }
     } catch (e) {
       DiagnosticLogger.error('FinancePostingAdapter', '[FinancePostingAdapter] Error posting to General Ledger:', e);
-      return { success: false, jeDocNumber: '' };
+      throw e;
     }
   }
 }

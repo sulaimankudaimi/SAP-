@@ -413,17 +413,6 @@ export class FleetService {
     const allowance = input.driverAllowanceCost || Math.round(distanceKm * 0.35); // 0.35 SAR/km standard driver allowance
     const totalTripCost = fuelCost + allowance;
 
-    // Idempotent GL posting for trip completion costs
-    const postRes = await AutomaticPostingEngine.postTripCost({
-      tripDocNumber: trip.docNumber,
-      vehiclePlate: trip.vehiclePlate,
-      amount: totalTripCost,
-      postingDate: arrivalTime.split(' ')[0] || now.split('T')[0],
-      createdBy: userId,
-    });
-
-    const accountingDocNumber = postRes.jeDocNumber || `ACC-TRIP-2026-${trip.docNumber.split('-')[2] || '000001'}`;
-
     const updatedTrip: Trip = {
       ...trip,
       status: 'completed',
@@ -436,23 +425,54 @@ export class FleetService {
       fuelCost,
       driverAllowanceCost: allowance,
       totalTripCost,
-      postedAccountingDocNumber: accountingDocNumber,
+      postedAccountingDocNumber: '',
       updatedBy: userId,
       updatedAt: now,
       version: trip.version + 1,
     };
 
-    await db.transaction('rw', [db.trips, db.vehicles, db.drivers, db.auditLogs], async () => {
+    const txTables = [
+      db.trips,
+      db.vehicles,
+      db.drivers,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
+
+    await db.transaction('rw', txTables, async () => {
+      // Re-read inside transaction or check status
+      const currentTrip = await db.trips.get(tripId);
+      if (!currentTrip) throw new Error('الرحلة غير موجودة');
+      if (currentTrip.status === 'completed') {
+        return;
+      }
+
+      // Idempotent GL posting for trip completion costs
+      const postRes = await AutomaticPostingEngine.postTripCost({
+        tripDocNumber: currentTrip.docNumber,
+        vehiclePlate: currentTrip.vehiclePlate,
+        amount: totalTripCost,
+        postingDate: arrivalTime.split(' ')[0] || now.split('T')[0],
+        createdBy: userId,
+      });
+
+      const accountingDocNumber = postRes.jeDocNumber || `ACC-TRIP-2026-${currentTrip.docNumber.split('-')[2] || '000001'}`;
+      updatedTrip.postedAccountingDocNumber = accountingDocNumber;
+
       await db.trips.put(updatedTrip);
 
       // Free vehicle and update its odometer
-      await db.vehicles.update(trip.vehicleId, {
+      await db.vehicles.update(currentTrip.vehicleId, {
         status: 'available',
         currentOdometer: input.endOdometer,
       });
 
       // Free driver and update driver statistics
-      const driver = await db.drivers.get(trip.driverId);
+      const driver = await db.drivers.get(currentTrip.driverId);
       if (driver) {
         await db.drivers.update(driver.id, {
           status: 'available',
@@ -465,8 +485,8 @@ export class FleetService {
         userId,
         action: 'STATUS_CHANGE',
         entity: 'Trip',
-        entityId: trip.id,
-        before: trip as unknown as Record<string, unknown>,
+        entityId: currentTrip.id,
+        before: currentTrip as unknown as Record<string, unknown>,
         after: updatedTrip as unknown as Record<string, unknown>,
       });
     });
@@ -584,40 +604,48 @@ export class FleetService {
       };
     }
 
-    // Wrap persistence and updates atomically
-    await db.transaction(
-      'rw',
-      [db.fuelLogs, db.vehicles, db.fuelAnomalyAlerts, db.auditLogs],
-      async () => {
-        await db.fuelLogs.add(fuelLog);
+    // Wrap persistence and updates atomically including GL posting
+    const txTables = [
+      db.fuelLogs,
+      db.vehicles,
+      db.fuelAnomalyAlerts,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
 
-        // Update vehicle odometer if higher
-        if (input.odometer > vehicle.currentOdometer) {
-          await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
-        }
+    await db.transaction('rw', txTables, async () => {
+      await db.fuelLogs.add(fuelLog);
 
-        if (anomalyAlert) {
-          await db.fuelAnomalyAlerts.add(anomalyAlert);
-        }
-
-        await AuditService.log({
-          userId,
-          action: 'CREATE',
-          entity: 'FuelLog',
-          entityId: logId,
-          after: fuelLog as unknown as Record<string, unknown>,
-        });
+      // Update vehicle odometer if higher
+      if (input.odometer > vehicle.currentOdometer) {
+        await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
       }
-    );
 
-    // Idempotent GL posting for fuel cost
-    await AutomaticPostingEngine.postFuelCost({
-      fuelLogId: logId,
-      vehiclePlate: vehicle.plateNumber,
-      amount: totalCost,
-      date: input.date,
-      stationName: input.stationName,
-      createdBy: userId,
+      if (anomalyAlert) {
+        await db.fuelAnomalyAlerts.add(anomalyAlert);
+      }
+
+      // Idempotent GL posting for fuel cost inside the same transaction
+      await AutomaticPostingEngine.postFuelCost({
+        fuelLogId: logId,
+        vehiclePlate: vehicle.plateNumber,
+        amount: totalCost,
+        date: input.date,
+        stationName: input.stationName,
+        createdBy: userId,
+      });
+
+      await AuditService.log({
+        userId,
+        action: 'CREATE',
+        entity: 'FuelLog',
+        entityId: logId,
+        after: fuelLog as unknown as Record<string, unknown>,
+      });
     });
 
     return { fuelLog, anomalyAlert };
@@ -743,41 +771,64 @@ export class FleetService {
 
     requirePermission({ module: 'WM', activity: 'post' }, { plant: plantCode });
 
-    // Call InventoryService with Movement Type 261 (Goods Issue for Maintenance Order)
-    const movementResult = await InventoryService.postMaterialDocument({
-      movementType: '261',
-      plantCode,
-      storageLocation: parts[0]?.storageLocation || 'SL01',
-      headerText: `صرف قطع غيار لأمر صيانة الشاحنة [${order.vehiclePlate}] - أمر: ${order.docNumber}`,
-      items: parts.map((p) => ({
-        materialCode: p.materialCode,
-        quantity: p.quantity,
-        unit: p.unit,
-        unitPrice: p.unitPrice,
-        storageLocation: p.storageLocation,
-        orderNumber: order.docNumber,
-      })),
-      userId,
-    });
+    const txTables = [
+      db.maintenanceOrders,
+      db.materialDocuments,
+      db.stockLedger,
+      db.stockBalances,
+      db.materials,
+      db.purchaseOrders,
+      db.goodsReceipts,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.budgets,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
 
-    const newPartsCost = parts.reduce((acc, curr) => acc + curr.totalCost, 0);
-    const updatedPartsUsed = [...order.partsUsed, ...parts];
-    const totalPartsCost = order.partsCost + newPartsCost;
-    const totalActualCost = totalPartsCost + order.laborCost;
+    let resultOrder!: MaintenanceOrder;
+    let materialDocNumber = '';
 
-    const updatedOrder: MaintenanceOrder = {
-      ...order,
-      partsCost: totalPartsCost,
-      actualCost: totalActualCost,
-      partsUsed: updatedPartsUsed,
-      materialDocNumber: movementResult.docNumber,
-      updatedBy: userId,
-      updatedAt: new Date().toISOString(),
-      version: order.version + 1,
-    };
+    await db.transaction('rw', txTables, async () => {
+      // Call InventoryService with Movement Type 261 (Goods Issue for Maintenance Order)
+      const movementResult = await InventoryService.postMaterialDocument({
+        movementType: '261',
+        plantCode,
+        storageLocation: parts[0]?.storageLocation || 'SL01',
+        headerText: `صرف قطع غيار لأمر صيانة الشاحنة [${order.vehiclePlate}] - أمر: ${order.docNumber}`,
+        items: parts.map((p) => ({
+          materialCode: p.materialCode,
+          quantity: p.quantity,
+          unit: p.unit,
+          unitPrice: p.unitPrice,
+          storageLocation: p.storageLocation,
+          orderNumber: order.docNumber,
+          costCenter: 'CC-1001',
+        })),
+        userId,
+      });
 
-    await db.transaction('rw', [db.maintenanceOrders, db.auditLogs], async () => {
-      await db.maintenanceOrders.put(updatedOrder);
+      materialDocNumber = movementResult.docNumber;
+
+      const newPartsCost = parts.reduce((acc, curr) => acc + curr.totalCost, 0);
+      const updatedPartsUsed = [...order.partsUsed, ...parts];
+      const totalPartsCost = order.partsCost + newPartsCost;
+      const totalActualCost = totalPartsCost + order.laborCost;
+
+      resultOrder = {
+        ...order,
+        partsCost: totalPartsCost,
+        actualCost: totalActualCost,
+        partsUsed: updatedPartsUsed,
+        materialDocNumber: movementResult.docNumber,
+        updatedBy: userId,
+        updatedAt: new Date().toISOString(),
+        version: order.version + 1,
+      };
+
+      await db.maintenanceOrders.put(resultOrder);
 
       await AuditService.log({
         userId,
@@ -785,11 +836,11 @@ export class FleetService {
         entity: 'MaintenanceOrder',
         entityId: order.id,
         before: order as unknown as Record<string, unknown>,
-        after: updatedOrder as unknown as Record<string, unknown>,
+        after: resultOrder as unknown as Record<string, unknown>,
       });
     });
 
-    return { order: updatedOrder, materialDocNumber: movementResult.docNumber };
+    return { order: resultOrder, materialDocNumber };
   }
 
   static async completeMaintenanceOrder(
@@ -824,7 +875,18 @@ export class FleetService {
       version: order.version + 1,
     };
 
-    await db.transaction('rw', [db.maintenanceOrders, db.vehicles, db.auditLogs], async () => {
+    const txTables = [
+      db.maintenanceOrders,
+      db.vehicles,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
+
+    await db.transaction('rw', txTables, async () => {
       await db.maintenanceOrders.put(updatedOrder);
 
       // Return vehicle to available status and advance maintenance milestone
@@ -838,6 +900,15 @@ export class FleetService {
         });
       }
 
+      // Idempotent GL posting for completed maintenance actual cost inside same transaction
+      await AutomaticPostingEngine.postMaintenanceCost({
+        orderDocNumber: order.docNumber,
+        vehiclePlate: order.vehiclePlate,
+        amount: actualCost,
+        completionDate: input.completionDate,
+        createdBy: userId,
+      });
+
       await AuditService.log({
         userId,
         action: 'STATUS_CHANGE',
@@ -846,15 +917,6 @@ export class FleetService {
         before: order as unknown as Record<string, unknown>,
         after: updatedOrder as unknown as Record<string, unknown>,
       });
-    });
-
-    // Idempotent GL posting for completed maintenance actual cost
-    await AutomaticPostingEngine.postMaintenanceCost({
-      orderDocNumber: order.docNumber,
-      vehiclePlate: order.vehiclePlate,
-      amount: actualCost,
-      completionDate: input.completionDate,
-      createdBy: userId,
     });
 
     return updatedOrder;

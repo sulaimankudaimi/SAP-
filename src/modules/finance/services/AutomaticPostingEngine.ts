@@ -1,3 +1,4 @@
+import Dexie, { type Table } from 'dexie';
 import { db } from '../../../core/db';
 import { FinanceService } from './FinanceService';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
@@ -174,12 +175,12 @@ export class AutomaticPostingEngine {
     sourceId: string;
     event?: string;
     createEntry: () => Promise<JournalEntry>;
-    additionalTxTables?: Dexie.Table<unknown, string>[];
+    additionalTxTables?: Table<unknown, string>[];
     onPersist?: (je: JournalEntry) => Promise<void>;
   }): Promise<{ success: boolean; jeDocNumber: string; isDuplicate?: boolean }> {
     const event = options.event || 'POST';
 
-    // Check existing registration
+    // 1. Fast path check outside transaction
     const existing = await db.postingRegistry
       .where('[sourceType+sourceId+event]')
       .equals([options.sourceType, options.sourceId, event])
@@ -189,7 +190,31 @@ export class AutomaticPostingEngine {
       return { success: true, jeDocNumber: existing.journalDocNumber, isDuplicate: true };
     }
 
-    try {
+    const txTables = [
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      ...(options.additionalTxTables || []),
+    ];
+
+    let resultJeDocNumber = '';
+    let duplicateDetected = false;
+
+    const executeOperation = async () => {
+      // 2. Double-check inside transaction for race conditions
+      const innerExisting = await db.postingRegistry
+        .where('[sourceType+sourceId+event]')
+        .equals([options.sourceType, options.sourceId, event])
+        .first();
+
+      if (innerExisting) {
+        resultJeDocNumber = innerExisting.journalDocNumber;
+        duplicateDetected = true;
+        return;
+      }
+
+      // 3. Perform entry creation INSIDE transaction so number range increment is rolled back on error
       const journalEntry = await options.createEntry();
       const now = new Date().toISOString();
 
@@ -202,42 +227,38 @@ export class AutomaticPostingEngine {
         createdAt: now,
       };
 
-      const txTables = [
-        db.journalEntries,
-        db.postingRegistry,
-        db.numberRanges,
-        db.auditLogs,
-        ...(options.additionalTxTables || []),
-      ];
+      await db.journalEntries.add(journalEntry);
+      await db.postingRegistry.add(regEntry);
 
-      await db.transaction('rw', txTables, async () => {
-        // Double check inside transaction for race conditions
-        const innerExisting = await db.postingRegistry
-          .where('[sourceType+sourceId+event]')
-          .equals([options.sourceType, options.sourceId, event])
-          .first();
+      if (options.onPersist) {
+        await options.onPersist(journalEntry);
+      }
 
-        if (innerExisting) {
-          return;
-        }
-
-        await db.journalEntries.add(journalEntry);
-        await db.postingRegistry.add(regEntry);
-
-        if (options.onPersist) {
-          await options.onPersist(journalEntry);
-        }
-
-        await AuditService.log({
-          userId: journalEntry.createdBy,
-          action: 'CREATE',
-          entity: 'JournalEntry',
-          entityId: journalEntry.id,
-          after: journalEntry as unknown as Record<string, unknown>,
-        });
+      await AuditService.log({
+        userId: journalEntry.createdBy,
+        action: 'CREATE',
+        entity: 'JournalEntry',
+        entityId: journalEntry.id,
+        after: journalEntry as unknown as Record<string, unknown>,
       });
 
-      return { success: true, jeDocNumber: journalEntry.docNumber };
+      resultJeDocNumber = journalEntry.docNumber;
+    };
+
+    // If an ambient transaction is active that already includes our tables, join it directly!
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    const requiredTableNames = ['journalEntries', 'postingRegistry', 'numberRanges', 'auditLogs', ...(options.additionalTxTables || []).map((t) => (t as { name: string }).name)];
+    const ambientStores = currentTx?.storeNames || [];
+    const isAmbientCovering = Boolean(currentTx && requiredTableNames.every((name) => ambientStores.includes(name)));
+
+    if (isAmbientCovering) {
+      await executeOperation();
+      return { success: true, jeDocNumber: resultJeDocNumber, isDuplicate: duplicateDetected };
+    }
+
+    try {
+      await db.transaction('rw', txTables, executeOperation);
+      return { success: true, jeDocNumber: resultJeDocNumber, isDuplicate: duplicateDetected };
     } catch (err: unknown) {
       // In case of concurrent race condition catching ConstraintError
       const isConstraintErr = err && typeof err === 'object' && (err as { name?: string }).name === 'ConstraintError';
@@ -278,21 +299,43 @@ export class AutomaticPostingEngine {
       throw new Error(`تم عكس هذا القيد مسبقاً بموجب المستند ${regEntry.reversalDocNumber}. لا يمكن عكس القيد أكثر من مرة.`);
     }
 
-    // Call FinanceService.reverseJournalEntry
-    const revJe = await FinanceService.reverseJournalEntry(
-      regEntry.journalDocNumber,
-      options.reason,
-      options.userId
-    );
+    let revJeDocNumber = '';
 
-    const now = new Date().toISOString();
-    await db.postingRegistry.update(regEntry.id, {
-      isReversed: true,
-      reversedAt: now,
-      reversalDocNumber: revJe.docNumber,
-    });
+    const executeReverse = async () => {
+      // Double check reversal status inside transaction
+      const innerReg = await db.postingRegistry.get(regEntry.id);
+      if (innerReg?.isReversed) {
+        throw new Error(`تم عكس هذا القيد مسبقاً بموجب المستند ${innerReg.reversalDocNumber}. لا يمكن عكس القيد أكثر من مرة.`);
+      }
 
-    return { success: true, reversalDocNumber: revJe.docNumber };
+      // Call FinanceService.reverseJournalEntry inside the ambient transaction
+      const revJe = await FinanceService.reverseJournalEntry(
+        regEntry.journalDocNumber,
+        options.reason,
+        options.userId
+      );
+
+      const now = new Date().toISOString();
+      await db.postingRegistry.update(regEntry.id, {
+        isReversed: true,
+        reversedAt: now,
+        reversalDocNumber: revJe.docNumber,
+      });
+
+      revJeDocNumber = revJe.docNumber;
+    };
+
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    const ambientStores = currentTx?.storeNames || [];
+    const isAmbientCovering = Boolean(currentTx && ['journalEntries', 'postingRegistry', 'numberRanges', 'auditLogs', 'fiscalPeriods'].every((n) => ambientStores.includes(n)));
+
+    if (isAmbientCovering) {
+      await executeReverse();
+    } else {
+      await db.transaction('rw', [db.journalEntries, db.postingRegistry, db.numberRanges, db.auditLogs, db.fiscalPeriods], executeReverse);
+    }
+
+    return { success: true, reversalDocNumber: revJeDocNumber };
   }
 
   /**
@@ -436,7 +479,7 @@ export class AutomaticPostingEngine {
     return await this.executeIdempotentPosting({
       sourceType: 'VENDOR_INVOICE',
       sourceId: inv.id,
-      additionalTxTables: [db.vendorInvoices as unknown as Dexie.Table<unknown, string>],
+      additionalTxTables: [db.vendorInvoices as unknown as Table<unknown, string>],
       createEntry: async () => {
         const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
         const now = new Date().toISOString();
@@ -497,7 +540,7 @@ export class AutomaticPostingEngine {
     return await this.executeIdempotentPosting({
       sourceType: 'GOODS_ISSUE',
       sourceId: params.giDocNumber,
-      additionalTxTables: [db.budgets as unknown as Dexie.Table<unknown, string>],
+      additionalTxTables: [db.budgets as unknown as Table<unknown, string>],
       createEntry: async () => {
         const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
         const now = new Date().toISOString();
@@ -617,7 +660,7 @@ export class AutomaticPostingEngine {
     return await this.executeIdempotentPosting({
       sourceType: 'VENDOR_PAYMENT',
       sourceId: pay.id,
-      additionalTxTables: [db.payments as unknown as Dexie.Table<unknown, string>],
+      additionalTxTables: [db.payments as unknown as Table<unknown, string>],
       createEntry: async () => {
         const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
         const now = new Date().toISOString();
@@ -708,7 +751,7 @@ export class AutomaticPostingEngine {
     return await this.executeIdempotentPosting({
       sourceType: 'CUSTOMER_INVOICE',
       sourceId: inv.id,
-      additionalTxTables: [db.customerInvoices as unknown as Dexie.Table<unknown, string>],
+      additionalTxTables: [db.customerInvoices as unknown as Table<unknown, string>],
       createEntry: async () => {
         const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
         const now = new Date().toISOString();
@@ -762,7 +805,7 @@ export class AutomaticPostingEngine {
     return await this.executeIdempotentPosting({
       sourceType: 'CUSTOMER_RECEIPT',
       sourceId: rec.id,
-      additionalTxTables: [db.customerReceipts as unknown as Dexie.Table<unknown, string>],
+      additionalTxTables: [db.customerReceipts as unknown as Table<unknown, string>],
       createEntry: async () => {
         const docNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
         const now = new Date().toISOString();

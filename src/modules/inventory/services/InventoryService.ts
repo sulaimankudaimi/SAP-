@@ -208,6 +208,8 @@ export class InventoryService {
         db.numberRanges,
         db.budgets,
         db.auditLogs,
+        db.accountDeterminations,
+        db.fiscalPeriods,
       ],
       async () => {
         // 2. Generate Material Document Number (SAP MBLNR) inside atomic transaction
@@ -991,46 +993,63 @@ export class InventoryService {
     const surplusItems = pi.items.filter((i) => i.varianceQty > 0);
     const deficitItems = pi.items.filter((i) => i.varianceQty < 0);
 
-    // Post Surplus (701)
-    if (surplusItems.length > 0) {
-      const doc701 = await this.postMaterialDocument({
-        movementType: '701',
-        plantCode: pi.plantCode,
-        storageLocation: pi.storageLocation,
-        headerText: `تسوية فروقات جرد فعلي (فائض) - مستند ${pi.docNumber}`,
-        items: surplusItems.map((s) => ({
-          materialCode: s.materialCode,
-          quantity: s.varianceQty,
-          unitPrice: s.unitPrice,
-          unit: s.unit,
-        })),
-        userId,
-        userName,
-      });
-      materialDocNumbers.push(doc701.docNumber);
-    }
+    const txTables = [
+      db.physicalInventoryDocs,
+      db.materialDocuments,
+      db.stockLedger,
+      db.stockBalances,
+      db.materials,
+      db.purchaseOrders,
+      db.goodsReceipts,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.budgets,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
 
-    // Post Deficit (702)
-    if (deficitItems.length > 0) {
-      const doc702 = await this.postMaterialDocument({
-        movementType: '702',
-        plantCode: pi.plantCode,
-        storageLocation: pi.storageLocation,
-        headerText: `تسوية فروقات جرد فعلي (عجز) - مستند ${pi.docNumber}`,
-        items: deficitItems.map((d) => ({
-          materialCode: d.materialCode,
-          quantity: Math.abs(d.varianceQty),
-          unitPrice: d.unitPrice,
-          unit: d.unit,
-        })),
-        userId,
-        userName,
-      });
-      materialDocNumbers.push(doc702.docNumber);
-    }
+    await db.transaction('rw', txTables, async () => {
+      // Post Surplus (701)
+      if (surplusItems.length > 0) {
+        const doc701 = await this.postMaterialDocument({
+          movementType: '701',
+          plantCode: pi.plantCode,
+          storageLocation: pi.storageLocation,
+          headerText: `تسوية فروقات جرد فعلي (فائض) - مستند ${pi.docNumber}`,
+          items: surplusItems.map((s) => ({
+            materialCode: s.materialCode,
+            quantity: s.varianceQty,
+            unitPrice: s.unitPrice,
+            unit: s.unit,
+          })),
+          userId,
+          userName,
+        });
+        materialDocNumbers.push(doc701.docNumber);
+      }
 
-    const now = new Date().toISOString();
-    await db.transaction('rw', [db.physicalInventoryDocs, db.auditLogs], async () => {
+      // Post Deficit (702)
+      if (deficitItems.length > 0) {
+        const doc702 = await this.postMaterialDocument({
+          movementType: '702',
+          plantCode: pi.plantCode,
+          storageLocation: pi.storageLocation,
+          headerText: `تسوية فروقات جرد فعلي (عجز) - مستند ${pi.docNumber}`,
+          items: deficitItems.map((d) => ({
+            materialCode: d.materialCode,
+            quantity: Math.abs(d.varianceQty),
+            unitPrice: d.unitPrice,
+            unit: d.unit,
+          })),
+          userId,
+          userName,
+        });
+        materialDocNumbers.push(doc702.docNumber);
+      }
+
+      const now = new Date().toISOString();
       await db.physicalInventoryDocs.update(piId, {
         status: 'completed',
         approvedBy: userId,

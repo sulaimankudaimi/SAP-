@@ -16,6 +16,7 @@ import type {
   AssetValuation,
   DepreciationMethod,
   JournalEntry,
+  JournalEntryLine,
 } from '../../../types/models';
 
 export interface CreateAssetInput {
@@ -390,51 +391,54 @@ export class AssetService {
     );
 
     const fiscalYear = new Date().getFullYear().toString();
-    const docNumber = await NumberRangeService.getNextNumber('AST', fiscalYear);
     const now = new Date().toISOString();
     const transferDate = input.transferDate || now.split('T')[0];
 
-    const transfer: AssetTransfer = {
-      id: `ast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      docNumber,
-      status: 'pending',
-      assetId: asset.id,
-      assetNumber: asset.assetNumber,
-      assetName: asset.name,
-      fromPlant: asset.plantCode,
-      toPlant: input.toPlant,
-      fromCostCenter: asset.costCenter,
-      toCostCenter: input.toCostCenter,
-      fromLocation: asset.location,
-      toLocation: input.toLocation || asset.location,
-      fromCustodian: asset.custodian,
-      toCustodian: input.toCustodian,
-      transferDate,
-      reason: input.reason,
-      acknowledgedByCustodian: false,
-      createdBy: user.id,
-      createdAt: now,
-      updatedBy: user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    let transfer!: AssetTransfer;
 
-    await db.transaction('rw', [db.assets, db.assetTransfers, db.auditLogs], async () => {
+    await db.transaction('rw', [db.assets, db.assetTransfers, db.numberRanges, db.auditLogs], async () => {
+      const docNumber = await NumberRangeService.getNextNumber('AST', fiscalYear);
+
+      transfer = {
+        id: `ast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        docNumber,
+        status: 'pending',
+        assetId: asset.id,
+        assetNumber: asset.assetNumber,
+        assetName: asset.name,
+        fromPlant: asset.plantCode,
+        toPlant: input.toPlant,
+        fromCostCenter: asset.costCenter,
+        toCostCenter: input.toCostCenter,
+        fromLocation: asset.location,
+        toLocation: input.toLocation || asset.location,
+        fromCustodian: asset.custodian,
+        toCustodian: input.toCustodian,
+        transferDate,
+        reason: input.reason,
+        acknowledgedByCustodian: false,
+        createdBy: user.id,
+        createdAt: now,
+        updatedBy: user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
       await db.assetTransfers.add(transfer);
       await db.assets.update(asset.id, {
         status: 'InTransfer',
         updatedAt: now,
       });
-    });
 
-    await AuditService.log({
-      userId: user.id,
-      userName: user.fullName,
-      action: 'CREATE',
-      entity: 'AssetTransfer',
-      entityId: transfer.docNumber,
-      after: { docNumber: transfer.docNumber, assetNumber: asset.assetNumber, toCustodian: input.toCustodian },
+      await AuditService.log({
+        userId: user.id,
+        userName: user.fullName,
+        action: 'CREATE',
+        entity: 'AssetTransfer',
+        entityId: transfer.docNumber,
+        after: { docNumber: transfer.docNumber, assetNumber: asset.assetNumber, toCustodian: input.toCustodian },
+      });
     });
 
     return transfer;
@@ -482,16 +486,16 @@ export class AssetService {
         status: 'Active',
         updatedAt: now,
       });
-    });
 
-    await AuditService.log({
-      userId: user.id,
-      userName: user.fullName,
-      action: 'STATUS_CHANGE',
-      entity: 'AssetTransfer',
-      entityId: transfer.docNumber,
-      before: { status: 'pending' },
-      after: { status: 'approved', toCustodian: transfer.toCustodian },
+      await AuditService.log({
+        userId: user.id,
+        userName: user.fullName,
+        action: 'STATUS_CHANGE',
+        entity: 'AssetTransfer',
+        entityId: transfer.docNumber,
+        before: { status: 'pending' },
+        after: { status: 'approved', toCustodian: transfer.toCustodian },
+      });
     });
 
     const updatedTransfer = (await assetTransferRepository.getById(transfer.id))!;
@@ -563,11 +567,10 @@ export class AssetService {
 
     const fiscalYear = input.disposalDate.split('-')[0] || new Date().getFullYear().toString();
     const period = parseInt(input.disposalDate.split('-')[1] || '1', 10);
-    const jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
     const now = new Date().toISOString();
 
     // Build Balanced Journal Entry lines
-    const lines = [];
+    const lines: JournalEntryLine[] = [];
     let lineNumber = 1;
 
     if (input.disposalType === 'Scrap') {
@@ -680,30 +683,53 @@ export class AssetService {
     const totalDebit = lines.reduce((acc, l) => acc + l.debit, 0);
     const totalCredit = lines.reduce((acc, l) => acc + l.credit, 0);
 
-    const je: JournalEntry = {
-      id: `je-disp-${asset.assetNumber}`,
-      docNumber: jeDocNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period,
-      postingDate: input.disposalDate,
-      documentDate: input.disposalDate,
-      documentType: 'SA',
-      headerText: `${input.disposalType === 'Scrap' ? 'تخريد واستبعاد' : 'بيع واستبعاد'} الأصل ${asset.assetNumber} - صافي الأثر: ${gainLoss} ريال`,
-      totalDebit: Math.round(totalDebit * 100) / 100,
-      totalCredit: Math.round(totalCredit * 100) / 100,
-      lines,
-      createdBy: user.id,
-      createdAt: now,
-      updatedBy: user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    const txTables = [
+      db.assets,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+    ];
 
-    await db.transaction('rw', [db.assets, db.journalEntries, db.auditLogs], async () => {
+    let je!: JournalEntry;
+
+    await db.transaction('rw', txTables, async () => {
+      const jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+
+      je = {
+        id: `je-disp-${asset.assetNumber}`,
+        docNumber: jeDocNumber,
+        status: 'posted',
+        companyCode: '1000',
+        fiscalYear,
+        period,
+        postingDate: input.disposalDate,
+        documentDate: input.disposalDate,
+        documentType: 'SA',
+        headerText: `${input.disposalType === 'Scrap' ? 'تخريد واستبعاد' : 'بيع واستبعاد'} الأصل ${asset.assetNumber} - صافي الأثر: ${gainLoss} ريال`,
+        totalDebit: Math.round(totalDebit * 100) / 100,
+        totalCredit: Math.round(totalCredit * 100) / 100,
+        lines,
+        createdBy: user.id,
+        createdAt: now,
+        updatedBy: user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
       await db.journalEntries.add(je);
+
+      const regEntry: import('../../../types/models').PostingRegistryEntry = {
+        id: `reg-ASSET_DISPOSAL-${asset.id}-POST-${Date.now()}`,
+        sourceType: 'ASSET_DISPOSAL',
+        sourceId: asset.id,
+        event: 'POST',
+        journalDocNumber: jeDocNumber,
+        createdAt: now,
+      };
+      await db.postingRegistry.add(regEntry);
+
       await db.assets.update(asset.id, {
         status: 'Disposed',
         disposalDate: input.disposalDate,
@@ -715,16 +741,16 @@ export class AssetService {
         netBookValue: 0,
         updatedAt: now,
       });
-    });
 
-    await AuditService.log({
-      userId: user.id,
-      userName: user.fullName,
-      action: 'STATUS_CHANGE',
-      entity: 'Asset',
-      entityId: asset.assetNumber,
-      before: { status: asset.status },
-      after: { status: 'Disposed', disposalType: input.disposalType, proceeds, gainLoss },
+      await AuditService.log({
+        userId: user.id,
+        userName: user.fullName,
+        action: 'STATUS_CHANGE',
+        entity: 'Asset',
+        entityId: asset.assetNumber,
+        before: { status: asset.status },
+        after: { status: 'Disposed', disposalType: input.disposalType, proceeds, gainLoss },
+      });
     });
 
     const updatedAsset = (await assetRepository.getById(asset.id))!;

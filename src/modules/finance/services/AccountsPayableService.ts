@@ -298,43 +298,56 @@ export class AccountsPayableService {
     const fiscalYear = new Date(params.paymentDate).getFullYear().toString();
 
     for (const item of selected) {
-      const payDocNumber = await NumberRangeService.getNextNumber('PAY', fiscalYear);
-      const now = new Date().toISOString();
+      const txTables = [
+        db.payments,
+        db.vendorInvoices,
+        db.journalEntries,
+        db.postingRegistry,
+        db.numberRanges,
+        db.auditLogs,
+        db.accountDeterminations,
+        db.fiscalPeriods,
+      ];
 
-      const payment: Payment = {
-        id: `pay-${payDocNumber}`,
-        docNumber: payDocNumber,
-        status: 'approved',
-        invoiceId: item.invoiceId,
-        invoiceDocNumber: item.invoiceDocNumber,
-        vendorCode: item.vendorCode,
-        vendorName: item.vendorName,
-        amount: item.totalAmount,
-        discountTaken: item.cashDiscountAmount,
-        netPaidAmount: item.netPaymentAmount,
-        paymentDate: params.paymentDate,
-        bankAccount: params.bankAccount,
-        referenceNumber: `TRX-${Date.now()}-${payDocNumber.slice(-4)}`,
-        paymentMethod: 'BankTransfer',
-        createdBy: params.createdBy,
-        createdAt: now,
-        updatedBy: params.createdBy,
-        updatedAt: now,
-        version: 1,
-        isDeleted: false,
-      };
+      let payment!: Payment;
 
-      // 1. Post to GL
-      const postResult = await AutomaticPostingEngine.postVendorPayment({
-        payment,
-        discountTaken: item.cashDiscountAmount,
-        createdBy: params.createdBy,
-      });
+      await db.transaction('rw', txTables, async () => {
+        const payDocNumber = await NumberRangeService.getNextNumber('PAY', fiscalYear);
+        const now = new Date().toISOString();
 
-      payment.jeDocNumber = postResult.jeDocNumber;
+        payment = {
+          id: `pay-${payDocNumber}`,
+          docNumber: payDocNumber,
+          status: 'approved',
+          invoiceId: item.invoiceId,
+          invoiceDocNumber: item.invoiceDocNumber,
+          vendorCode: item.vendorCode,
+          vendorName: item.vendorName,
+          amount: item.totalAmount,
+          discountTaken: item.cashDiscountAmount,
+          netPaidAmount: item.netPaymentAmount,
+          paymentDate: params.paymentDate,
+          bankAccount: params.bankAccount,
+          referenceNumber: `TRX-${Date.now()}-${payDocNumber.slice(-4)}`,
+          paymentMethod: 'BankTransfer',
+          createdBy: params.createdBy,
+          createdAt: now,
+          updatedBy: params.createdBy,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
 
-      // 2. Save Payment and update Invoice in DB
-      await db.transaction('rw', [db.payments, db.vendorInvoices, db.auditLogs], async () => {
+        // 1. Post to GL inside the same transaction
+        const postResult = await AutomaticPostingEngine.postVendorPayment({
+          payment,
+          discountTaken: item.cashDiscountAmount,
+          createdBy: params.createdBy,
+        });
+
+        payment.jeDocNumber = postResult.jeDocNumber;
+
+        // 2. Save Payment and update Invoice in DB
         await db.payments.add(payment);
         await db.vendorInvoices.update(item.invoiceId, {
           paymentStatus: 'Paid',
