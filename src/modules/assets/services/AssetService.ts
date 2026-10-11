@@ -8,6 +8,7 @@ import {
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
+import { ConcurrencyError } from '../../../core/errors';
 import type {
   Asset,
   AssetClass,
@@ -147,9 +148,6 @@ export class AssetService {
       ? input.acquisitionDate.split('-')[0]
       : new Date().getFullYear().toString();
 
-    // Generate AA-style number: e.g. AA-2026-000045
-    const assetNumber = await NumberRangeService.getNextNumber('AA', fiscalYear);
-    const barcode = input.barcode?.trim() || `BC-${assetNumber.replace(/[^A-Za-z0-9]/g, '')}`;
     const now = new Date().toISOString();
     const salvageValue = Math.max(0, input.salvageValue ?? input.acquisitionCost * 0.05);
     const initialBookValue = Math.max(0, input.acquisitionCost);
@@ -158,106 +156,110 @@ export class AssetService {
     const initialStatus: AssetStatus =
       input.status || (input.category === 'AuC' ? 'UnderConstruction' : 'Active');
 
-    let jeDocNumber: string | undefined;
+    let asset!: Asset;
     let je: JournalEntry | undefined;
 
-    // Generate balanced capitalization Journal Entry if capitalized
-    if (input.acquisitionCost > 0 && initialStatus !== 'UnderConstruction') {
-      jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
-      je = {
-        id: `je-cap-${assetNumber}`,
-        docNumber: jeDocNumber,
-        status: 'posted',
-        companyCode: '1000',
-        fiscalYear,
-        period: parseInt(input.acquisitionDate.split('-')[1] || '1', 10),
-        postingDate: input.acquisitionDate,
-        documentDate: input.acquisitionDate,
-        documentType: 'SA',
-        headerText: `رسملة واقتناء أصل ثابت - ${input.name} (${assetNumber})`,
-        totalDebit: input.acquisitionCost,
-        totalCredit: input.acquisitionCost,
-        lines: [
-          {
-            lineNumber: 1,
-            accountNumber: '150010', // Fixed Asset Balance Account
-            accountName: 'الأصول الثابتة والمعدات الرأسمالية',
-            debit: input.acquisitionCost,
-            credit: 0,
-            costCenter: input.costCenter,
-            lineText: `إضافة أصل ${assetNumber}`,
-          },
-          {
-            lineNumber: 2,
-            accountNumber:
-              input.acquisitionSource === 'PO' || input.acquisitionSource === 'GR'
-                ? '120090' // GR/IR Clearing Account
-                : '201010', // Vendor Payable Account
-            accountName:
-              input.acquisitionSource === 'PO' || input.acquisitionSource === 'GR'
-                ? 'حساب مقاصة مشتريات الأصول (GR/IR)'
-                : 'الذمم الدائنة - تسوية الأصول الرأسمالية',
-            debit: 0,
-            credit: input.acquisitionCost,
-            lineText: `مقاصة اقتناء ${assetNumber}`,
-          },
-        ],
-        createdBy: user.id,
-        createdAt: now,
-        updatedBy: user.id,
-        updatedAt: now,
-        version: 1,
-        isDeleted: false,
-      };
-    }
+    await db.transaction('rw', [db.assets, db.journalEntries, db.numberRanges, db.auditLogs], async () => {
+      // Generate AA-style number: e.g. AA-2026-000045 inside transaction
+      const assetNumber = await NumberRangeService.getNextNumber('AA', fiscalYear);
+      const barcode = input.barcode?.trim() || `BC-${assetNumber.replace(/[^A-Za-z0-9]/g, '')}`;
 
-    const asset: Asset = {
-      id: assetId,
-      assetNumber,
-      name: input.name,
-      description: input.description,
-      category: input.category,
-      serialNumber: input.serialNumber,
-      barcode,
-      plantCode: input.plantCode,
-      costCenter: input.costCenter,
-      location: input.location || 'المستودع الرئيسي',
-      custodian: input.custodian,
-      custodianEmployeeId: input.custodianEmployeeId,
-      acquisitionDate: input.acquisitionDate,
-      acquisitionCost: input.acquisitionCost,
-      acquisitionSource: input.acquisitionSource || 'Manual',
-      sourceDocNumber: input.sourceDocNumber,
-      usefulLifeMonths: input.usefulLifeMonths || 60,
-      depreciationMethod: input.depreciationMethod || 'StraightLine',
-      decliningBalanceRate: input.decliningBalanceRate,
-      salvageValue,
-      accumulatedDepreciation: 0,
-      netBookValue: initialBookValue,
-      status: initialStatus,
-      imageUri: input.imageUri,
-      commissioningDate: input.commissioningDate || input.acquisitionDate,
-      depreciationStartDate: input.depreciationStartDate || input.acquisitionDate,
-      capitalizationJeDocNumber: jeDocNumber,
-      isDeleted: false,
-      createdAt: now,
-      updatedAt: now,
-    };
+      let jeDocNumber: string | undefined;
 
-    await db.transaction('rw', [db.assets, db.journalEntries, db.auditLogs], async () => {
-      await db.assets.add(asset);
-      if (je) {
+      // Generate balanced capitalization Journal Entry if capitalized
+      if (input.acquisitionCost > 0 && initialStatus !== 'UnderConstruction') {
+        jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+        je = {
+          id: `je-cap-${assetNumber}`,
+          docNumber: jeDocNumber,
+          status: 'posted',
+          companyCode: '1000',
+          fiscalYear,
+          period: parseInt(input.acquisitionDate.split('-')[1] || '1', 10),
+          postingDate: input.acquisitionDate,
+          documentDate: input.acquisitionDate,
+          documentType: 'SA',
+          headerText: `رسملة واقتناء أصل ثابت - ${input.name} (${assetNumber})`,
+          totalDebit: input.acquisitionCost,
+          totalCredit: input.acquisitionCost,
+          lines: [
+            {
+              lineNumber: 1,
+              accountNumber: '150010', // Fixed Asset Balance Account
+              accountName: 'الأصول الثابتة والمعدات الرأسمالية',
+              debit: input.acquisitionCost,
+              credit: 0,
+              costCenter: input.costCenter,
+              lineText: `إضافة أصل ${assetNumber}`,
+            },
+            {
+              lineNumber: 2,
+              accountNumber:
+                input.acquisitionSource === 'PO' || input.acquisitionSource === 'GR'
+                  ? '120090' // GR/IR Clearing Account
+                  : '201010', // Vendor Payable Account
+              accountName:
+                input.acquisitionSource === 'PO' || input.acquisitionSource === 'GR'
+                  ? 'حساب مقاصة مشتريات الأصول (GR/IR)'
+                  : 'الذمم الدائنة - تسوية الأصول الرأسمالية',
+              debit: 0,
+              credit: input.acquisitionCost,
+              lineText: `مقاصة اقتناء ${assetNumber}`,
+            },
+          ],
+          createdBy: user.id,
+          createdAt: now,
+          updatedBy: user.id,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
         await db.journalEntries.add(je);
       }
-    });
 
-    await AuditService.log({
-      userId: user.id,
-      userName: user.fullName,
-      action: 'CREATE',
-      entity: 'Asset',
-      entityId: asset.assetNumber,
-      after: { assetNumber: asset.assetNumber, name: asset.name, acquisitionCost: asset.acquisitionCost },
+      asset = {
+        id: assetId,
+        assetNumber,
+        name: input.name,
+        description: input.description,
+        category: input.category,
+        serialNumber: input.serialNumber,
+        barcode,
+        plantCode: input.plantCode,
+        costCenter: input.costCenter,
+        location: input.location || 'المستودع الرئيسي',
+        custodian: input.custodian,
+        custodianEmployeeId: input.custodianEmployeeId,
+        acquisitionDate: input.acquisitionDate,
+        acquisitionCost: input.acquisitionCost,
+        acquisitionSource: input.acquisitionSource || 'Manual',
+        sourceDocNumber: input.sourceDocNumber,
+        usefulLifeMonths: input.usefulLifeMonths || 60,
+        depreciationMethod: input.depreciationMethod || 'StraightLine',
+        decliningBalanceRate: input.decliningBalanceRate,
+        salvageValue,
+        accumulatedDepreciation: 0,
+        netBookValue: initialBookValue,
+        status: initialStatus,
+        imageUri: input.imageUri,
+        commissioningDate: input.commissioningDate || input.acquisitionDate,
+        depreciationStartDate: input.depreciationStartDate || input.acquisitionDate,
+        capitalizationJeDocNumber: jeDocNumber,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await db.assets.add(asset);
+
+      await AuditService.log({
+        userId: user.id,
+        userName: user.fullName,
+        action: 'CREATE',
+        entity: 'Asset',
+        entityId: asset.assetNumber,
+        after: { assetNumber: asset.assetNumber, name: asset.name, acquisitionCost: asset.acquisitionCost },
+      });
     });
 
     return { asset, je };
@@ -289,80 +291,84 @@ export class AssetService {
     const settlementAmount = auc.acquisitionCost;
     const now = new Date().toISOString();
     const fiscalYear = options.targetAssetInput.acquisitionDate.split('-')[0] || '2026';
-    const jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
+    let finalAsset!: Asset;
+    let je!: JournalEntry;
 
-    // 1. Create target completed asset
-    const { asset: finalAsset } = await this.createAsset(
-      {
-        ...options.targetAssetInput,
-        acquisitionCost: settlementAmount,
-        acquisitionSource: 'AuCSettlement',
-        sourceDocNumber: auc.assetNumber,
-        status: 'Active',
-      },
-      options.user
-    );
+    await db.transaction('rw', [db.assets, db.journalEntries, db.numberRanges, db.auditLogs], async () => {
+      const jeDocNumber = await NumberRangeService.getNextNumber('JE', fiscalYear);
 
-    // 2. Balanced Journal Entry: Debit Completed Asset (150010), Credit AuC (150900)
-    const je: JournalEntry = {
-      id: `je-auc-${auc.assetNumber}`,
-      docNumber: jeDocNumber,
-      status: 'posted',
-      companyCode: '1000',
-      fiscalYear,
-      period: parseInt(options.targetAssetInput.acquisitionDate.split('-')[1] || '1', 10),
-      postingDate: options.targetAssetInput.acquisitionDate,
-      documentDate: options.targetAssetInput.acquisitionDate,
-      documentType: 'SA',
-      headerText: `تسوية مشروعات قيد التنفيذ AuC من ${auc.assetNumber} إلى ${finalAsset.assetNumber}`,
-      totalDebit: settlementAmount,
-      totalCredit: settlementAmount,
-      lines: [
+      // 1. Create target completed asset
+      const created = await this.createAsset(
         {
-          lineNumber: 1,
-          accountNumber: '150010',
-          accountName: 'الأصول الثابتة المكتملة',
-          debit: settlementAmount,
-          credit: 0,
-          costCenter: finalAsset.costCenter,
-          lineText: `تسوية الأصل المكتمل ${finalAsset.assetNumber}`,
+          ...options.targetAssetInput,
+          acquisitionCost: settlementAmount,
+          acquisitionSource: 'AuCSettlement',
+          sourceDocNumber: auc.assetNumber,
+          status: 'Active',
         },
-        {
-          lineNumber: 2,
-          accountNumber: '150900',
-          accountName: 'مشروعات وأصول قيد التنفيذ (AuC)',
-          debit: 0,
-          credit: settlementAmount,
-          costCenter: auc.costCenter,
-          lineText: `إقفال وتسوية AuC ${auc.assetNumber}`,
-        },
-      ],
-      createdBy: options.user.id,
-      createdAt: now,
-      updatedBy: options.user.id,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+        options.user
+      );
+      finalAsset = created.asset;
 
-    // 3. Mark AuC as completed
-    await db.transaction('rw', [db.assets, db.journalEntries, db.auditLogs], async () => {
+      // 2. Balanced Journal Entry: Debit Completed Asset (150010), Credit AuC (150900)
+      je = {
+        id: `je-auc-${auc.assetNumber}`,
+        docNumber: jeDocNumber,
+        status: 'posted',
+        companyCode: '1000',
+        fiscalYear,
+        period: parseInt(options.targetAssetInput.acquisitionDate.split('-')[1] || '1', 10),
+        postingDate: options.targetAssetInput.acquisitionDate,
+        documentDate: options.targetAssetInput.acquisitionDate,
+        documentType: 'SA',
+        headerText: `تسوية مشروعات قيد التنفيذ AuC من ${auc.assetNumber} إلى ${finalAsset.assetNumber}`,
+        totalDebit: settlementAmount,
+        totalCredit: settlementAmount,
+        lines: [
+          {
+            lineNumber: 1,
+            accountNumber: '150010',
+            accountName: 'الأصول الثابتة المكتملة',
+            debit: settlementAmount,
+            credit: 0,
+            costCenter: finalAsset.costCenter,
+            lineText: `تسوية الأصل المكتمل ${finalAsset.assetNumber}`,
+          },
+          {
+            lineNumber: 2,
+            accountNumber: '150900',
+            accountName: 'مشروعات وأصول قيد التنفيذ (AuC)',
+            debit: 0,
+            credit: settlementAmount,
+            costCenter: auc.costCenter,
+            lineText: `إقفال وتسوية AuC ${auc.assetNumber}`,
+          },
+        ],
+        createdBy: options.user.id,
+        createdAt: now,
+        updatedBy: options.user.id,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
+      // 3. Mark AuC as completed
       await db.journalEntries.add(je);
       await db.assets.update(auc.id, {
         status: 'Disposed',
         description: `تمت تسوية المشروع بالكامل ونقله إلى الأصل الرأسمالي ${finalAsset.assetNumber}`,
         updatedAt: now,
       });
-    });
 
-    await AuditService.log({
-      userId: options.user.id,
-      userName: options.user.fullName,
-      action: 'STATUS_CHANGE',
-      entity: 'Asset',
-      entityId: auc.assetNumber,
-      before: { status: 'UnderConstruction' },
-      after: { status: 'Disposed', settledTo: finalAsset.assetNumber, settlementAmount },
+      await AuditService.log({
+        userId: options.user.id,
+        userName: options.user.fullName,
+        action: 'STATUS_CHANGE',
+        entity: 'Asset',
+        entityId: auc.assetNumber,
+        before: { status: 'UnderConstruction' },
+        after: { status: 'Disposed', settledTo: finalAsset.assetNumber, settlementAmount },
+      });
     });
 
     const updatedAuc = (await assetRepository.getById(auc.id))!;
@@ -374,11 +380,19 @@ export class AssetService {
    */
   static async createTransfer(
     input: AssetTransferInput,
-    user: { id: string; fullName: string }
+    user: { id: string; fullName: string },
+    expectedVersion?: number
   ): Promise<AssetTransfer> {
     const asset = await assetRepository.getById(input.assetId);
     if (!asset || asset.isDeleted) {
       throw new Error('الأصل المطلوب نقله غير موجود.');
+    }
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof asset.version === 'number' ? asset.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
     }
 
     if (asset.status === 'Disposed') {
@@ -543,11 +557,19 @@ export class AssetService {
   static async disposeAsset(
     assetId: string,
     input: AssetDisposalInput,
-    user: { id: string; fullName: string }
+    user: { id: string; fullName: string },
+    expectedVersion?: number
   ): Promise<{ asset: Asset; je: JournalEntry; gainLoss: number }> {
     const asset = await assetRepository.getById(assetId);
     if (!asset || asset.isDeleted) {
       throw new Error('الأصل المطلوب تخريده أو بيعه غير موجود.');
+    }
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof asset.version === 'number' ? asset.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
     }
 
     if (asset.status === 'Disposed') {

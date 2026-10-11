@@ -51,6 +51,7 @@ import type {
 
 export * from './IRepository';
 export * from './DexieRepository';
+export * from '../errors';
 
 function createRepo<T extends { id: string; isDeleted?: boolean }>(
   table: Table<T, string>,

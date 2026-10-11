@@ -18,3 +18,4 @@ export * from './EmptyState';
 export * from './Skeleton';
 export * from './ProgressBar';
 export * from './DonutChart';
+export * from './ConflictDialog';

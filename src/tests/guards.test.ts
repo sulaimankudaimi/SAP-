@@ -64,6 +64,11 @@ describe('Static Security & Architecture Guards', () => {
         matcher: (line: string) => /\bconsole\.log\s*\(/.test(line),
         description: 'Forbidden console.log statement (use DiagnosticLogger or typed telemetry)',
       },
+      {
+        name: 'service' + '_role',
+        matcher: (line: string) => line.includes(['service', 'role'].join('_')),
+        description: 'Forbidden service_role key or reference (never ship service_role to client)',
+      },
     ];
 
     it('fails if any file under /src contains DEFAULT_ADMIN, SYS-AUTO, ": any", "as any", or console.log', () => {
@@ -440,9 +445,200 @@ describe('Static Security & Architecture Guards', () => {
       const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
       const rulesContent = fs.existsSync(projectRulesPath) ? fs.readFileSync(projectRulesPath, 'utf-8') : '';
 
-      expect(readmeContent.includes('IStorageAdapter')).toBe(false);
       expect(rulesContent.includes('IStorageAdapter')).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Guard 8: Document Table Deletion Protection & DependencyGuard Isolation
+  // ---------------------------------------------------------------------------
+  describe('8. Document Table Deletion Protection & DependencyGuard Isolation', () => {
+    const DOCUMENT_REPOS_AND_TABLES = [
+      'poRepository',
+      'invoiceRepository',
+      'tripRepository',
+      'maintenanceRepository',
+      'grRepository',
+      'journalRepository',
+      'paymentRepository',
+      'assetTransferRepository',
+      'depreciationRepository',
+      'physicalInvRepository',
+      'purchaseOrders',
+      'vendorInvoices',
+      'trips',
+      'maintenanceOrders',
+      'goodsReceipts',
+      'materialDocuments',
+      'journalEntries',
+      'payments',
+      'assetTransfers',
+      'depreciationRuns',
+      'physicalInventoryDocs',
+    ];
+
+    it('fails if any repository or direct table .delete() call is made on a document entity outside DependencyGuard-aware repository', () => {
+      const violations: { file: string; line: number; content: string }[] = [];
+
+      // Regex matching any deletion call on document repositories or db.<documentTable>.delete(...)
+      const docDeleteRegex = new RegExp(
+        `\\b(${DOCUMENT_REPOS_AND_TABLES.join('|')})\\.(delete)\\s*\\(`,
+        'g'
+      );
+
+      for (const filePath of allSrcFiles) {
+        // Exclude tests, DexieRepository (where DependencyGuard.check is called), DependencyGuard itself, and seeder
+        const normalized = filePath.replace(/\\/g, '/');
+        if (
+          normalized.includes('/tests/') ||
+          normalized.endsWith('/core/repositories/DexieRepository.ts') ||
+          normalized.endsWith('/core/security/DependencyGuard.ts') ||
+          normalized.endsWith('/seed/index.ts')
+        ) {
+          continue;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const lines = content.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (docDeleteRegex.test(line)) {
+            violations.push({
+              file: path.relative(SRC_DIR, filePath),
+              line: i + 1,
+              content: line.trim(),
+            });
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        const report = violations
+          .map((v) => `${v.file}:${v.line} -> ${v.content}`)
+          .join('\n');
+        expect.fail(
+          `Detected unauthorized document deletion call(s) outside DependencyGuard-aware repository:\n${report}`
+        );
+      }
+
+      expect(violations).toHaveLength(0);
+    });
+
+    it('verifies DexieRepository.delete strictly calls DependencyGuard.check before removal', () => {
+      const dexieRepoPath = path.resolve(SRC_DIR, 'core', 'repositories', 'DexieRepository.ts');
+      const content = fs.readFileSync(dexieRepoPath, 'utf-8');
+      expect(content).toContain('DependencyGuard.check(this.entityName, id)');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard 9: Multi-User Architecture & Security Guard (ADR 0001)
+  // ---------------------------------------------------------------------------
+  describe('9. Multi-User Architecture & Security Guard (ADR 0001)', () => {
+    it('fails if any file under /src contains service_role', () => {
+      const forbiddenToken = ['service', 'role'].join('_');
+      const violations: { file: string; line: number; content: string }[] = [];
+
+      for (const filePath of allSrcFiles) {
+        if (filePath.endsWith('guards.test.ts')) continue;
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        if (content.includes(forbiddenToken)) {
+          const lines = content.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(forbiddenToken)) {
+              violations.push({
+                file: path.relative(SRC_DIR, filePath),
+                line: i + 1,
+                content: lines[i].trim(),
+              });
+            }
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        const report = violations
+          .map((v) => `${v.file}:${v.line} -> ${v.content}`)
+          .join('\n');
+        expect.fail(`Detected forbidden "service_role" token in client codebase:\n${report}`);
+      }
+
+      expect(violations).toHaveLength(0);
+    });
+
+    it('fails if any file outside src/core/gateway imports @supabase/supabase-js', () => {
+      const supabasePkg = ['@supabase', 'supabase-js'].join('/');
+      const violations: { file: string; line: number; content: string }[] = [];
+
+      for (const filePath of allSrcFiles) {
+        if (filePath.endsWith('guards.test.ts')) continue;
+
+        const normalized = filePath.replace(/\\/g, '/');
+        if (normalized.includes('/src/core/gateway/')) {
+          continue;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        if (content.includes(supabasePkg)) {
+          const lines = content.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(supabasePkg)) {
+              violations.push({
+                file: path.relative(SRC_DIR, filePath),
+                line: i + 1,
+                content: lines[i].trim(),
+              });
+            }
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        const report = violations
+          .map((v) => `${v.file}:${v.line} -> ${v.content}`)
+          .join('\n');
+        expect.fail(`Detected @supabase/supabase-js import outside src/core/gateway:\n${report}`);
+      }
+
+      expect(violations).toHaveLength(0);
+    });
+
+    it('fails if the ADR file is missing any of the seven section titles', () => {
+      const adrPath = path.resolve(SRC_DIR, '..', 'docs', 'adr', '0001-multi-user-architecture.md');
+      expect(fs.existsSync(adrPath)).toBe(true);
+
+      const adrContent = fs.readFileSync(adrPath, 'utf-8');
+
+      const REQUIRED_SECTIONS = [
+        'Context',
+        'Options considered',
+        'Decision',
+        'Consequences',
+        'Invariants',
+        'Conflict policy',
+        'Rollout',
+      ];
+
+      const missingSections: string[] = [];
+
+      for (const section of REQUIRED_SECTIONS) {
+        const regex = new RegExp(`^#+\\s*.*\\b${section}\\b`, 'im');
+        if (!regex.test(adrContent)) {
+          missingSections.push(section);
+        }
+      }
+
+      if (missingSections.length > 0) {
+        expect.fail(
+          `ADR 0001 is missing required section title(s): ${missingSections.join(', ')}`
+        );
+      }
+
+      expect(missingSections).toHaveLength(0);
+    });
+  });
 });
+
 

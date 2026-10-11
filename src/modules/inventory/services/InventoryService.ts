@@ -275,6 +275,12 @@ export class InventoryService {
             });
           } else if (['102', '201', '261', '551', '702'].includes(payload.movementType)) {
             // Outbound movements
+            if (!allowNegative && currentBal.unrestrictedQty < item.quantity) {
+              throw new Error(
+                `الرصيد المتاح من الصنف ${item.materialCode} في المستودع ${itemSloc} هو ${currentBal.unrestrictedQty} ${unit} فقط، ولا يكفي لصرف الكمية المطلوبة ${item.quantity} ${unit}.`
+              );
+            }
+
             const currentMap = currentBal.movingAveragePrice || material?.standardPrice || unitPrice;
             const issueVal = ValuationService.calculateValuationOnIssue(
               currentBal.unrestrictedQty,
@@ -282,7 +288,7 @@ export class InventoryService {
               item.quantity
             );
 
-            currentBal.unrestrictedQty = Math.max(0, currentBal.unrestrictedQty - item.quantity);
+            currentBal.unrestrictedQty = currentBal.unrestrictedQty - item.quantity;
             currentBal.totalValuation = issueVal.totalValuation;
             currentBal.lastMovementDate = postingDate;
             await db.stockBalances.put(currentBal);
@@ -315,8 +321,14 @@ export class InventoryService {
               throw new Error('يجب تحديد المستودع الوجهة في حركة النقل (311)');
             }
 
+            if (!allowNegative && currentBal.unrestrictedQty < item.quantity) {
+              throw new Error(
+                `الرصيد المتاح من الصنف ${item.materialCode} في المستودع ${itemSloc} هو ${currentBal.unrestrictedQty} ${unit} فقط، ولا يكفي لنقل الكمية المطلوبة ${item.quantity} ${unit}.`
+              );
+            }
+
             // Issue from source
-            currentBal.unrestrictedQty = Math.max(0, currentBal.unrestrictedQty - item.quantity);
+            currentBal.unrestrictedQty = currentBal.unrestrictedQty - item.quantity;
             currentBal.totalValuation = currentBal.unrestrictedQty * (currentBal.movingAveragePrice || unitPrice);
             currentBal.lastMovementDate = postingDate;
             await db.stockBalances.put(currentBal);
@@ -369,8 +381,14 @@ export class InventoryService {
               throw new Error('يجب تحديد المحطة / المنشأة الوجهة في حركة النقل بين المحطات (301)');
             }
 
+            if (!allowNegative && currentBal.unrestrictedQty < item.quantity) {
+              throw new Error(
+                `الرصيد المتاح من الصنف ${item.materialCode} في المستودع ${itemSloc} هو ${currentBal.unrestrictedQty} ${unit} فقط، ولا يكفي لنقل الكمية المطلوبة ${item.quantity} ${unit}.`
+              );
+            }
+
             // Out from source
-            currentBal.unrestrictedQty = Math.max(0, currentBal.unrestrictedQty - item.quantity);
+            currentBal.unrestrictedQty = currentBal.unrestrictedQty - item.quantity;
             currentBal.totalValuation = currentBal.unrestrictedQty * (currentBal.movingAveragePrice || unitPrice);
             currentBal.lastMovementDate = postingDate;
             await db.stockBalances.put(currentBal);

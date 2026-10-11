@@ -191,6 +191,7 @@ export interface Material {
   leadTimeDays?: number;
   weightKg?: number;
   barcode?: string;
+  version?: number;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
   isDeleted: boolean;
 }
@@ -235,6 +236,7 @@ export interface Vendor {
   crExpiryDate?: string;
   taxCertExpiryDate?: string;
   isoCertExpiryDate?: string;
+  version?: number;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
   isDeleted: boolean;
 }
@@ -539,6 +541,7 @@ export interface Vehicle {
   registrationExpiry: string;
   lastMaintenanceDate?: string;
   nextMaintenanceOdometer?: number;
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -557,6 +560,7 @@ export interface Driver {
   status: 'available' | 'on_trip' | 'vacation';
   totalTripsCompleted: number;
   totalDistanceKm: number;
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -598,6 +602,7 @@ export interface FuelLog {
   totalCost: number;
   odometer: number;
   stationName: string;
+  version?: number;
   calculatedConsumptionPer100Km?: number;
   isAnomaly?: boolean;
   anomalyDeviationPercentage?: number;
@@ -719,6 +724,7 @@ export interface Asset {
   disposalReason?: string;
   disposalJeDocNumber?: string;
   capitalizationJeDocNumber?: string;
+  version?: number;
   isDeleted: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -925,7 +931,7 @@ export interface VendorInvoice extends TransactionDocument {
   totalAmount: number;
   vatAmount: number;
   netAmount: number;
-  paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
+  paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid' | 'Cancelled';
   paymentTerms?: string; // e.g., 'Net 30', '2/10 Net 30'
   cashDiscountPercentage?: number;
   cashDiscountDays?: number;
@@ -1304,5 +1310,24 @@ export interface PostingRegistryEntry {
   isReversed?: boolean;
   reversedAt?: string;
   reversalDocNumber?: string;
+}
+
+// Offline Command Outbox Model (Dexie v4)
+export type OutboxCommandType = 'fuel_log' | 'trip_event' | 'odometer_reading' | 'inspection';
+export type OutboxStatus = 'pending' | 'sending' | 'done' | 'rejected' | 'needs_review';
+
+export interface OutboxEntry {
+  id: string; // The client-generated request_id uuid
+  type: OutboxCommandType;
+  vehicleId?: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  attempts: number;
+  status: OutboxStatus;
+  lastError?: string;
+  lastAttemptAt?: string;
+  discardReason?: string;
+  discardedBy?: string;
+  discardedAt?: string;
 }
 

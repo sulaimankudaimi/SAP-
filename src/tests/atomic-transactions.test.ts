@@ -596,4 +596,123 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
     const jeNrAfter = (await db.numberRanges.get('JE-2026'))?.currentNumber || 0;
     expect(jeNrAfter).toBe(initialJeNr);
   });
+
+  // 12. FleetService.createMaintenanceOrder
+  it('FleetService.createMaintenanceOrder rolls back vehicle status, order, audit, and MO number range on failure', async () => {
+    const vehicle = (await db.vehicles.toArray())[0];
+    const initialOrderCount = await db.maintenanceOrders.count();
+    const initialAuditCount = await db.auditLogs.count();
+    const initialMoNr = (await db.numberRanges.get('MO-2026'))?.currentNumber || 0;
+
+    vi.spyOn(db.maintenanceOrders, 'add').mockRejectedValueOnce(
+      new Error('Injected error on maintenance order creation')
+    );
+
+    await expect(
+      FleetService.createMaintenanceOrder({
+        vehicleId: vehicle.id,
+        orderType: 'Preventive',
+        description: 'صيانة دورية 50,000 كم',
+        estimatedCost: 1500,
+        startDate: '2026-03-25',
+      })
+    ).rejects.toThrow('Injected error on maintenance order creation');
+
+    expect(await db.maintenanceOrders.count()).toBe(initialOrderCount);
+    const vehicleAfter = await db.vehicles.get(vehicle.id);
+    expect(vehicleAfter?.status).toBe(vehicle.status); // Not 'maintenance'
+    expect(await db.auditLogs.count()).toBe(initialAuditCount);
+    const moNrAfter = (await db.numberRanges.get('MO-2026'))?.currentNumber || 0;
+    expect(moNrAfter).toBe(initialMoNr);
+  });
+
+  // 13. AccountsPayableService.createInvoice
+  it('AccountsPayableService.createInvoice rolls back invoice, journal, registry, and INV number range on failure', async () => {
+    const initialInvCount = await db.vendorInvoices.count();
+    const initialJeCount = await db.journalEntries.count();
+    const initialRegCount = await db.postingRegistry.count();
+    const initialAuditCount = await db.auditLogs.count();
+    const initialInvNr = (await db.numberRanges.get('INV-2026'))?.currentNumber || 0;
+
+    // Inject failure on db.vendorInvoices.update during GL link
+    vi.spyOn(db.vendorInvoices, 'update').mockRejectedValueOnce(
+      new Error('Injected error during invoice GL linkage')
+    );
+
+    await expect(
+      AccountsPayableService.createInvoice(
+        {
+          vendorInvoiceNumber: 'INV-TEST-FAIL-01',
+          vendorCode: 'VND-001',
+          vendorName: 'الشركة العربية لخدمات الحقول',
+          invoiceDate: '2026-03-22',
+          dueDate: '2026-04-22',
+          totalAmount: 11500,
+          netAmount: 10000,
+          vatAmount: 1500,
+          currency: 'SAR',
+          companyCode: '1000',
+          items: [
+            {
+              lineItem: 1,
+              description: 'خدمات نقل وتوريد ديزل',
+              quantity: 1,
+              unitPrice: 10000,
+              amount: 10000,
+              vatRate: 15,
+              vatAmount: 1500,
+              totalWithVat: 11500,
+            },
+          ],
+        },
+        'admin'
+      )
+    ).rejects.toThrow('Injected error during invoice GL linkage');
+
+    expect(await db.vendorInvoices.count()).toBe(initialInvCount);
+    expect(await db.journalEntries.count()).toBe(initialJeCount);
+    expect(await db.postingRegistry.count()).toBe(initialRegCount);
+    expect(await db.auditLogs.count()).toBe(initialAuditCount);
+    const invNrAfter = (await db.numberRanges.get('INV-2026'))?.currentNumber || 0;
+    expect(invNrAfter).toBe(initialInvNr);
+  });
+
+  // 14. AssetService.createAsset
+  it('AssetService.createAsset rolls back asset master, capitalization journal, and AA/JE number ranges on failure', async () => {
+    const initialAssetCount = await db.assets.count();
+    const initialJeCount = await db.journalEntries.count();
+    const initialAuditCount = await db.auditLogs.count();
+    const initialAaNr = (await db.numberRanges.get('AA-2026'))?.currentNumber || 0;
+    const initialJeNr = (await db.numberRanges.get('JE-2026'))?.currentNumber || 0;
+
+    // Inject failure on db.assets.add
+    vi.spyOn(db.assets, 'add').mockRejectedValueOnce(
+      new Error('Injected failure during asset master creation')
+    );
+
+    await expect(
+      AssetService.createAsset(
+        {
+          name: 'مولد كهربائي صناعي توربيني',
+          category: 'Machinery',
+          plantCode: '1100',
+          costCenter: 'CC-1001',
+          custodian: 'سعيد القحطاني',
+          usefulLifeMonths: 120,
+          depreciationMethod: 'StraightLine',
+          acquisitionCost: 85000,
+          acquisitionDate: '2026-03-22',
+        },
+        { id: 'admin', fullName: 'مدير النظام' }
+      )
+    ).rejects.toThrow('Injected failure during asset master creation');
+
+    expect(await db.assets.count()).toBe(initialAssetCount);
+    expect(await db.journalEntries.count()).toBe(initialJeCount);
+    expect(await db.auditLogs.count()).toBe(initialAuditCount);
+    const aaNrAfter = (await db.numberRanges.get('AA-2026'))?.currentNumber || 0;
+    const jeNrAfter = (await db.numberRanges.get('JE-2026'))?.currentNumber || 0;
+    expect(aaNrAfter).toBe(initialAaNr);
+    expect(jeNrAfter).toBe(initialJeNr);
+  });
 });

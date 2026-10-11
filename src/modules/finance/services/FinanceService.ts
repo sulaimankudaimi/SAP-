@@ -8,6 +8,7 @@ import {
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
+import { ConcurrencyError } from '../../../core/errors';
 import type {
   JournalEntry,
   JournalEntryLine,
@@ -243,11 +244,18 @@ export class FinanceService {
   /**
    * Posts a previously parked document (FBV0).
    */
-  static async postParkedDocument(id: string, userId: string): Promise<JournalEntry> {
+  static async postParkedDocument(id: string, userId: string, expectedVersion?: number): Promise<JournalEntry> {
     requirePermission({ module: 'FI', activity: 'post' });
     const entry = await db.journalEntries.get(id);
     if (!entry) throw new Error('مستند القيد المحفوظ غير موجود.');
     if (!entry.isParked) throw new Error('المستند مرحل بالفعل.');
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof entry.version === 'number' ? entry.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
     // Validate period
     await this.validatePeriodOpen(entry.postingDate);

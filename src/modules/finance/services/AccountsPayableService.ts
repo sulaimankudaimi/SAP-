@@ -3,6 +3,8 @@ import { AutomaticPostingEngine } from './AutomaticPostingEngine';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
+import { DependencyGuard } from '../../../core/security/DependencyGuard';
+import { ConcurrencyError } from '../../../core/errors';
 import type { VendorInvoice, Payment, Vendor } from '../../../types/models';
 
 export interface AgingBucket {
@@ -276,6 +278,92 @@ export class AccountsPayableService {
   }
 
   /**
+   * Creates and posts a vendor invoice (فاتورة مورد - FB60 / MIRO) atomically to AP and GL.
+   */
+  static async createInvoice(
+    invoiceData: {
+      vendorCode: string;
+      vendorName?: string;
+      poNumber?: string;
+      grNumber?: string;
+      vendorInvoiceNumber: string;
+      invoiceDate: string;
+      postingDate?: string;
+      dueDate: string;
+      totalAmount: number;
+      vatAmount: number;
+      netAmount: number;
+      paymentTerms?: string;
+      cashDiscountPercentage?: number;
+      cashDiscountDays?: number;
+      items: import('../../../types/models').VendorInvoiceItem[];
+      companyCode?: string;
+      currency?: string;
+    },
+    createdBy: string = 'admin'
+  ): Promise<VendorInvoice> {
+    requirePermission({ module: 'FI', activity: 'post' }, { amount: invoiceData.totalAmount });
+    const postingDate = invoiceData.postingDate || invoiceData.invoiceDate;
+    const fiscalYear = invoiceData.invoiceDate.split('-')[0] || '2026';
+
+    const txTables = [
+      db.vendorInvoices,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.accountDeterminations,
+      db.fiscalPeriods,
+    ];
+
+    let createdInvoice!: VendorInvoice;
+
+    await db.transaction('rw', txTables, async () => {
+      const docNumber = await NumberRangeService.getNextNumber('INV', fiscalYear);
+      const now = new Date().toISOString();
+
+      createdInvoice = {
+        ...invoiceData,
+        id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        docNumber,
+        status: 'approved',
+        companyCode: invoiceData.companyCode || '1000',
+        postingDate,
+        paymentStatus: 'Unpaid',
+        jeDocNumber: '',
+        createdBy,
+        createdAt: now,
+        updatedBy: createdBy,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
+
+      await db.vendorInvoices.add(createdInvoice);
+
+      const postResult = await AutomaticPostingEngine.postVendorInvoice({
+        invoice: createdInvoice,
+        createdBy,
+      });
+
+      createdInvoice.jeDocNumber = postResult.jeDocNumber;
+      await db.vendorInvoices.update(createdInvoice.id, {
+        jeDocNumber: postResult.jeDocNumber,
+      });
+
+      await AuditService.log({
+        userId: createdBy,
+        action: 'CREATE',
+        entity: 'VendorInvoice',
+        entityId: createdInvoice.id,
+        after: createdInvoice as unknown as Record<string, unknown>,
+      });
+    });
+
+    return createdInvoice;
+  }
+
+  /**
    * Executes Payment Proposal Run (F110 / F-53):
    * Creates Payment document, posts balanced Journal Entry, updates invoice status to Paid.
    */
@@ -369,5 +457,90 @@ export class AccountsPayableService {
     }
 
     return { successfulPayments, totalPaid, totalDiscounts };
+  }
+
+  /**
+   * Cancels/reverses a posted vendor invoice (إلغاء وعكس فاتورة مورد).
+   * Checks dependencies via DependencyGuard, reverses the GL posting, and marks the invoice cancelled.
+   */
+  static async cancelInvoice(
+    invoiceId: string,
+    reason: string,
+    userId: string = 'admin',
+    expectedVersion?: number
+  ): Promise<{ invoice: VendorInvoice; reversalDocNumber: string }> {
+    requirePermission({ module: 'FI', activity: 'reverse' });
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('سبب الإلغاء والعكس إلزامي.');
+    }
+
+    const invoice = await db.vendorInvoices.get(invoiceId);
+    if (!invoice || invoice.isDeleted) {
+      throw new Error('فاتورة المورد غير موجودة.');
+    }
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof invoice.version === 'number' ? invoice.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
+
+    if (invoice.status === 'cancelled' || invoice.paymentStatus === 'Cancelled') {
+      throw new Error('تم إلغاء/عكس هذه الفاتورة مسبقاً.');
+    }
+
+    // Check downstream dependencies (e.g. active payments)
+    await DependencyGuard.checkCancel('vendorInvoices', invoice.id);
+
+    let reversalDocNumber = '';
+
+    const txTables = [
+      db.vendorInvoices,
+      db.journalEntries,
+      db.postingRegistry,
+      db.numberRanges,
+      db.auditLogs,
+      db.fiscalPeriods,
+    ];
+
+    await db.transaction('rw', txTables, async () => {
+      // 1. Reverse GL posting if journal entry was created
+      if (invoice.jeDocNumber) {
+        const revResult = await AutomaticPostingEngine.reversePosting({
+          sourceType: 'VENDOR_INVOICE',
+          sourceId: invoice.id,
+          reason,
+          userId,
+        });
+        reversalDocNumber = revResult.reversalDocNumber;
+      }
+
+      // 2. Update invoice status to cancelled
+      const now = new Date().toISOString();
+      const updated: VendorInvoice = {
+        ...invoice,
+        status: 'cancelled',
+        paymentStatus: 'Cancelled' as unknown as 'Unpaid',
+        releaseReason: `ملغاة: ${reason}`,
+        updatedBy: userId,
+        updatedAt: now,
+        version: invoice.version + 1,
+      };
+
+      await db.vendorInvoices.put(updated);
+
+      await AuditService.log({
+        userId,
+        action: 'STATUS_CHANGE',
+        entity: 'VendorInvoice',
+        entityId: invoice.id,
+        before: invoice as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+      });
+    });
+
+    const finalInvoice = (await db.vendorInvoices.get(invoice.id))!;
+    return { invoice: finalInvoice, reversalDocNumber };
   }
 }

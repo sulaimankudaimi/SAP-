@@ -7,6 +7,7 @@ import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { FleetService } from '../services/FleetService';
+import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import type { Vehicle, Driver, Trip } from '../../../types/models';
 import {
   Truck,
@@ -37,6 +38,28 @@ export const TripModal: React.FC<TripModalProps> = ({
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { saveWithConflict, ConflictModal } = useSaveWithConflict({
+    onReload: async () => {
+      if (tripToComplete) {
+        const fresh = await FleetService.getTripById(tripToComplete.id);
+        if (fresh) {
+          setEndOdometer(fresh.endOdometer || fresh.startOdometer);
+          setActualArrival(fresh.actualArrival || '');
+        }
+      }
+    },
+    fetchLatest: async () => {
+      if (!tripToComplete) return undefined;
+      const t = await FleetService.getTripById(tripToComplete.id);
+      return t as unknown as Record<string, unknown>;
+    },
+    fieldLabels: {
+      endOdometer: 'قراءة عداد الوصول',
+      actualArrival: 'وقت الوصول الفعلي',
+      fuelConsumedLiters: 'كمية الوقود المستهلك',
+    },
+  });
 
   // Create Mode Fields
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
@@ -164,15 +187,32 @@ export const TripModal: React.FC<TripModalProps> = ({
       return;
     }
 
+    const localData = {
+      endOdometer,
+      actualArrival,
+      fuelConsumedLiters,
+    };
+
     setIsSubmitting(true);
     try {
-      const trip = await FleetService.completeTrip(tripToComplete.id, {
-        endOdometer,
-        actualArrival,
-        fuelLitersConsumed: fuelConsumedLiters,
-        fuelCost: Math.round(fuelConsumedLiters * 1.15),
-        driverAllowanceCost: driverAllowance,
-      });
+      const trip = await saveWithConflict(
+        () =>
+          FleetService.completeTrip(
+            tripToComplete.id,
+            {
+              endOdometer,
+              actualArrival,
+              fuelLitersConsumed: fuelConsumedLiters,
+              fuelCost: Math.round(fuelConsumedLiters * 1.15),
+              driverAllowanceCost: driverAllowance,
+            },
+            'u-flt-mgr',
+            tripToComplete.version
+          ),
+        localData
+      );
+
+      if (!trip) return;
 
       success(
         'تم إغلاق الرحلة',
@@ -401,6 +441,7 @@ export const TripModal: React.FC<TripModalProps> = ({
           </div>
         </form>
       )}
+      <ConflictModal />
     </Modal>
   );
 };

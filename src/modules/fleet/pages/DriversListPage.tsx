@@ -11,6 +11,7 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Driver } from '../../../types/models';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
+import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import {
   Users,
   Search,
@@ -26,6 +27,7 @@ import {
   Star,
   Truck,
   Eye,
+  Edit,
 } from 'lucide-react';
 
 type LicenseClass = 'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي';
@@ -59,6 +61,76 @@ export const DriversListPage: React.FC = () => {
   const [newMobile, setNewMobile] = useState('0551234567');
   const [newSafetyRating, setNewSafetyRating] = useState(4.8);
   const [newCerts, setNewCerts] = useState('شهادة أرامكو لنقل المواد الخطرة، شهادة الدفاع المدني');
+
+  // Edit Driver Modal & Conflict Guard
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [editSafetyRating, setEditSafetyRating] = useState(4.8);
+
+  const { saveWithConflict, ConflictModal } = useSaveWithConflict({
+    onReload: async () => {
+      if (editingDriver) {
+        const fresh = await FleetService.getDriverById(editingDriver.id);
+        if (fresh) {
+          setEditingDriver(fresh);
+          setEditName(fresh.name);
+          setEditMobile(fresh.mobile);
+          setEditSafetyRating(fresh.safetyRating);
+        }
+      }
+      loadDrivers();
+    },
+    fetchLatest: async () => {
+      if (!editingDriver) return undefined;
+      const d = await FleetService.getDriverById(editingDriver.id);
+      return d as unknown as Record<string, unknown>;
+    },
+    fieldLabels: {
+      name: 'اسم السائق الكامل',
+      mobile: 'رقم الجوال',
+      safetyRating: 'تقييم السلامة والقيادة',
+    },
+  });
+
+  const handleOpenEditModal = (d: Driver) => {
+    setEditingDriver(d);
+    setEditName(d.name);
+    setEditMobile(d.mobile);
+    setEditSafetyRating(d.safetyRating);
+  };
+
+  const handleSaveEditDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDriver) return;
+
+    const localData = {
+      name: editName,
+      mobile: editMobile,
+      safetyRating: editSafetyRating,
+    };
+
+    try {
+      const res = await saveWithConflict(
+        () =>
+          FleetService.updateDriver(
+            editingDriver.id,
+            localData,
+            'u-flt-mgr',
+            editingDriver.version
+          ),
+        localData
+      );
+
+      if (!res) return;
+
+      success('تم التحديث بنجاح', `تم تحديث بيانات السائق ${editingDriver.name}`);
+      setEditingDriver(null);
+      loadDrivers();
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
+    }
+  };
 
   const loadDrivers = async () => {
     setIsLoading(true);
@@ -273,17 +345,27 @@ export const DriversListPage: React.FC = () => {
                     {getStatusBadge(d.status)}
                   </td>
                   <td className="p-3 text-center">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<Eye className="w-3.5 h-3.5" />}
-                      onClick={() => {
-                        setSelectedDriver(d);
-                        setIsDrawerOpen(true);
-                      }}
-                    >
-                      استعراض
-                    </Button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Edit className="w-3.5 h-3.5" />}
+                        onClick={() => handleOpenEditModal(d)}
+                      >
+                        تعديل
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Eye className="w-3.5 h-3.5" />}
+                        onClick={() => {
+                          setSelectedDriver(d);
+                          setIsDrawerOpen(true);
+                        }}
+                      >
+                        استعراض
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -459,6 +541,68 @@ export const DriversListPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Edit Driver Modal with Optimistic Concurrency */}
+      {editingDriver && (
+        <Modal
+          isOpen={!!editingDriver}
+          onClose={() => setEditingDriver(null)}
+          title={`تعديل بيانات السائق [${editingDriver.name}]`}
+          size="md"
+        >
+          <form onSubmit={handleSaveEditDriver} className="space-y-4 text-start" dir="rtl">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs flex justify-between">
+              <div>
+                <span className="font-bold text-[#0F172A] block">{editingDriver.name}</span>
+                <span className="text-[#64748B]">كود السائق: {editingDriver.code}</span>
+              </div>
+              <div className="text-end font-mono">
+                <span className="text-[#64748B] block text-[11px]">الإصدار (Version)</span>
+                <span className="font-bold text-blue-700">v{editingDriver.version || 1}</span>
+              </div>
+            </div>
+
+            <Input
+              label="اسم السائق الكامل:"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="رقم الجوال:"
+                value={editMobile}
+                onChange={(e) => setEditMobile(e.target.value)}
+                required
+              />
+              <Input
+                label="تقييم السلامة (1-5):"
+                type="number"
+                step="0.1"
+                min="1"
+                max="5"
+                value={editSafetyRating}
+                onChange={(e) => setEditSafetyRating(parseFloat(e.target.value) || 5)}
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5EAF2]">
+              <Button type="button" variant="secondary" onClick={() => setEditingDriver(null)}>
+                إلغاء
+              </Button>
+              <Button type="submit" variant="primary" icon={<CheckCircle2 className="w-4 h-4" />}>
+                حفظ التعديلات
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Concurrent Conflict Dialog */}
+      <ConflictModal />
     </div>
   );
 };
+

@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../components/ui/Toast';
 import { AuthService } from '../core/services/AuthService';
+import { ServerAuthService } from '../core/gateway/ServerAuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
 
 const changePasswordSchema = z
@@ -68,8 +69,12 @@ export const ChangePasswordPage: React.FC = () => {
     setServerError(null);
 
     try {
-      await AuthService.changePassword(user.id, data.currentPassword, data.newPassword);
-      await refreshUser();
+      if (ServerAuthService.isServerMode()) {
+        await ServerAuthService.changePassword(data.newPassword);
+      } else {
+        await AuthService.changePassword(user.id, data.currentPassword, data.newPassword);
+        await refreshUser();
+      }
       success(t('change_pwd_success'), 'تم تفعيل الحساب بكلمة المرور الجديدة بنجاح.');
       navigate('/', { replace: true });
     } catch (err) {

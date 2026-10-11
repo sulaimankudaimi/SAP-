@@ -13,7 +13,7 @@ TECH STACK (fixed, do not deviate)
 - react-hook-form + zod for forms/validation
 - Dexie (IndexedDB) behind a Repository interface (so it can later be swapped for SQLite)
 - date handling: date-fns; numbers via Intl.NumberFormat('en-US') (use Western digits 0-9 everywhere)
-- NO external network calls, NO CDN assets, NO remote images, NO map tiles. Fonts bundled locally (@fontsource/ibm-plex-sans-arabic). Illustrations = inline SVG/CSS.
+- No network access except the single configured ERP server origin (VITE_ERP_SERVER_URL) used only through the ServerGateway; no third-party endpoints, CDNs or telemetry, NO remote images, NO map tiles. Fonts bundled locally (@fontsource/ibm-plex-sans-arabic). Illustrations = inline SVG/CSS.
 - NO localStorage for business data (only UI prefs).
 
 LANGUAGE & LAYOUT
@@ -33,6 +33,7 @@ DESIGN SYSTEM (strict)
 ARCHITECTURE RULES
 - Folder structure: /src/app, /src/core (db, repositories, services, numbering, audit, auth, rbac), /src/modules/{procurement,inventory,fleet,assets,finance,reports,admin}, /src/components/ui, /src/components/layout, /src/i18n, /src/types, /src/seed.
 - Business logic lives in services (pure TS), never inside components. Components only call services/hooks.
+- Clients never write balances, journals or document numbers in server mode.
 - Every transaction document has: id, docNumber (auto, per-type, per-year), status, createdBy, createdAt, updatedBy, updatedAt, version.
 - Every create/update/delete/status change writes an AuditLog entry (userId, action, entity, entityId, before, after, timestamp).
 - Every action is guarded by permission checks (RBAC) both in UI (hide/disable) and in services (throw).
@@ -40,6 +41,7 @@ ARCHITECTURE RULES
 
 SECURITY RULES
 - No default/auto sessions; no password hashes outside the DB; session tokens must be HMAC-signed; every service method that mutates data must call requirePermission(); audit entries must always carry the real acting user; no hardcoded fallback user/cost-center IDs.
+- Never ship a service_role key to the client.
 - Every repository write must run under an authenticated actor OR an explicit { system: true, userName } context OR an authentication-event context { userId, userName }. Never rely on implicit defaults.
 - All audit snapshots pass through redactSnapshot inside AuditService; never log passwords, hashes, salts, OTPs, tokens or passphrases anywhere (audit, console, errors, diagnostics). Credential failures always return one generic message. No hardcoded counters or badge numbers in the UI.
 

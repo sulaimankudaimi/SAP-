@@ -96,6 +96,46 @@ function safelyOverrideProperty<T>(target: object, propertyKey: PropertyKey, val
   return false;
 }
 
+export function isAllowedNetworkDestination(urlStr: string): boolean {
+  if (
+    urlStr.startsWith('blob:') ||
+    urlStr.startsWith('data:') ||
+    urlStr.startsWith('/') ||
+    urlStr.startsWith('#') ||
+    urlStr.startsWith('about:')
+  ) {
+    return true;
+  }
+
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    if (urlStr.startsWith(window.location.origin)) {
+      return true;
+    }
+  }
+
+  // When VITE_SERVER_MODE is true, allow ONLY the configured ERP server origin
+  const isServerMode = import.meta.env.VITE_SERVER_MODE === 'true';
+  const serverUrl = import.meta.env.VITE_ERP_SERVER_URL;
+
+  if (isServerMode && serverUrl) {
+    try {
+      const serverOrigin = new URL(serverUrl).origin;
+      if (urlStr.startsWith(serverOrigin)) {
+        return true;
+      }
+      // Also allow ws/wss protocol counterpart for Supabase Realtime
+      const wsOrigin = serverOrigin.replace(/^http/, 'ws');
+      if (urlStr.startsWith(wsOrigin)) {
+        return true;
+      }
+    } catch {
+      // Invalid URL format in env, do not allow
+    }
+  }
+
+  return false;
+}
+
 export function initializeOfflineGuard(): void {
   try {
     if (typeof window === 'undefined') return;
@@ -105,13 +145,7 @@ export function initializeOfflineGuard(): void {
       const guardedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 
-        // Allow internal blob and data URIs, local root paths, and same-origin requests
-        if (
-          url.startsWith('blob:') ||
-          url.startsWith('data:') ||
-          url.startsWith('/') ||
-          (typeof window.location !== 'undefined' && window.location.origin && url.startsWith(window.location.origin))
-        ) {
+        if (isAllowedNetworkDestination(url)) {
           return originalFetch.call(window, input, init);
         }
 
@@ -141,12 +175,7 @@ export function initializeOfflineGuard(): void {
           password?: string | null
         ) {
           const urlStr = url.toString();
-          if (
-            !urlStr.startsWith('blob:') &&
-            !urlStr.startsWith('data:') &&
-            !urlStr.startsWith('/') &&
-            (typeof window.location === 'undefined' || !urlStr.startsWith(window.location.origin))
-          ) {
+          if (!isAllowedNetworkDestination(urlStr)) {
             const error = new OfflineGuardViolationError(urlStr);
             DiagnosticLogger.error('OfflineGuard', error.message);
             throw error;
@@ -197,9 +226,11 @@ export function initializeOfflineGuard(): void {
       try {
         const GuardedWebSocket = function (url: string | URL) {
           const urlStr = typeof url === 'string' ? url : url.href;
-          const error = new OfflineGuardViolationError(urlStr);
-          DiagnosticLogger.error('OfflineGuard', error.message);
-          throw error;
+          if (!isAllowedNetworkDestination(urlStr)) {
+            const error = new OfflineGuardViolationError(urlStr);
+            DiagnosticLogger.error('OfflineGuard', error.message);
+            throw error;
+          }
         } as unknown as typeof WebSocket;
         safelyOverrideProperty(window, 'WebSocket', GuardedWebSocket);
       } catch (err) {
@@ -215,9 +246,11 @@ export function initializeOfflineGuard(): void {
       try {
         const GuardedEventSource = function (url: string | URL) {
           const urlStr = typeof url === 'string' ? url : url.href;
-          const error = new OfflineGuardViolationError(urlStr);
-          DiagnosticLogger.error('OfflineGuard', error.message);
-          throw error;
+          if (!isAllowedNetworkDestination(urlStr)) {
+            const error = new OfflineGuardViolationError(urlStr);
+            DiagnosticLogger.error('OfflineGuard', error.message);
+            throw error;
+          }
         } as unknown as typeof EventSource;
         safelyOverrideProperty(window, 'EventSource', GuardedEventSource);
       } catch (err) {

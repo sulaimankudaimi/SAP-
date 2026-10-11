@@ -7,6 +7,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { FleetService } from '../services/FleetService';
+import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
 import type {
@@ -54,6 +55,29 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [availableMaterials, setAvailableMaterials] = useState<Material[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { saveWithConflict, ConflictModal } = useSaveWithConflict({
+    onReload: async () => {
+      if (existingOrder) {
+        const fresh = await FleetService.getMaintenanceOrderById(existingOrder.id);
+        if (fresh) {
+          setLaborHours(fresh.laborHours || 4);
+          setDowntimeHours(fresh.downtimeHours || 6);
+        }
+      }
+    },
+    fetchLatest: async () => {
+      if (!existingOrder) return undefined;
+      const order = await FleetService.getMaintenanceOrderById(existingOrder.id);
+      return order as unknown as Record<string, unknown>;
+    },
+    fieldLabels: {
+      laborHours: 'ساعات العمل اليدوي',
+      downtimeHours: 'ساعات التوقف عن العمل',
+      completionDate: 'تاريخ الإغلاق الفعلي',
+      partsCost: 'تكلفة قطع الغيار',
+    },
+  });
 
   // Order Details
   const [vehicleId, setVehicleId] = useState('');
@@ -180,10 +204,20 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const { order, materialDocNumber } = await FleetService.issuePartsToMaintenanceOrder(
-        existingOrder.id,
-        partsToIssue
+      const result = await saveWithConflict(
+        () =>
+          FleetService.issuePartsToMaintenanceOrder(
+            existingOrder.id,
+            partsToIssue,
+            '1100',
+            'u-flt-mgr',
+            existingOrder.version
+          ),
+        { partsCount: partsToIssue.length }
       );
+
+      if (!result) return;
+      const { materialDocNumber } = result;
 
       success(
         'تم صرف قطع الغيار بنجاح (حركة 261)',
@@ -205,12 +239,28 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const completed = await FleetService.completeMaintenanceOrder(existingOrder.id, {
-        laborHours,
-        laborRatePerHour: laborRate,
-        downtimeHours,
-        completionDate,
-      });
+      const completed = await saveWithConflict(
+        () =>
+          FleetService.completeMaintenanceOrder(
+            existingOrder.id,
+            {
+              laborHours,
+              laborRatePerHour: laborRate,
+              downtimeHours,
+              completionDate,
+            },
+            'u-flt-mgr',
+            existingOrder.version
+          ),
+        {
+          laborHours,
+          laborRatePerHour: laborRate,
+          downtimeHours,
+          completionDate,
+        }
+      );
+
+      if (!completed) return;
 
       success(
         'تم إغلاق أمر الصيانة بنجاح',
@@ -604,6 +654,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
           </div>
         </form>
       )}
+      <ConflictModal />
     </Modal>
   );
 };

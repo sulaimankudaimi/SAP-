@@ -18,11 +18,21 @@ export interface RepositoryQuery<T> {
   includeDeleted?: boolean;
 }
 
+export interface UpdateOptions {
+  expectedVersion?: number;
+}
+
 export interface IRepository<T extends { id: string; isDeleted?: boolean }> {
   getById(id: string): Promise<T | undefined>;
   list(query?: RepositoryQuery<T>): Promise<T[]>;
   create(entity: T, context?: ActionContext | string, userName?: string): Promise<T>;
-  update(id: string, patch: Partial<T>, context?: ActionContext | string, userName?: string): Promise<T>;
+  update(
+    id: string,
+    patch: Partial<T>,
+    context?: ActionContext | string | UpdateOptions,
+    userNameOrOptions?: string | UpdateOptions,
+    options?: UpdateOptions
+  ): Promise<T>;
   delete(id: string, context?: ActionContext | string, userName?: string): Promise<boolean>;
   count(query?: RepositoryQuery<T>): Promise<number>;
   bulkCreate(entities: T[], context?: ActionContext | string, userName?: string): Promise<void>;

@@ -8,8 +8,18 @@ export const injectCspPlugin: Plugin = {
   name: 'inject-csp',
   apply: 'build',
   transformIndexHtml(html: string) {
+    let connectSrc = "'self'";
+    if (process.env.VITE_SERVER_MODE === 'true' && process.env.VITE_ERP_SERVER_URL) {
+      try {
+        const origin = new URL(process.env.VITE_ERP_SERVER_URL).origin;
+        const wsOrigin = origin.replace(/^http/, 'ws');
+        connectSrc = `'self' ${origin} ${wsOrigin}`;
+      } catch {
+        // Fallback to 'self'
+      }
+    }
     const cspContent =
-      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+      `default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src ${connectSrc}; object-src 'none'; base-uri 'self'; form-action 'self'`;
     const metaTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}" />`;
     return html.replace(/<head>/i, `<head>\n    ${metaTag}`);
   },

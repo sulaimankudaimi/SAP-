@@ -10,6 +10,7 @@ import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
 import { getErrorMessage } from '../../../core/utils';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import type { Vehicle, VehicleType } from '../../../types/models';
 import {
   Truck,
@@ -26,6 +27,7 @@ import {
   Eye,
   CheckCircle2,
   RefreshCw,
+  Edit,
 } from 'lucide-react';
 
 const VALID_VEHICLE_TYPES: readonly VehicleType[] = ['Tanker', 'HeavyTruck', 'LightTruck', 'Crane', 'Trailer'];
@@ -68,6 +70,76 @@ export const VehiclesListPage: React.FC = () => {
   const [newOdometer, setNewOdometer] = useState(65000);
   const [newInsuranceExpiry, setNewInsuranceExpiry] = useState('2027-04-15');
   const [newRegistrationExpiry, setNewRegistrationExpiry] = useState('2027-06-30');
+
+  // Edit Vehicle Modal & Conflict Guard
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editMakeModel, setEditMakeModel] = useState('');
+  const [editCurrentOdometer, setEditCurrentOdometer] = useState(0);
+  const [editCapacity, setEditCapacity] = useState(0);
+
+  const { saveWithConflict, ConflictModal } = useSaveWithConflict({
+    onReload: async () => {
+      if (editingVehicle) {
+        const fresh = await FleetService.getVehicleById(editingVehicle.id);
+        if (fresh) {
+          setEditingVehicle(fresh);
+          setEditMakeModel(fresh.makeModel);
+          setEditCurrentOdometer(fresh.currentOdometer);
+          setEditCapacity(fresh.capacityLiters);
+        }
+      }
+      loadVehicles();
+    },
+    fetchLatest: async () => {
+      if (!editingVehicle) return undefined;
+      const v = await FleetService.getVehicleById(editingVehicle.id);
+      return v as unknown as Record<string, unknown>;
+    },
+    fieldLabels: {
+      makeModel: 'الموديل والصانع',
+      currentOdometer: 'قراءة العداد الحالية',
+      capacityLiters: 'سعة الحمولة',
+    },
+  });
+
+  const handleOpenEditModal = (v: Vehicle) => {
+    setEditingVehicle(v);
+    setEditMakeModel(v.makeModel);
+    setEditCurrentOdometer(v.currentOdometer);
+    setEditCapacity(v.capacityLiters);
+  };
+
+  const handleSaveEditVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVehicle) return;
+
+    const localData = {
+      makeModel: editMakeModel,
+      currentOdometer: editCurrentOdometer,
+      capacityLiters: editCapacity,
+    };
+
+    try {
+      const res = await saveWithConflict(
+        () =>
+          FleetService.updateVehicle(
+            editingVehicle.id,
+            localData,
+            'u-flt-mgr',
+            editingVehicle.version
+          ),
+        localData
+      );
+
+      if (!res) return;
+
+      success('تم التحديث بنجاح', `تم تحديث بيانات الشاحنة ${editingVehicle.plateNumber}`);
+      setEditingVehicle(null);
+      loadVehicles();
+    } catch (err: unknown) {
+      error('خطأ', getErrorMessage(err));
+    }
+  };
 
   const loadVehicles = async () => {
     setIsLoading(true);
@@ -346,14 +418,24 @@ export const VehiclesListPage: React.FC = () => {
                     {getStatusBadge(v.status)}
                   </td>
                   <td className="p-3 text-center">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<DollarSign className="w-3.5 h-3.5" />}
-                      onClick={() => handleOpenCostReport(v.id)}
-                    >
-                      التكلفة / كم
-                    </Button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Edit className="w-3.5 h-3.5" />}
+                        onClick={() => handleOpenEditModal(v)}
+                      >
+                        تعديل
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<DollarSign className="w-3.5 h-3.5" />}
+                        onClick={() => handleOpenCostReport(v.id)}
+                      >
+                        التكلفة / كم
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -557,6 +639,66 @@ export const VehiclesListPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Edit Vehicle Modal with Optimistic Concurrency */}
+      {editingVehicle && (
+        <Modal
+          isOpen={!!editingVehicle}
+          onClose={() => setEditingVehicle(null)}
+          title={`تعديل بيانات المركبة [${editingVehicle.plateNumber}]`}
+          size="md"
+        >
+          <form onSubmit={handleSaveEditVehicle} className="space-y-4 text-start" dir="rtl">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs flex justify-between">
+              <div>
+                <span className="font-bold text-[#0F172A] block">{editingVehicle.makeModel}</span>
+                <span className="text-[#64748B]">كود المركبة: {editingVehicle.code}</span>
+              </div>
+              <div className="text-end font-mono">
+                <span className="text-[#64748B] block text-[11px]">الإصدار (Version)</span>
+                <span className="font-bold text-blue-700">v{editingVehicle.version || 1}</span>
+              </div>
+            </div>
+
+            <Input
+              label="الموديل والصانع (Make & Model):"
+              value={editMakeModel}
+              onChange={(e) => setEditMakeModel(e.target.value)}
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="قراءة العداد (كم):"
+                type="number"
+                value={editCurrentOdometer}
+                onChange={(e) => setEditCurrentOdometer(parseInt(e.target.value) || 0)}
+                required
+              />
+              <Input
+                label="سعة الحمولة (لتر):"
+                type="number"
+                value={editCapacity}
+                onChange={(e) => setEditCapacity(parseInt(e.target.value) || 0)}
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5EAF2]">
+              <Button type="button" variant="secondary" onClick={() => setEditingVehicle(null)}>
+                إلغاء
+              </Button>
+              <Button type="submit" variant="primary" icon={<CheckCircle2 className="w-4 h-4" />}>
+                حفظ التعديلات
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Concurrent Conflict Dialog */}
+      <ConflictModal />
     </div>
   );
 };
+

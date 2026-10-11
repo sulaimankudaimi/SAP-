@@ -7,6 +7,7 @@ import { CryptoService } from '../services/crypto';
 import { userRepository, roleRepository } from '../repositories';
 import { SessionContext } from '../security/SessionContext';
 import { AuditService } from '../services/AuditService';
+import { ServerAuthService } from '../gateway/ServerAuthService';
 
 const SESSION_STORAGE_KEY = 'gulf_auth_session';
 
@@ -58,6 +59,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isAuthenticated: false, isBootRestoring: false });
         SessionContext.clearActor();
         return false;
+      }
+
+      // If Server Mode is enabled, try restoring session from Supabase client storage
+      if (ServerAuthService.isServerMode()) {
+        try {
+          const serverSession = await ServerAuthService.restoreSession();
+          if (serverSession) {
+            set({
+              user: serverSession.user,
+              role: serverSession.role,
+              token: serverSession.token,
+              expiresAt: serverSession.expiresAt,
+              isAuthenticated: true,
+              isAutoLocked: false,
+              isBootRestoring: false,
+              lastActivity: Date.now(),
+            });
+
+            SessionContext.setActor({
+              userId: serverSession.user.id,
+              username: serverSession.user.username,
+              role: serverSession.role,
+            });
+            return true;
+          }
+        } catch {
+          // If server restore fails, fall back to local or logout
+        }
       }
 
       const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -174,6 +203,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {
       // Ignore
+    }
+
+    if (ServerAuthService.isServerMode()) {
+      ServerAuthService.signOut().catch(() => {});
     }
 
     SessionContext.clearActor();

@@ -4,6 +4,9 @@ import { AuditService } from '../../../core/services/AuditService';
 import { InventoryService } from '../../inventory/services/InventoryService';
 import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
 import { requirePermission } from '../../../core/security/SessionContext';
+import { ConcurrencyError } from '../../../core/errors';
+import { getServerGateway, OutboxManager, connectivity } from '../../../core/gateway';
+import { getServerGateway, OutboxManager, connectivity } from '../../../core/gateway';
 import type {
   Vehicle,
   VehicleType,
@@ -123,29 +126,42 @@ export class FleetService {
   static async updateVehicle(
     id: string,
     data: Partial<Vehicle>,
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<Vehicle> {
-    const before = await db.vehicles.get(id);
-    if (!before) throw new Error('المركبة غير موجودة');
     requirePermission({ module: 'TM', activity: 'change' });
 
-    const updated: Vehicle = {
-      ...before,
-      ...data,
-    };
+    return await db.transaction('rw', [db.vehicles, db.auditLogs], async () => {
+      const before = await db.vehicles.get(id);
+      if (!before || before.isDeleted) throw new Error('المركبة غير موجودة');
 
-    await db.vehicles.put(updated);
+      if (expectedVersion !== undefined) {
+        const storedVer = typeof before.version === 'number' ? before.version : 1;
+        if (storedVer !== expectedVersion) {
+          throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+        }
+      }
 
-    await AuditService.log({
-      userId,
-      action: 'UPDATE',
-      entity: 'Vehicle',
-      entityId: id,
-      before: before as unknown as Record<string, unknown>,
-      after: updated as unknown as Record<string, unknown>,
+      const currentVer = typeof before.version === 'number' ? before.version : 1;
+      const updated: Vehicle = {
+        ...before,
+        ...data,
+        version: currentVer + 1,
+      };
+
+      await db.vehicles.put(updated);
+
+      await AuditService.log({
+        userId,
+        action: 'UPDATE',
+        entity: 'Vehicle',
+        entityId: id,
+        before: before as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+      });
+
+      return updated;
     });
-
-    return updated;
   }
 
   static async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
@@ -242,29 +258,42 @@ export class FleetService {
   static async updateDriver(
     id: string,
     data: Partial<Driver>,
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<Driver> {
     requirePermission({ module: 'TM', activity: 'change' });
-    const before = await db.drivers.get(id);
-    if (!before) throw new Error('السائق غير موجود');
 
-    const updated: Driver = {
-      ...before,
-      ...data,
-    };
+    return await db.transaction('rw', [db.drivers, db.auditLogs], async () => {
+      const before = await db.drivers.get(id);
+      if (!before || before.isDeleted) throw new Error('السائق غير موجود');
 
-    await db.drivers.put(updated);
+      if (expectedVersion !== undefined) {
+        const storedVer = typeof before.version === 'number' ? before.version : 1;
+        if (storedVer !== expectedVersion) {
+          throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+        }
+      }
 
-    await AuditService.log({
-      userId,
-      action: 'UPDATE',
-      entity: 'Driver',
-      entityId: id,
-      before: before as unknown as Record<string, unknown>,
-      after: updated as unknown as Record<string, unknown>,
+      const currentVer = typeof before.version === 'number' ? before.version : 1;
+      const updated: Driver = {
+        ...before,
+        ...data,
+        version: currentVer + 1,
+      };
+
+      await db.drivers.put(updated);
+
+      await AuditService.log({
+        userId,
+        action: 'UPDATE',
+        entity: 'Driver',
+        entityId: id,
+        before: before as unknown as Record<string, unknown>,
+        after: updated as unknown as Record<string, unknown>,
+      });
+
+      return updated;
     });
-
-    return updated;
   }
 
   /**
@@ -284,6 +313,12 @@ export class FleetService {
     }
 
     return trips.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  static async getTripById(id: string): Promise<Trip | null> {
+    const t = await db.trips.get(id);
+    if (!t || t.isDeleted) return null;
+    return t;
   }
 
   static async createTrip(
@@ -376,12 +411,20 @@ export class FleetService {
       fuelCost?: number;
       driverAllowanceCost?: number;
     },
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<Trip> {
     const trip = await db.trips.get(tripId);
     if (!trip) throw new Error('الرحلة غير موجودة');
 
     requirePermission({ module: 'TM', activity: 'change' }, { plant: trip.originPlant });
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof trip.version === 'number' ? trip.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
     if (input.endOdometer < trip.startOdometer) {
       throw new Error(
@@ -688,6 +731,12 @@ export class FleetService {
     return orders.sort((a, b) => b.startDate.localeCompare(a.startDate));
   }
 
+  static async getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null> {
+    const mo = await db.maintenanceOrders.get(id);
+    if (!mo || mo.isDeleted) return null;
+    return mo;
+  }
+
   static async createMaintenanceOrder(
     input: {
       vehicleId: string;
@@ -708,46 +757,50 @@ export class FleetService {
       { amount: input.estimatedCost }
     );
 
-    const docNumber = await NumberRangeService.getNextNumber('MO', '2026');
     const now = new Date().toISOString();
+    let order!: MaintenanceOrder;
 
-    const order: MaintenanceOrder = {
-      id: `mo-${Date.now()}`,
-      docNumber,
-      status: 'in_progress',
-      vehicleId: input.vehicleId,
-      vehiclePlate: vehicle.plateNumber,
-      orderType: input.orderType,
-      description: input.description,
-      faultReported: input.faultReported,
-      estimatedCost: input.estimatedCost,
-      actualCost: 0,
-      partsCost: 0,
-      laborCost: 0,
-      laborHours: 0,
-      startDate: input.startDate,
-      downtimeHours: 0,
-      partsUsed: [],
-      preventiveScheduleId: input.preventiveScheduleId,
-      createdBy: userId,
-      createdAt: now,
-      updatedBy: userId,
-      updatedAt: now,
-      version: 1,
-      isDeleted: false,
-    };
+    await db.transaction('rw', [db.vehicles, db.maintenanceOrders, db.numberRanges, db.auditLogs], async () => {
+      const docNumber = await NumberRangeService.getNextNumber('MO', '2026');
 
-    // Mark vehicle under maintenance
-    await db.vehicles.update(vehicle.id, { status: 'maintenance' });
+      order = {
+        id: `mo-${Date.now()}`,
+        docNumber,
+        status: 'in_progress',
+        vehicleId: input.vehicleId,
+        vehiclePlate: vehicle.plateNumber,
+        orderType: input.orderType,
+        description: input.description,
+        faultReported: input.faultReported,
+        estimatedCost: input.estimatedCost,
+        actualCost: 0,
+        partsCost: 0,
+        laborCost: 0,
+        laborHours: 0,
+        startDate: input.startDate,
+        downtimeHours: 0,
+        partsUsed: [],
+        preventiveScheduleId: input.preventiveScheduleId,
+        createdBy: userId,
+        createdAt: now,
+        updatedBy: userId,
+        updatedAt: now,
+        version: 1,
+        isDeleted: false,
+      };
 
-    await db.maintenanceOrders.add(order);
+      // Mark vehicle under maintenance
+      await db.vehicles.update(vehicle.id, { status: 'maintenance' });
 
-    await AuditService.log({
-      userId,
-      action: 'CREATE',
-      entity: 'MaintenanceOrder',
-      entityId: order.id,
-      after: order as unknown as Record<string, unknown>,
+      await db.maintenanceOrders.add(order);
+
+      await AuditService.log({
+        userId,
+        action: 'CREATE',
+        entity: 'MaintenanceOrder',
+        entityId: order.id,
+        after: order as unknown as Record<string, unknown>,
+      });
     });
 
     return order;
@@ -760,10 +813,18 @@ export class FleetService {
     orderId: string,
     parts: MaintenancePartItem[],
     plantCode: string = '1100',
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
     const order = await db.maintenanceOrders.get(orderId);
     if (!order) throw new Error('أمر الصيانة غير موجود');
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof order.version === 'number' ? order.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
     if (parts.length === 0) {
       throw new Error('يرجى تحديد قطعة غيار واحدة على الأقل للصرف');
@@ -851,12 +912,20 @@ export class FleetService {
       downtimeHours: number;
       completionDate: string;
     },
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<MaintenanceOrder> {
     const order = await db.maintenanceOrders.get(orderId);
     if (!order) throw new Error('أمر الصيانة غير موجود');
 
     requirePermission({ module: 'TM', activity: 'change' });
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof order.version === 'number' ? order.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
     const laborRate = input.laborRatePerHour || 120; // 120 SAR per tech hour
     const laborCost = input.laborHours * laborRate;

@@ -1,6 +1,9 @@
-import type { Table } from 'dexie';
-import type { IRepository, RepositoryQuery, ActionContext } from './IRepository';
+import Dexie, { type Table } from 'dexie';
+import type { IRepository, RepositoryQuery, ActionContext, UpdateOptions } from './IRepository';
 import { AuditService } from '../services/AuditService';
+import { ConcurrencyError } from '../errors';
+import { DependencyGuard } from '../security/DependencyGuard';
+import { db } from '../db';
 
 export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: string]: unknown }>
   implements IRepository<T>
@@ -95,6 +98,7 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
     const context = this.resolveContext(contextOrUserId, userName);
     const itemToSave = {
       ...entity,
+      version: typeof entity.version === 'number' ? entity.version : 1,
       isDeleted: false,
     };
     await this.table.add(itemToSave);
@@ -103,49 +107,119 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
     return itemToSave;
   }
 
-  async update(id: string, patch: Partial<T>, contextOrUserId?: ActionContext | string, userName?: string): Promise<T> {
-    const context = this.resolveContext(contextOrUserId, userName);
-    const existing = await this.table.get(id);
-    if (!existing || existing.isDeleted) {
-      throw new Error(`Record with ID ${id} not found in ${this.entityName}`);
+  async update(
+    id: string,
+    patch: Partial<T>,
+    contextOrUserId?: ActionContext | string | UpdateOptions,
+    userNameOrOptions?: string | UpdateOptions,
+    explicitOptions?: UpdateOptions
+  ): Promise<T> {
+    let options: UpdateOptions | undefined;
+    let contextCandidate: ActionContext | string | undefined;
+    let uName: string | undefined;
+
+    if (contextOrUserId && typeof contextOrUserId === 'object' && 'expectedVersion' in contextOrUserId) {
+      options = contextOrUserId as UpdateOptions;
+    } else {
+      contextCandidate = contextOrUserId as ActionContext | string | undefined;
     }
 
-    const updated = {
-      ...existing,
-      ...patch,
-      updatedAt: new Date().toISOString(),
+    if (userNameOrOptions && typeof userNameOrOptions === 'object' && 'expectedVersion' in userNameOrOptions) {
+      options = userNameOrOptions as UpdateOptions;
+    } else if (typeof userNameOrOptions === 'string') {
+      uName = userNameOrOptions;
+    }
+
+    if (explicitOptions) {
+      options = explicitOptions;
+    }
+
+    const context = this.resolveContext(contextCandidate, uName);
+
+    const executeUpdate = async (): Promise<T> => {
+      const existing = await this.table.get(id);
+      if (!existing || existing.isDeleted) {
+        throw new Error(`Record with ID ${id} not found in ${this.entityName}`);
+      }
+
+      if (options?.expectedVersion !== undefined) {
+        const storedVer = typeof existing.version === 'number' ? existing.version : 1;
+        if (storedVer !== options.expectedVersion) {
+          throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+        }
+      }
+
+      const currentVer = typeof existing.version === 'number' ? existing.version : 1;
+      const nextVersion = currentVer + 1;
+
+      const updated = {
+        ...existing,
+        ...patch,
+        version: nextVersion,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await this.table.put(updated);
+
+      const action = 'status' in patch && Object.keys(patch).length <= 3 ? 'STATUS_CHANGE' : 'UPDATE';
+      await AuditService.log(action, this.entityName, id, existing, updated, context);
+
+      return updated;
     };
 
-    await this.table.put(updated);
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    if (currentTx?.storeNames?.includes(this.table.name)) {
+      return await executeUpdate();
+    }
 
-    const action = 'status' in patch && Object.keys(patch).length <= 3 ? 'STATUS_CHANGE' : 'UPDATE';
-    await AuditService.log(action, this.entityName, id, existing, updated, context);
-
-    return updated;
+    return await db.transaction('rw', [this.table, db.auditLogs], async () => {
+      return await executeUpdate();
+    });
   }
 
   async delete(id: string, contextOrUserId?: ActionContext | string, userName?: string): Promise<boolean> {
     const context = this.resolveContext(contextOrUserId, userName);
-    const existing = await this.table.get(id);
-    if (!existing || existing.isDeleted) {
-      return false;
+
+    const executeDelete = async (): Promise<boolean> => {
+      const existing = await this.table.get(id);
+      if (!existing || existing.isDeleted) {
+        return false;
+      }
+
+      // Check dependent documents and posted statuses inside transaction
+      await DependencyGuard.check(this.entityName, id);
+
+      // Soft delete
+      const patched = {
+        ...existing,
+        isDeleted: true,
+        updatedAt: new Date().toISOString(),
+      };
+      await this.table.put(patched);
+
+      await AuditService.log('DELETE', this.entityName, id, existing, patched, context);
+      return true;
+    };
+
+    const currentTx = Dexie.currentTransaction || (db as unknown as { _currentTransaction?: { storeNames?: string[] } })._currentTransaction;
+    const requiredTables = [this.table, ...DependencyGuard.getTablesForEntity(this.entityName)];
+
+    if (currentTx && requiredTables.every((t) => currentTx.storeNames?.includes(t.name))) {
+      return await executeDelete();
     }
 
-    // Soft delete
-    const patched = {
-      ...existing,
-      isDeleted: true,
-      updatedAt: new Date().toISOString(),
-    };
-    await this.table.put(patched);
-
-    await AuditService.log('DELETE', this.entityName, id, existing, patched, context);
-    return true;
+    return await db.transaction('rw', requiredTables, async () => {
+      return await executeDelete();
+    });
   }
 
   async bulkCreate(entities: T[], contextOrUserId?: ActionContext | string, userName?: string): Promise<void> {
     const context = this.resolveContext(contextOrUserId, userName);
-    const items = entities.map((e) => ({ ...e, isDeleted: false }));
+    const items = entities.map((e) => ({
+      ...e,
+      version: typeof e.version === 'number' ? e.version : 1,
+      isDeleted: false,
+    }));
     await this.table.bulkAdd(items);
 
     if (context) {
