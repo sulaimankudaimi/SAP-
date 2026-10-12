@@ -12,10 +12,9 @@ export const injectCspPlugin: Plugin = {
     if (process.env.VITE_SERVER_MODE === 'true' && process.env.VITE_ERP_SERVER_URL) {
       try {
         const origin = new URL(process.env.VITE_ERP_SERVER_URL).origin;
-        const wsOrigin = origin.replace(/^http/, 'ws');
-        connectSrc = `'self' ${origin} ${wsOrigin}`;
+        connectSrc = `'self' ${origin}`;
       } catch {
-        // Fallback to 'self'
+        // fallback to 'self'
       }
     }
     const cspContent =

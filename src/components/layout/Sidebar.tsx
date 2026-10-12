@@ -160,6 +160,7 @@ export const navigationConfig: NavItemWithModule[] = [
       { id: 'trips', path: '/fleet/trips', titleKey: 'nav_trips' },
       { id: 'fuel', path: '/fleet/fuel', titleKey: 'nav_fuel' },
       { id: 'maintenance', path: '/fleet/maintenance', titleKey: 'nav_fleet_maintenance' },
+      { id: 'outbox', path: '/fleet/outbox', titleKey: 'nav_fleet_outbox' },
     ],
   },
   {

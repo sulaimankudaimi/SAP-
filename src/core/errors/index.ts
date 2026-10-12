@@ -1,10 +1,4 @@
-export class ConcurrencyError extends Error {
-  constructor(message: string = 'تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.') {
-    super(message);
-    this.name = 'ConcurrencyError';
-    Object.setPrototypeOf(this, ConcurrencyError.prototype);
-  }
-}
+export * from './ConcurrencyError';
 
 export class DependencyError extends Error {
   public blockingReferences: string[];

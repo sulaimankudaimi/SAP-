@@ -96,6 +96,15 @@ export class NavBadgeService {
       reorderAlerts = 0;
     }
 
+    let pendingOutbox = 0;
+    try {
+      pendingOutbox = await db.outbox
+        .filter((o) => o.status === 'pending' || o.status === 'sending' || o.status === 'needs_review')
+        .count();
+    } catch {
+      pendingOutbox = 0;
+    }
+
     return {
       pr: pendingPr,
       po: pendingPo,
@@ -105,6 +114,8 @@ export class NavBadgeService {
       ap: blockedInvoices,
       reorder: reorderAlerts,
       inventory: reorderAlerts,
+      outbox: pendingOutbox,
+      fleet: pendingOutbox,
       // Named aliases for test convenience
       pendingPR: pendingPr,
       pendingPO: pendingPo,

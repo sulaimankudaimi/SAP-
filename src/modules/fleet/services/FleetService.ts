@@ -4,9 +4,10 @@ import { AuditService } from '../../../core/services/AuditService';
 import { InventoryService } from '../../inventory/services/InventoryService';
 import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
 import { requirePermission } from '../../../core/security/SessionContext';
-import { ConcurrencyError } from '../../../core/errors';
-import { getServerGateway, OutboxManager, connectivity } from '../../../core/gateway';
-import { getServerGateway, OutboxManager, connectivity } from '../../../core/gateway';
+import { isServerMode, useConnectivityStore } from '../../../core/gateway/connectivity';
+import { dataGateway } from '../../../core/gateway/ServerGateway';
+import { OutboxEngine, OFFLINE_BLOCKED_ARABIC_EXPLANATION } from '../../../core/gateway/OutboxEngine';
+import { ConcurrencyError } from '../../../core/errors/ConcurrencyError';
 import type {
   Vehicle,
   VehicleType,
@@ -69,6 +70,10 @@ export class FleetService {
     status?: string | 'ALL';
     search?: string;
   }): Promise<Vehicle[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getVehicles(filters as import('../../../core/gateway/IDataGateway').VehicleFilters);
+    }
+
     let list = await db.vehicles.filter((v) => !v.isDeleted).toArray();
 
     if (filters) {
@@ -94,6 +99,9 @@ export class FleetService {
   }
 
   static async getVehicleById(id: string): Promise<Vehicle | null> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getVehicleById(id);
+    }
     const v = await db.vehicles.get(id);
     return v && !v.isDeleted ? v : null;
   }
@@ -103,10 +111,21 @@ export class FleetService {
     userId: string = 'u-flt-mgr'
   ): Promise<Vehicle> {
     requirePermission({ module: 'TM', activity: 'create' });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.createVehicle) {
+        return await dataGateway.instance.createVehicle({ ...data, version: 1 });
+      }
+    }
+
     const id = `veh-${Date.now()}`;
     const vehicle: Vehicle = {
       ...data,
       id,
+      version: 1,
       isDeleted: false,
     };
 
@@ -131,40 +150,50 @@ export class FleetService {
   ): Promise<Vehicle> {
     requirePermission({ module: 'TM', activity: 'change' });
 
-    return await db.transaction('rw', [db.vehicles, db.auditLogs], async () => {
-      const before = await db.vehicles.get(id);
-      if (!before || before.isDeleted) throw new Error('المركبة غير موجودة');
-
-      if (expectedVersion !== undefined) {
-        const storedVer = typeof before.version === 'number' ? before.version : 1;
-        if (storedVer !== expectedVersion) {
-          throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
-        }
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
+      if (dataGateway.instance.updateVehicle) {
+        return await dataGateway.instance.updateVehicle(id, data, expectedVersion);
+      }
+    }
 
-      const currentVer = typeof before.version === 'number' ? before.version : 1;
-      const updated: Vehicle = {
-        ...before,
-        ...data,
-        version: currentVer + 1,
-      };
+    const before = await db.vehicles.get(id);
+    if (!before) throw new Error('المركبة غير موجودة');
 
-      await db.vehicles.put(updated);
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof before.version === 'number' ? before.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
-      await AuditService.log({
-        userId,
-        action: 'UPDATE',
-        entity: 'Vehicle',
-        entityId: id,
-        before: before as unknown as Record<string, unknown>,
-        after: updated as unknown as Record<string, unknown>,
-      });
+    const updated: Vehicle = {
+      ...before,
+      ...data,
+      version: (before.version || 1) + 1,
+    };
 
-      return updated;
+    await db.vehicles.put(updated);
+
+    await AuditService.log({
+      userId,
+      action: 'UPDATE',
+      entity: 'Vehicle',
+      entityId: id,
+      before: before as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
     });
+
+    return updated;
   }
 
   static async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getVehicleExpiryAlerts();
+    }
+
     const vehicles = await db.vehicles.filter((v) => !v.isDeleted).toArray();
     const alerts: ExpiryAlert[] = [];
     const now = new Date();
@@ -219,13 +248,38 @@ export class FleetService {
   /**
    * 2. DRIVERS MASTER DATA
    */
-  static async getDrivers(): Promise<Driver[]> {
-    return (await db.drivers.filter((d) => !d.isDeleted).toArray()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
+  static async getDrivers(filters?: {
+    status?: string | 'ALL';
+    assignedPlant?: string;
+    search?: string;
+  }): Promise<Driver[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getDrivers(filters as import('../../../core/gateway/IDataGateway').DriverFilters);
+    }
+
+    let list = await db.drivers.filter((d) => !d.isDeleted).toArray();
+
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter((d) => d.status === filters.status);
+    }
+    if (filters?.search && filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      list = list.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.code.toLowerCase().includes(q) ||
+          d.mobile.includes(q) ||
+          d.licenseNumber.includes(q)
+      );
+    }
+
+    return list.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   static async getDriverById(id: string): Promise<Driver | null> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getDriverById(id);
+    }
     const d = await db.drivers.get(id);
     return d && !d.isDeleted ? d : null;
   }
@@ -235,10 +289,21 @@ export class FleetService {
     userId: string = 'u-flt-mgr'
   ): Promise<Driver> {
     requirePermission({ module: 'TM', activity: 'create' });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.createDriver) {
+        return await dataGateway.instance.createDriver({ ...data, version: 1 });
+      }
+    }
+
     const id = `drv-${Date.now()}`;
     const driver: Driver = {
       ...data,
       id,
+      version: 1,
       isDeleted: false,
     };
 
@@ -263,37 +328,43 @@ export class FleetService {
   ): Promise<Driver> {
     requirePermission({ module: 'TM', activity: 'change' });
 
-    return await db.transaction('rw', [db.drivers, db.auditLogs], async () => {
-      const before = await db.drivers.get(id);
-      if (!before || before.isDeleted) throw new Error('السائق غير موجود');
-
-      if (expectedVersion !== undefined) {
-        const storedVer = typeof before.version === 'number' ? before.version : 1;
-        if (storedVer !== expectedVersion) {
-          throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
-        }
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
+      if (dataGateway.instance.updateDriver) {
+        return await dataGateway.instance.updateDriver(id, data, expectedVersion);
+      }
+    }
 
-      const currentVer = typeof before.version === 'number' ? before.version : 1;
-      const updated: Driver = {
-        ...before,
-        ...data,
-        version: currentVer + 1,
-      };
+    const before = await db.drivers.get(id);
+    if (!before) throw new Error('السائق غير موجود');
 
-      await db.drivers.put(updated);
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof before.version === 'number' ? before.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
 
-      await AuditService.log({
-        userId,
-        action: 'UPDATE',
-        entity: 'Driver',
-        entityId: id,
-        before: before as unknown as Record<string, unknown>,
-        after: updated as unknown as Record<string, unknown>,
-      });
+    const updated: Driver = {
+      ...before,
+      ...data,
+      version: (before.version || 1) + 1,
+    };
 
-      return updated;
+    await db.drivers.put(updated);
+
+    await AuditService.log({
+      userId,
+      action: 'UPDATE',
+      entity: 'Driver',
+      entityId: id,
+      before: before as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
     });
+
+    return updated;
   }
 
   /**
@@ -302,7 +373,13 @@ export class FleetService {
   static async getTrips(filters?: {
     status?: string | 'ALL';
     vehicleId?: string;
+    driverId?: string;
+    originPlant?: string;
   }): Promise<Trip[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getTrips(filters as import('../../../core/gateway/IDataGateway').TripFilters);
+    }
+
     let trips = await db.trips.filter((t) => !t.isDeleted).toArray();
 
     if (filters?.status && filters.status !== 'ALL') {
@@ -311,14 +388,22 @@ export class FleetService {
     if (filters?.vehicleId) {
       trips = trips.filter((t) => t.vehicleId === filters.vehicleId);
     }
+    if (filters?.driverId) {
+      trips = trips.filter((t) => t.driverId === filters.driverId);
+    }
+    if (filters?.originPlant) {
+      trips = trips.filter((t) => t.originPlant === filters.originPlant);
+    }
 
     return trips.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   static async getTripById(id: string): Promise<Trip | null> {
-    const t = await db.trips.get(id);
-    if (!t || t.isDeleted) return null;
-    return t;
+    if (isServerMode()) {
+      return await dataGateway.instance.getTripById(id);
+    }
+    const trip = await db.trips.get(id);
+    return trip && !trip.isDeleted ? trip : null;
   }
 
   static async createTrip(
@@ -333,15 +418,27 @@ export class FleetService {
       scheduledArrival: string;
       startOdometer: number;
     },
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<Trip> {
+    requirePermission({ module: 'TM', activity: 'create' }, { plant: input.originPlant });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      return await dataGateway.instance.createTrip({
+        ...input,
+        userId,
+        expectedVersion,
+      });
+    }
+
     const vehicle = await db.vehicles.get(input.vehicleId);
     if (!vehicle) throw new Error('المركبة المحددة غير موجودة');
 
     const driver = await db.drivers.get(input.driverId);
     if (!driver) throw new Error('السائق المحدد غير موجود');
-
-    requirePermission({ module: 'TM', activity: 'create' }, { plant: input.originPlant });
 
     const now = new Date().toISOString();
     let trip!: Trip;
@@ -415,6 +512,20 @@ export class FleetService {
     expectedVersion?: number
   ): Promise<Trip> {
     const trip = await db.trips.get(tripId);
+
+    if (isServerMode()) {
+      requirePermission({ module: 'TM', activity: 'change' }, { plant: trip?.originPlant });
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      return await dataGateway.instance.completeTrip({
+        tripId,
+        ...input,
+        userId,
+        expectedVersion,
+      });
+    }
+
     if (!trip) throw new Error('الرحلة غير موجودة');
 
     requirePermission({ module: 'TM', activity: 'change' }, { plant: trip.originPlant });
@@ -541,6 +652,10 @@ export class FleetService {
    * 4. FUEL MANAGEMENT & ANOMALIES DETECTION (> 25% deviation)
    */
   static async getFuelLogs(vehicleId?: string): Promise<FuelLog[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getFuelLogs(vehicleId);
+    }
+
     let logs = await db.fuelLogs.filter((f) => !f.isDeleted).toArray();
     if (vehicleId) {
       logs = logs.filter((f) => f.vehicleId === vehicleId);
@@ -559,16 +674,54 @@ export class FleetService {
       odometer: number;
       stationName: string;
     },
-    userId: string = 'u-flt-mgr'
+    userId: string = 'u-flt-mgr',
+    expectedVersion?: number
   ): Promise<{ fuelLog: FuelLog; anomalyAlert?: FuelAnomalyAlert }> {
+    const totalCost = input.quantityLiters * input.costPerLiter;
+    requirePermission({ module: 'TM', activity: 'create' }, { amount: totalCost });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        // Offline field entry: whitelisted command enqueued to Outbox
+        const cmd = await OutboxEngine.enqueue({
+          type: 'fuel_log',
+          payload: { ...input, userId, expectedVersion },
+          vehicleId: input.vehicleId,
+        });
+
+        const vehicle = await db.vehicles.get(input.vehicleId);
+        const optimisticLog: FuelLog = {
+          id: cmd.id,
+          vehicleId: input.vehicleId,
+          vehiclePlate: vehicle?.plateNumber || 'FLT-QUEUED',
+          driverId: input.driverId,
+          driverName: vehicle?.assignedDriverName || 'سائق',
+          date: input.date,
+          fuelType: input.fuelType,
+          quantityLiters: input.quantityLiters,
+          costPerLiter: input.costPerLiter,
+          totalCost,
+          odometer: input.odometer,
+          stationName: input.stationName,
+          status: 'pending',
+          isDeleted: false,
+        };
+        return { fuelLog: optimisticLog };
+      }
+
+      const log = await dataGateway.instance.createFuelLog({
+        ...input,
+        userId,
+        expectedVersion,
+      });
+      return { fuelLog: log };
+    }
+
     const vehicle = await db.vehicles.get(input.vehicleId);
     if (!vehicle) throw new Error('المركبة غير موجودة');
 
     const driver = await db.drivers.get(input.driverId);
     if (!driver) throw new Error('السائق غير موجود');
-
-    const totalCost = input.quantityLiters * input.costPerLiter;
-    requirePermission({ module: 'TM', activity: 'create' }, { amount: totalCost });
 
     // Calculate consumption L/100km using previous fuel log (pre-computed before transaction)
     const prevLogs = await db.fuelLogs
@@ -723,18 +876,38 @@ export class FleetService {
   /**
    * 5. MAINTENANCE & INVENTORY INTEGRATION (SAP Movement 261)
    */
-  static async getMaintenanceOrders(vehicleId?: string): Promise<MaintenanceOrder[]> {
+  static async getMaintenanceOrders(filtersOrVehicleId?: string | {
+    status?: string | 'ALL';
+    orderType?: string | 'ALL';
+    vehicleId?: string;
+  }): Promise<MaintenanceOrder[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getMaintenanceOrders(filtersOrVehicleId as import('../../../core/gateway/IDataGateway').MaintenanceFilters);
+    }
+
     let orders = await db.maintenanceOrders.filter((m) => !m.isDeleted).toArray();
-    if (vehicleId) {
-      orders = orders.filter((m) => m.vehicleId === vehicleId);
+    if (typeof filtersOrVehicleId === 'string') {
+      orders = orders.filter((m) => m.vehicleId === filtersOrVehicleId);
+    } else if (filtersOrVehicleId) {
+      if (filtersOrVehicleId.status && filtersOrVehicleId.status !== 'ALL') {
+        orders = orders.filter((m) => m.status === filtersOrVehicleId.status);
+      }
+      if (filtersOrVehicleId.orderType && filtersOrVehicleId.orderType !== 'ALL') {
+        orders = orders.filter((m) => m.orderType === filtersOrVehicleId.orderType);
+      }
+      if (filtersOrVehicleId.vehicleId) {
+        orders = orders.filter((m) => m.vehicleId === filtersOrVehicleId.vehicleId);
+      }
     }
     return orders.sort((a, b) => b.startDate.localeCompare(a.startDate));
   }
 
   static async getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null> {
-    const mo = await db.maintenanceOrders.get(id);
-    if (!mo || mo.isDeleted) return null;
-    return mo;
+    if (isServerMode()) {
+      return await dataGateway.instance.getMaintenanceOrderById(id);
+    }
+    const o = await db.maintenanceOrders.get(id);
+    return o && !o.isDeleted ? o : null;
   }
 
   static async createMaintenanceOrder(
@@ -749,59 +922,72 @@ export class FleetService {
     },
     userId: string = 'u-flt-mgr'
   ): Promise<MaintenanceOrder> {
-    const vehicle = await db.vehicles.get(input.vehicleId);
-    if (!vehicle) throw new Error('المركبة غير موجودة');
-
     requirePermission(
       { module: 'TM', activity: 'create' },
       { amount: input.estimatedCost }
     );
 
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.createMaintenanceOrder) {
+        return await dataGateway.instance.createMaintenanceOrder(input);
+      }
+    }
+
+    const vehicle = await db.vehicles.get(input.vehicleId);
+    if (!vehicle) throw new Error('المركبة غير موجودة');
+
     const now = new Date().toISOString();
     let order!: MaintenanceOrder;
 
-    await db.transaction('rw', [db.vehicles, db.maintenanceOrders, db.numberRanges, db.auditLogs], async () => {
-      const docNumber = await NumberRangeService.getNextNumber('MO', '2026');
+    await db.transaction(
+      'rw',
+      [db.maintenanceOrders, db.vehicles, db.numberRanges, db.auditLogs],
+      async () => {
+        const docNumber = await NumberRangeService.getNextNumber('MO', '2026');
 
-      order = {
-        id: `mo-${Date.now()}`,
-        docNumber,
-        status: 'in_progress',
-        vehicleId: input.vehicleId,
-        vehiclePlate: vehicle.plateNumber,
-        orderType: input.orderType,
-        description: input.description,
-        faultReported: input.faultReported,
-        estimatedCost: input.estimatedCost,
-        actualCost: 0,
-        partsCost: 0,
-        laborCost: 0,
-        laborHours: 0,
-        startDate: input.startDate,
-        downtimeHours: 0,
-        partsUsed: [],
-        preventiveScheduleId: input.preventiveScheduleId,
-        createdBy: userId,
-        createdAt: now,
-        updatedBy: userId,
-        updatedAt: now,
-        version: 1,
-        isDeleted: false,
-      };
+        order = {
+          id: `mo-${Date.now()}`,
+          docNumber,
+          status: 'in_progress',
+          vehicleId: input.vehicleId,
+          vehiclePlate: vehicle.plateNumber,
+          orderType: input.orderType,
+          description: input.description,
+          faultReported: input.faultReported,
+          estimatedCost: input.estimatedCost,
+          actualCost: 0,
+          partsCost: 0,
+          laborCost: 0,
+          laborHours: 0,
+          startDate: input.startDate,
+          downtimeHours: 0,
+          partsUsed: [],
+          preventiveScheduleId: input.preventiveScheduleId,
+          createdBy: userId,
+          createdAt: now,
+          updatedBy: userId,
+          updatedAt: now,
+          version: 1,
+          isDeleted: false,
+        };
 
-      // Mark vehicle under maintenance
-      await db.vehicles.update(vehicle.id, { status: 'maintenance' });
+        // Mark vehicle under maintenance
+        await db.vehicles.update(vehicle.id, { status: 'maintenance' });
 
-      await db.maintenanceOrders.add(order);
+        await db.maintenanceOrders.add(order);
 
-      await AuditService.log({
-        userId,
-        action: 'CREATE',
-        entity: 'MaintenanceOrder',
-        entityId: order.id,
-        after: order as unknown as Record<string, unknown>,
-      });
-    });
+        await AuditService.log({
+          userId,
+          action: 'CREATE',
+          entity: 'MaintenanceOrder',
+          entityId: order.id,
+          after: order as unknown as Record<string, unknown>,
+        });
+      }
+    );
 
     return order;
   }
@@ -816,8 +1002,27 @@ export class FleetService {
     userId: string = 'u-flt-mgr',
     expectedVersion?: number
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
+    requirePermission({ module: 'WM', activity: 'post' }, { plant: plantCode });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      return await dataGateway.instance.issuePartsToMaintenanceOrder({
+        orderId,
+        plantCode,
+        parts,
+        userId,
+        expectedVersion,
+      });
+    }
+
     const order = await db.maintenanceOrders.get(orderId);
     if (!order) throw new Error('أمر الصيانة غير موجود');
+
+    if (parts.length === 0) {
+      throw new Error('يرجى تحديد قطعة غيار واحدة على الأقل للصرف');
+    }
 
     if (expectedVersion !== undefined) {
       const storedVer = typeof order.version === 'number' ? order.version : 1;
@@ -825,12 +1030,6 @@ export class FleetService {
         throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
       }
     }
-
-    if (parts.length === 0) {
-      throw new Error('يرجى تحديد قطعة غيار واحدة على الأقل للصرف');
-    }
-
-    requirePermission({ module: 'WM', activity: 'post' }, { plant: plantCode });
 
     const txTables = [
       db.maintenanceOrders,
@@ -916,6 +1115,20 @@ export class FleetService {
     expectedVersion?: number
   ): Promise<MaintenanceOrder> {
     const order = await db.maintenanceOrders.get(orderId);
+
+    if (isServerMode()) {
+      requirePermission({ module: 'TM', activity: 'change' });
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      return await dataGateway.instance.completeMaintenanceOrder({
+        orderId,
+        ...input,
+        userId,
+        expectedVersion,
+      });
+    }
+
     if (!order) throw new Error('أمر الصيانة غير موجود');
 
     requirePermission({ module: 'TM', activity: 'change' });
@@ -992,6 +1205,10 @@ export class FleetService {
   }
 
   static async getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getPreventiveSchedules(vehicleId);
+    }
+
     let schedules = await db.preventiveSchedules.filter((s) => !s.isDeleted).toArray();
     if (vehicleId) {
       schedules = schedules.filter((s) => s.vehicleId === vehicleId);
@@ -1003,6 +1220,10 @@ export class FleetService {
    * 6. COST PER VEHICLE REPORT (Fuel + Maintenance + Driver + Depreciation; cost per km)
    */
   static async getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getVehicleCostReport(vehicleId);
+    }
+
     const vehicle = await db.vehicles.get(vehicleId);
     if (!vehicle) throw new Error('المركبة غير موجودة');
 
@@ -1074,6 +1295,10 @@ export class FleetService {
    * 7. FLEET DASHBOARD AGGREGATED METRICS
    */
   static async getFleetDashboardKPIs(): Promise<FleetSummaryKPIs> {
+    if (isServerMode()) {
+      return await dataGateway.instance.getFleetDashboardKPIs();
+    }
+
     const vehicles = await db.vehicles.filter((v) => !v.isDeleted).toArray();
     const trips = await db.trips.filter((t) => !t.isDeleted).toArray();
     const maintenance = await db.maintenanceOrders.filter((m) => !m.isDeleted).toArray();

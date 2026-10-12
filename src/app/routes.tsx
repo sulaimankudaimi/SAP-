@@ -93,6 +93,7 @@ const DriversListPage = lazy(() => import('../modules/fleet/pages/DriversListPag
 const TripsListPage = lazy(() => import('../modules/fleet/pages/TripsListPage').then((m) => ({ default: m.TripsListPage })));
 const FuelManagementPage = lazy(() => import('../modules/fleet/pages/FuelManagementPage').then((m) => ({ default: m.FuelManagementPage })));
 const FleetMaintenancePage = lazy(() => import('../modules/fleet/pages/FleetMaintenancePage').then((m) => ({ default: m.FleetMaintenancePage })));
+const FleetOutboxPage = lazy(() => import('../modules/fleet/pages/FleetOutboxPage').then((m) => ({ default: m.FleetOutboxPage })));
 
 // Assets Module
 const AssetDashboardPage = lazy(() => import('../modules/assets/pages/AssetDashboardPage').then((m) => ({ default: m.AssetDashboardPage })));
@@ -352,6 +353,14 @@ export const AppRoutes: React.FC = () => {
             element={
               <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
                 <FleetMaintenancePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="fleet/outbox"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'TM', activity: 'view' }}>
+                <FleetOutboxPage />
               </ProtectedRoute>
             }
           />

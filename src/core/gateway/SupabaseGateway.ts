@@ -1,808 +1,588 @@
-/**
- * Supabase Implementation of IDataGateway
- *
- * Exclusively executes server-authoritative command RPCs against the backend.
- * ONLY this folder (/src/core/gateway) may import @supabase/supabase-js.
- * Strictly uses anon key and user JWT; never ships service_role.
- */
-
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { ConcurrencyError } from '../errors';
 import type {
-  IDataGateway,
-  CreateTripParams,
-  CompleteTripParams,
-  CreateFuelLogParams,
-  IssuePartsParams,
-  CompleteMaintenanceOrderParams,
-  PostJournalParams,
-} from './IDataGateway';
-import type {
+  Trip,
   Vehicle,
   Driver,
-  Trip,
   FuelLog,
-  FuelAnomalyAlert,
   MaintenanceOrder,
   PreventiveSchedule,
+  FuelAnomalyAlert,
+  ExpiryAlert,
+  VehicleCostReport,
+  FleetSummaryKPIs,
+  User,
+  Role,
 } from '../../types/models';
+import type {
+  IDataGateway,
+  CreateTripCommand,
+  CompleteTripCommand,
+  CreateFuelLogCommand,
+  IssuePartsCommand,
+  CompleteMaintenanceOrderCommand,
+  PostJournalCommand,
+  VehicleFilters,
+  DriverFilters,
+  TripFilters,
+  MaintenanceFilters,
+  RealtimeChangeCallback,
+} from './IDataGateway';
+import { getServerUrl, getServerAnonKey } from './connectivity';
+import { ConcurrencyError } from '../errors/ConcurrencyError';
+import { DiagnosticLogger } from '../services/DiagnosticLogger';
+import { SessionContext } from '../security/SessionContext';
+import { useAuthStore } from '../auth/useAuthStore';
+import type { AuthSession } from '../services/AuthService';
+
+interface ProfileRow {
+  id: string;
+  username: string;
+  full_name?: string;
+  role_code: string;
+  role_name?: string;
+  assigned_plants?: string[];
+  company_code?: string;
+  must_change_password?: boolean;
+  is_locked?: boolean;
+}
 
 export class SupabaseGateway implements IDataGateway {
-  public readonly isServerMode: boolean = true;
+  readonly mode = 'server' as const;
   private client: SupabaseClient;
-  private realtimeChannel: RealtimeChannel | null = null;
-  private pollingTimer: NodeJS.Timeout | null = null;
-  private changeListeners: Set<() => void> = new Set();
 
-  constructor(serverUrl: string, anonKey: string) {
-    if (!serverUrl || !anonKey) {
-      throw new Error('SupabaseGateway requires VITE_ERP_SERVER_URL and VITE_ERP_ANON_KEY');
-    }
-    this.client = createClient(serverUrl, anonKey, {
+  constructor() {
+    const url = getServerUrl() || 'https://placeholder-erp.supabase.co';
+    const anonKey = getServerAnonKey() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
+
+    // Safe custom storage wrapper with try/catch to satisfy storage security requirements
+    const safeStorage = {
+      getItem: (key: string): string | null => {
+        try {
+          return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+        } catch {
+          return null;
+        }
+      },
+      setItem: (key: string, value: string): void => {
+        try {
+          if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+        } catch {
+          // Ignore write failure
+        }
+      },
+      removeItem: (key: string): void => {
+        try {
+          if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+        } catch {
+          // Ignore
+        }
+      },
+    };
+
+    this.client = createClient(url, anonKey, {
       auth: {
         persistSession: true,
+        storage: safeStorage,
         autoRefreshToken: true,
         detectSessionInUrl: false,
       },
     });
   }
 
-  public getClient(): SupabaseClient {
+  getSupabaseClient(): SupabaseClient {
     return this.client;
   }
 
-  private handleError(err: unknown): never {
+  getClient(): SupabaseClient {
+    return this.client;
+  }
+
+  // Helper to handle and map RPC errors
+  private handleRpcError(err: unknown, entityName: string, entityId: string, expectedVersion?: number): never {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('ConcurrencyError') || msg.includes('409') || msg.includes('version')) {
-      throw new ConcurrencyError(
-        'ConcurrencyError: تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.'
-      );
+    const isConflict =
+      msg.includes('conflict') ||
+      msg.includes('concurrency') ||
+      msg.includes('version mismatch') ||
+      msg.includes('P0001') ||
+      msg.includes('تعارض');
+
+    if (isConflict && expectedVersion !== undefined) {
+      throw new ConcurrencyError({
+        entityName,
+        entityId,
+        expectedVersion,
+        message: msg,
+      });
     }
+
     throw new Error(msg);
   }
 
-  // --- Realtime and Invalidation ---
+  // 1. Command: createTrip -> RPC create_trip
+  async createTrip(cmd: CreateTripCommand): Promise<Trip> {
+    const { data, error } = await this.client.rpc('create_trip', {
+      p_vehicle_id: cmd.vehicleId,
+      p_driver_id: cmd.driverId,
+      p_origin_plant: cmd.originPlant,
+      p_destination_location: cmd.destinationLocation,
+      p_cargo_type: cmd.cargoType,
+      p_cargo_volume_liters: cmd.cargoVolumeLiters,
+      p_scheduled_departure: cmd.scheduledDeparture,
+      p_scheduled_arrival: cmd.scheduledArrival,
+      p_start_odometer: cmd.startOdometer,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
 
-  public subscribeToFleetChanges(onInvalidate: () => void): () => void {
-    this.changeListeners.add(onInvalidate);
-
-    if (!this.realtimeChannel) {
-      try {
-        this.realtimeChannel = this.client
-          .channel('fleet-mutations')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'trips' },
-            () => this.notifyChange()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'fuel_logs' },
-            () => this.notifyChange()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'maintenance_orders' },
-            () => this.notifyChange()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'vehicles' },
-            () => this.notifyChange()
-          )
-          .subscribe((status) => {
-            if (status !== 'SUBSCRIBED' && !this.pollingTimer) {
-              // Fallback to 30 second polling if realtime disconnected or unavailable
-              this.pollingTimer = setInterval(() => this.notifyChange(), 30000);
-            }
-          });
-      } catch {
-        // If realtime fails completely, start 30s polling
-        if (!this.pollingTimer) {
-          this.pollingTimer = setInterval(() => this.notifyChange(), 30000);
-        }
-      }
+    if (error) {
+      this.handleRpcError(error, 'Trip', cmd.vehicleId, cmd.expectedVersion);
     }
 
-    return () => {
-      this.changeListeners.delete(onInvalidate);
-      if (this.changeListeners.size === 0) {
-        if (this.realtimeChannel) {
-          this.client.removeChannel(this.realtimeChannel);
-          this.realtimeChannel = null;
-        }
-        if (this.pollingTimer) {
-          clearInterval(this.pollingTimer);
-          this.pollingTimer = null;
-        }
-      }
-    };
+    return data as Trip;
   }
 
-  private notifyChange(): void {
-    for (const listener of this.changeListeners) {
-      try {
-        listener();
-      } catch {
-        // Safe dispatch
-      }
+  // 2. Command: completeTrip -> RPC complete_trip
+  async completeTrip(cmd: CompleteTripCommand): Promise<Trip> {
+    const { data, error } = await this.client.rpc('complete_trip', {
+      p_trip_id: cmd.tripId,
+      p_end_odometer: cmd.endOdometer,
+      p_fuel_liters_consumed: cmd.fuelLitersConsumed,
+      p_fuel_cost: cmd.fuelCost,
+      p_driver_allowance_cost: cmd.driverAllowanceCost,
+      p_actual_arrival: cmd.actualArrival,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Trip', cmd.tripId, cmd.expectedVersion);
     }
+
+    return data as Trip;
   }
 
-  // --- Fleet Query Methods (Reads from Server) ---
+  // 3. Command: createFuelLog -> RPC create_fuel_log
+  async createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog> {
+    const { data, error } = await this.client.rpc('create_fuel_log', {
+      p_vehicle_id: cmd.vehicleId,
+      p_driver_id: cmd.driverId,
+      p_fuel_type: cmd.fuelType,
+      p_date: cmd.date,
+      p_odometer: cmd.odometer,
+      p_quantity_liters: cmd.quantityLiters,
+      p_cost_per_liter: cmd.costPerLiter,
+      p_station_name: cmd.stationName,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
 
-  async getVehicles(): Promise<Vehicle[]> {
-    const { data, error } = await this.client
-      .from('vehicles')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('code', { ascending: true });
+    if (error) {
+      this.handleRpcError(error, 'FuelLog', cmd.vehicleId, cmd.expectedVersion);
+    }
 
-    if (error) this.handleError(error);
+    return data as FuelLog;
+  }
 
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      code: String(row.code),
-      plateNumber: String(row.plate_number),
-      vin: String(row.vin || ''),
-      type: row.type as Vehicle['type'],
-      fuelType: row.fuel_type as Vehicle['fuelType'],
-      capacityLiters: Number(row.capacity_liters || 0),
-      capacityTons: row.capacity_tons ? Number(row.capacity_tons) : undefined,
-      makeModel: String(row.make_model),
-      year: Number(row.year || 2024),
-      currentOdometer: Number(row.current_odometer || 0),
-      status: row.status as Vehicle['status'],
-      assignedDriverId: row.assigned_driver_id ? String(row.assigned_driver_id) : undefined,
-      assignedDriverName: row.assigned_driver_name ? String(row.assigned_driver_name) : undefined,
-      insuranceExpiry: String(row.insurance_expiry || ''),
-      registrationExpiry: String(row.registration_expiry || ''),
-      lastMaintenanceDate: row.last_maintenance_date ? String(row.last_maintenance_date) : undefined,
-      nextMaintenanceOdometer: row.next_maintenance_odometer ? Number(row.next_maintenance_odometer) : undefined,
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+  // 4. Command: issuePartsToMaintenanceOrder -> RPC issue_parts_to_maintenance_order
+  async issuePartsToMaintenanceOrder(
+    cmd: IssuePartsCommand
+  ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
+    const { data, error } = await this.client.rpc('issue_parts_to_maintenance_order', {
+      p_order_id: cmd.orderId,
+      p_plant_code: cmd.plantCode,
+      p_parts: cmd.parts,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'MaintenanceOrder', cmd.orderId, cmd.expectedVersion);
+    }
+
+    const res = data as { order: MaintenanceOrder; materialDocNumber: string };
+    return res;
+  }
+
+  // 5. Command: completeMaintenanceOrder -> RPC complete_maintenance_order
+  async completeMaintenanceOrder(cmd: CompleteMaintenanceOrderCommand): Promise<MaintenanceOrder> {
+    const { data, error } = await this.client.rpc('complete_maintenance_order', {
+      p_order_id: cmd.orderId,
+      p_labor_hours: cmd.laborHours,
+      p_labor_rate_per_hour: cmd.laborRatePerHour,
+      p_downtime_hours: cmd.downtimeHours,
+      p_completion_date: cmd.completionDate,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'MaintenanceOrder', cmd.orderId, cmd.expectedVersion);
+    }
+
+    return data as MaintenanceOrder;
+  }
+
+  // 6. Command: postJournal -> RPC post_journal
+  async postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }> {
+    const { data, error } = await this.client.rpc('post_journal', {
+      p_source_type: cmd.sourceType,
+      p_source_id: cmd.sourceId,
+      p_company_code: cmd.companyCode,
+      p_fiscal_year: cmd.fiscalYear,
+      p_period: cmd.period,
+      p_posting_date: cmd.postingDate,
+      p_document_date: cmd.documentDate,
+      p_document_type: cmd.documentType,
+      p_header_text: cmd.headerText,
+      p_reference: cmd.reference,
+      p_lines: cmd.lines,
+      p_request_id: cmd.requestId,
+      p_expected_version: cmd.expectedVersion,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'JournalEntry', cmd.sourceId, cmd.expectedVersion);
+    }
+
+    const res = data as { docNumber: string; jeId: string };
+    return res;
+  }
+
+  // Fleet Queries
+  async getVehicles(filters?: VehicleFilters): Promise<Vehicle[]> {
+    let query = this.client.from('vehicles').select('*');
+    if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.vehicleType) query = query.eq('vehicle_type', filters.vehicleType);
+    if (filters?.assignedPlant) query = query.eq('assigned_plant', filters.assignedPlant);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data || []) as Vehicle[];
   }
 
   async getVehicleById(id: string): Promise<Vehicle | null> {
-    const { data, error } = await this.client
-      .from('vehicles')
-      .select('*')
-      .eq('id', id)
-      .eq('is_deleted', false)
-      .maybeSingle();
-
-    if (error) this.handleError(error);
-    if (!data) return null;
-
-    const row = data as Record<string, unknown>;
-    return {
-      id: String(row.id),
-      code: String(row.code),
-      plateNumber: String(row.plate_number),
-      vin: String(row.vin || ''),
-      type: row.type as Vehicle['type'],
-      fuelType: row.fuel_type as Vehicle['fuelType'],
-      capacityLiters: Number(row.capacity_liters || 0),
-      capacityTons: row.capacity_tons ? Number(row.capacity_tons) : undefined,
-      makeModel: String(row.make_model),
-      year: Number(row.year || 2024),
-      currentOdometer: Number(row.current_odometer || 0),
-      status: row.status as Vehicle['status'],
-      assignedDriverId: row.assigned_driver_id ? String(row.assigned_driver_id) : undefined,
-      assignedDriverName: row.assigned_driver_name ? String(row.assigned_driver_name) : undefined,
-      insuranceExpiry: String(row.insurance_expiry || ''),
-      registrationExpiry: String(row.registration_expiry || ''),
-      lastMaintenanceDate: row.last_maintenance_date ? String(row.last_maintenance_date) : undefined,
-      nextMaintenanceOdometer: row.next_maintenance_odometer ? Number(row.next_maintenance_odometer) : undefined,
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    };
+    const { data, error } = await this.client.from('vehicles').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as Vehicle) ?? null;
   }
 
-  async getDrivers(): Promise<Driver[]> {
-    const { data, error } = await this.client
-      .from('drivers')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('name', { ascending: true });
+  async getDrivers(filters?: DriverFilters): Promise<Driver[]> {
+    let query = this.client.from('drivers').select('*');
+    if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.assignedPlant) query = query.eq('assigned_plant', filters.assignedPlant);
 
-    if (error) this.handleError(error);
-
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      code: String(row.code),
-      name: String(row.name),
-      iqamaNumber: String(row.iqama_number || ''),
-      licenseNumber: String(row.license_number || ''),
-      licenseClass: row.license_class as Driver['licenseClass'],
-      licenseExpiry: String(row.license_expiry || ''),
-      mobile: String(row.mobile || ''),
-      safetyRating: Number(row.safety_rating || 5),
-      performanceScore: Number(row.performance_score || 100),
-      certifications: Array.isArray(row.certifications) ? (row.certifications as string[]) : [],
-      status: row.status as Driver['status'],
-      totalTripsCompleted: Number(row.total_trips_completed || 0),
-      totalDistanceKm: Number(row.total_distance_km || 0),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data || []) as Driver[];
   }
 
   async getDriverById(id: string): Promise<Driver | null> {
-    const { data, error } = await this.client
-      .from('drivers')
-      .select('*')
-      .eq('id', id)
-      .eq('is_deleted', false)
-      .maybeSingle();
-
-    if (error) this.handleError(error);
-    if (!data) return null;
-
-    const row = data as Record<string, unknown>;
-    return {
-      id: String(row.id),
-      code: String(row.code),
-      name: String(row.name),
-      iqamaNumber: String(row.iqama_number || ''),
-      licenseNumber: String(row.license_number || ''),
-      licenseClass: row.license_class as Driver['licenseClass'],
-      licenseExpiry: String(row.license_expiry || ''),
-      mobile: String(row.mobile || ''),
-      safetyRating: Number(row.safety_rating || 5),
-      performanceScore: Number(row.performance_score || 100),
-      certifications: Array.isArray(row.certifications) ? (row.certifications as string[]) : [],
-      status: row.status as Driver['status'],
-      totalTripsCompleted: Number(row.total_trips_completed || 0),
-      totalDistanceKm: Number(row.total_distance_km || 0),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    };
+    const { data, error } = await this.client.from('drivers').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as Driver) ?? null;
   }
 
-  async getTrips(filters?: { status?: string | 'ALL'; vehicleId?: string }): Promise<Trip[]> {
-    let query = this.client
-      .from('trips')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false });
-
-    if (filters?.status && filters.status !== 'ALL') {
-      query = query.eq('status', filters.status);
-    }
-    if (filters?.vehicleId) {
-      query = query.eq('vehicle_id', filters.vehicleId);
-    }
+  async getTrips(filters?: TripFilters): Promise<Trip[]> {
+    let query = this.client.from('trips').select('*').order('created_at', { ascending: false });
+    if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
+    if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
+    if (filters?.originPlant) query = query.eq('origin_plant', filters.originPlant);
 
     const { data, error } = await query;
-    if (error) this.handleError(error);
-
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      docNumber: String(row.doc_number),
-      status: row.status as Trip['status'],
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      driverId: String(row.driver_id),
-      driverName: String(row.driver_name || ''),
-      originPlant: String(row.origin_plant),
-      destinationLocation: String(row.destination_location),
-      cargoType: String(row.cargo_type),
-      cargoVolumeLiters: Number(row.cargo_volume_liters || 0),
-      scheduledDeparture: String(row.scheduled_departure),
-      scheduledArrival: String(row.scheduled_arrival),
-      actualDeparture: row.actual_departure ? String(row.actual_departure) : undefined,
-      actualArrival: row.actual_arrival ? String(row.actual_arrival) : undefined,
-      startOdometer: Number(row.start_odometer || 0),
-      endOdometer: row.end_odometer ? Number(row.end_odometer) : undefined,
-      distanceKm: row.distance_km ? Number(row.distance_km) : undefined,
-      delayMinutes: row.delay_minutes ? Number(row.delay_minutes) : undefined,
-      delayReason: row.delay_reason ? String(row.delay_reason) : undefined,
-      fuelLitersConsumed: row.fuel_liters_consumed ? Number(row.fuel_liters_consumed) : undefined,
-      fuelCost: row.fuel_cost ? Number(row.fuel_cost) : undefined,
-      driverAllowanceCost: row.driver_allowance_cost ? Number(row.driver_allowance_cost) : undefined,
-      totalTripCost: row.total_trip_cost ? Number(row.total_trip_cost) : undefined,
-      postedAccountingDocNumber: row.je_doc_number ? String(row.je_doc_number) : undefined,
-      createdBy: String(row.created_by || ''),
-      createdAt: String(row.created_at),
-      updatedBy: String(row.updated_by || ''),
-      updatedAt: String(row.updated_at),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+    if (error) throw new Error(error.message);
+    return (data || []) as Trip[];
   }
 
   async getTripById(id: string): Promise<Trip | null> {
-    const { data, error } = await this.client
-      .from('trips')
-      .select('*')
-      .eq('id', id)
-      .eq('is_deleted', false)
-      .maybeSingle();
-
-    if (error) this.handleError(error);
-    if (!data) return null;
-
-    const row = data as Record<string, unknown>;
-    return {
-      id: String(row.id),
-      docNumber: String(row.doc_number),
-      status: row.status as Trip['status'],
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      driverId: String(row.driver_id),
-      driverName: String(row.driver_name || ''),
-      originPlant: String(row.origin_plant),
-      destinationLocation: String(row.destination_location),
-      cargoType: String(row.cargo_type),
-      cargoVolumeLiters: Number(row.cargo_volume_liters || 0),
-      scheduledDeparture: String(row.scheduled_departure),
-      scheduledArrival: String(row.scheduled_arrival),
-      actualDeparture: row.actual_departure ? String(row.actual_departure) : undefined,
-      actualArrival: row.actual_arrival ? String(row.actual_arrival) : undefined,
-      startOdometer: Number(row.start_odometer || 0),
-      endOdometer: row.end_odometer ? Number(row.end_odometer) : undefined,
-      distanceKm: row.distance_km ? Number(row.distance_km) : undefined,
-      delayMinutes: row.delay_minutes ? Number(row.delay_minutes) : undefined,
-      delayReason: row.delay_reason ? String(row.delay_reason) : undefined,
-      fuelLitersConsumed: row.fuel_liters_consumed ? Number(row.fuel_liters_consumed) : undefined,
-      fuelCost: row.fuel_cost ? Number(row.fuel_cost) : undefined,
-      driverAllowanceCost: row.driver_allowance_cost ? Number(row.driver_allowance_cost) : undefined,
-      totalTripCost: row.total_trip_cost ? Number(row.total_trip_cost) : undefined,
-      postedAccountingDocNumber: row.je_doc_number ? String(row.je_doc_number) : undefined,
-      createdBy: String(row.created_by || ''),
-      createdAt: String(row.created_at),
-      updatedBy: String(row.updated_by || ''),
-      updatedAt: String(row.updated_at),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    };
+    const { data, error } = await this.client.from('trips').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as Trip) ?? null;
   }
 
   async getFuelLogs(vehicleId?: string): Promise<FuelLog[]> {
-    let query = this.client
-      .from('fuel_logs')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('date', { ascending: false });
-
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+    let query = this.client.from('fuel_logs').select('*').order('date', { ascending: false });
+    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
 
     const { data, error } = await query;
-    if (error) this.handleError(error);
-
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      driverId: String(row.driver_id),
-      driverName: String(row.driver_name || ''),
-      date: String(row.date),
-      fuelType: row.fuel_type as FuelLog['fuelType'],
-      quantityLiters: Number(row.liters || 0),
-      costPerLiter: Number(row.unit_price || 0),
-      totalCost: Number(row.total_cost || 0),
-      odometer: Number(row.odometer || 0),
-      stationName: String(row.station_name || ''),
-      calculatedConsumptionPer100Km: row.calculated_consumption ? Number(row.calculated_consumption) : undefined,
-      isAnomaly: Boolean(row.is_anomaly),
-      jeDocNumber: row.je_doc_number ? String(row.je_doc_number) : undefined,
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+    if (error) throw new Error(error.message);
+    return (data || []) as FuelLog[];
   }
 
-  async getMaintenanceOrders(vehicleId?: string): Promise<MaintenanceOrder[]> {
-    let query = this.client
-      .from('maintenance_orders')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false });
-
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+  async getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]> {
+    const vehicleId = typeof filtersOrVehicleId === 'string' ? filtersOrVehicleId : filtersOrVehicleId?.vehicleId;
+    let query = this.client.from('maintenance_orders').select('*').order('created_at', { ascending: false });
+    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
 
     const { data, error } = await query;
-    if (error) this.handleError(error);
-
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      docNumber: String(row.doc_number),
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      orderType: row.order_type as MaintenanceOrder['orderType'],
-      description: String(row.description || ''),
-      faultReported: row.fault_reported ? String(row.fault_reported) : undefined,
-      estimatedCost: Number(row.estimated_cost || 0),
-      actualCost: Number(row.actual_cost || 0),
-      partsCost: Number(row.parts_cost || 0),
-      laborCost: Number(row.labor_cost || 0),
-      laborHours: Number(row.labor_hours || 0),
-      startDate: String(row.start_date || row.created_at),
-      completionDate: row.completion_date ? String(row.completion_date) : undefined,
-      downtimeHours: Number(row.downtime_hours || 0),
-      partsUsed: Array.isArray(row.parts_used) ? (row.parts_used as MaintenancePartItem[]) : [],
-      materialDocNumber: row.material_doc_number ? String(row.material_doc_number) : undefined,
-      preventiveScheduleId: row.preventive_schedule_id ? String(row.preventive_schedule_id) : undefined,
-      status: row.status as MaintenanceOrder['status'],
-      createdBy: String(row.created_by || ''),
-      createdAt: String(row.created_at),
-      updatedBy: String(row.updated_by || ''),
-      updatedAt: String(row.updated_at),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+    if (error) throw new Error(error.message);
+    return (data || []) as MaintenanceOrder[];
   }
 
   async getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null> {
-    const { data, error } = await this.client
-      .from('maintenance_orders')
-      .select('*')
-      .eq('id', id)
-      .eq('is_deleted', false)
-      .maybeSingle();
-
-    if (error) this.handleError(error);
-    if (!data) return null;
-
-    const row = data as Record<string, unknown>;
-    return {
-      id: String(row.id),
-      docNumber: String(row.doc_number),
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      orderType: row.order_type as MaintenanceOrder['orderType'],
-      description: String(row.description || ''),
-      faultReported: row.fault_reported ? String(row.fault_reported) : undefined,
-      estimatedCost: Number(row.estimated_cost || 0),
-      actualCost: Number(row.actual_cost || 0),
-      partsCost: Number(row.parts_cost || 0),
-      laborCost: Number(row.labor_cost || 0),
-      laborHours: Number(row.labor_hours || 0),
-      startDate: String(row.start_date || row.created_at),
-      completionDate: row.completion_date ? String(row.completion_date) : undefined,
-      downtimeHours: Number(row.downtime_hours || 0),
-      partsUsed: Array.isArray(row.parts_used) ? (row.parts_used as MaintenancePartItem[]) : [],
-      materialDocNumber: row.material_doc_number ? String(row.material_doc_number) : undefined,
-      preventiveScheduleId: row.preventive_schedule_id ? String(row.preventive_schedule_id) : undefined,
-      status: row.status as MaintenanceOrder['status'],
-      createdBy: String(row.created_by || ''),
-      createdAt: String(row.created_at),
-      updatedBy: String(row.updated_by || ''),
-      updatedAt: String(row.updated_at),
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    };
+    const { data, error } = await this.client.from('maintenance_orders').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as MaintenanceOrder) ?? null;
   }
 
   async getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]> {
-    let query = this.client
-      .from('preventive_schedules')
-      .select('*')
-      .eq('is_deleted', false)
-      .order('next_due_date', { ascending: true });
-
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+    let query = this.client.from('preventive_schedules').select('*');
+    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
 
     const { data, error } = await query;
-    if (error) this.handleError(error);
-
-    return (data || []).map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      vehicleId: String(row.vehicle_id),
-      vehiclePlate: String(row.vehicle_plate || ''),
-      serviceName: String(row.service_name),
-      intervalKm: Number(row.interval_km || 0),
-      intervalDays: Number(row.interval_days || 0),
-      lastDoneOdometer: Number(row.last_done_odometer || 0),
-      lastDoneDate: String(row.last_done_date || ''),
-      nextDueOdometer: Number(row.next_due_odometer || 0),
-      nextDueDate: String(row.next_due_date || ''),
-      status: row.status as PreventiveSchedule['status'],
-      version: Number(row.version || 1),
-      isDeleted: Boolean(row.is_deleted),
-    }));
+    if (error) throw new Error(error.message);
+    return (data || []) as PreventiveSchedule[];
   }
 
-  // --- Master Data Mutations with OCC ---
-
-  async createVehicle(data: Omit<Vehicle, 'id' | 'isDeleted'>, _userId?: string): Promise<Vehicle> {
-    const payload = {
-      code: data.code,
-      plate_number: data.plateNumber,
-      vin: data.vin,
-      type: data.type,
-      fuel_type: data.fuelType,
-      capacity_liters: data.capacityLiters,
-      capacity_tons: data.capacityTons,
-      make_model: data.makeModel,
-      year: data.year,
-      current_odometer: data.currentOdometer,
-      status: data.status,
-      insurance_expiry: data.insuranceExpiry,
-      registration_expiry: data.registrationExpiry,
-      version: 1,
-    };
-
-    const { data: inserted, error } = await this.client
-      .from('vehicles')
-      .insert(payload)
-      .select('*')
-      .single();
-
-    if (error) this.handleError(error);
-    return this.getVehicleById(String(inserted.id)) as Promise<Vehicle>;
+  async getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]> {
+    const { data, error } = await this.client.from('fuel_anomaly_alerts').select('*').order('date', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []) as FuelAnomalyAlert[];
   }
 
-  async updateVehicle(
-    id: string,
-    updates: Partial<Vehicle>,
-    _userId?: string,
-    expectedVersion?: number
-  ): Promise<Vehicle> {
-    let query = this.client.from('vehicles').update({
-      make_model: updates.makeModel,
-      current_odometer: updates.currentOdometer,
-      capacity_liters: updates.capacityLiters,
-      status: updates.status,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
+  async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
+    const { data, error } = await this.client.rpc('get_vehicle_expiry_alerts');
+    if (error) throw new Error(error.message);
+    return (data || []) as ExpiryAlert[];
+  }
 
-    if (expectedVersion !== undefined) {
-      query = query.eq('version', expectedVersion);
+  async getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport> {
+    const { data, error } = await this.client.rpc('get_vehicle_cost_report', { p_vehicle_id: vehicleId });
+    if (error) throw new Error(error.message);
+    return data as VehicleCostReport;
+  }
+
+  async getFleetDashboardKPIs(): Promise<FleetSummaryKPIs> {
+    const { data, error } = await this.client.rpc('get_fleet_dashboard_kpis');
+    if (error) throw new Error(error.message);
+    return data as FleetSummaryKPIs;
+  }
+
+  // Authentication against Supabase Auth
+  async signIn(username: string, password: string): Promise<AuthSession> {
+    const syntheticEmail = `${username.toLowerCase().trim()}@erp.local`;
+
+    const { data: authData, error: authError } = await this.client.auth.signInWithPassword({
+      email: syntheticEmail,
+      password,
+    });
+
+    if (authError || !authData.user) {
+      throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة، أو تعذر الاتصال بالخادم.');
     }
 
-    const { data, error } = await query.select('*');
-    if (error) this.handleError(error);
-    if (!data || data.length === 0) {
-      throw new ConcurrencyError(
-        'ConcurrencyError: تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.'
+    // Load profile (roles and plants) from profiles table
+    const { data: profileData, error: profileError } = await this.client
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .maybeSingle();
+
+    if (profileError || !profileData) {
+      throw new Error('لم يتم العثور على ملف تعريف المستخدم أو الصلاحيات على الخادم.');
+    }
+
+    const profile = profileData as ProfileRow;
+    const role: Role = {
+      id: `role-${profile.role_code.toLowerCase()}`,
+      code: profile.role_code,
+      name: profile.role_name || profile.role_code,
+      description: `الدور الوظيفي للمستخدم: ${profile.role_code}`,
+      permissionCodes: [],
+      isSystem: false,
+      isDeleted: false,
+    };
+
+    const user: User = {
+      id: profile.id,
+      username: profile.username || username,
+      fullName: profile.full_name || username,
+      email: `${profile.username || username}@erp.local`,
+      roleId: role.id,
+      roleCode: profile.role_code,
+      roleName: role.name,
+      companyCode: profile.company_code || '1000',
+      plantCode: profile.assigned_plants?.[0] || '1100',
+      isLocked: Boolean(profile.is_locked),
+      mustChangePassword: Boolean(profile.must_change_password),
+      passwordHash: '',
+      passwordSalt: '',
+      failedLoginAttempts: 0,
+      createdAt: authData.user.created_at || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: 1,
+      isDeleted: false,
+    };
+
+    const session: AuthSession = {
+      user,
+      role,
+      token: authData.session?.access_token || '',
+      expiresAt: (authData.session?.expires_at ? authData.session.expires_at * 1000 : Date.now() + 8 * 3600 * 1000),
+    };
+
+    // Set actor context with server profile
+    SessionContext.setActor({
+      userId: user.id,
+      username: user.username,
+      role,
+    });
+
+    useAuthStore.getState().setSession(session);
+
+    return session;
+  }
+
+  async signOut(): Promise<void> {
+    try {
+      await this.client.auth.signOut();
+    } catch {
+      // Ignore
+    }
+    useAuthStore.getState().logout();
+  }
+
+  async changePassword(userId: string, _currentPassword: string, newPassword: string): Promise<void> {
+    const { error: updateError } = await this.client.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      throw new Error(`فشل تحديث كلمة المرور على الخادم: ${updateError.message}`);
+    }
+
+    // Clear must_change_password flag in profile
+    await this.client.from('profiles').update({ must_change_password: false }).eq('id', userId);
+  }
+
+  async restoreSession(): Promise<AuthSession | null> {
+    try {
+      const { data } = await this.client.auth.getSession();
+      if (!data.session?.user) return null;
+
+      const { data: profile } = await this.client
+        .from('profiles')
+        .select('*')
+        .eq('id', data.session.user.id)
+        .maybeSingle();
+
+      if (!profile) return null;
+
+      const p = profile as ProfileRow;
+      const role: Role = {
+        id: `role-${p.role_code.toLowerCase()}`,
+        code: p.role_code,
+        name: p.role_name || p.role_code,
+        description: `الدور: ${p.role_code}`,
+        permissionCodes: [],
+        isSystem: false,
+        isDeleted: false,
+      };
+
+      const user: User = {
+        id: p.id,
+        username: p.username,
+        fullName: p.full_name || p.username,
+        email: `${p.username}@erp.local`,
+        roleId: role.id,
+        roleCode: p.role_code,
+        roleName: role.name,
+        companyCode: p.company_code || '1000',
+        plantCode: p.assigned_plants?.[0] || '1100',
+        isLocked: Boolean(p.is_locked),
+        mustChangePassword: Boolean(p.must_change_password),
+        passwordHash: '',
+        passwordSalt: '',
+        failedLoginAttempts: 0,
+        createdAt: data.session.user.created_at || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+        isDeleted: false,
+      };
+
+      const session: AuthSession = {
+        user,
+        role,
+        token: data.session.access_token,
+        expiresAt: data.session.expires_at ? data.session.expires_at * 1000 : Date.now() + 8 * 3600 * 1000,
+      };
+
+      SessionContext.setActor({
+        userId: user.id,
+        username: user.username,
+        role,
+      });
+
+      return session;
+    } catch {
+      return null;
+    }
+  }
+
+  // Realtime Subscriptions with 30-Second Polling Fallback
+  subscribeFleet(
+    tables: string[],
+    onChange: RealtimeChangeCallback
+  ): () => void {
+    let channel: RealtimeChannel | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+    try {
+      const channelName = `fleet-changes-${Date.now()}`;
+      channel = this.client.channel(channelName);
+
+      for (const table of tables) {
+        channel = channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table },
+          (payload) => {
+            const ev = (payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE') || 'UPDATE';
+            const row = (payload.new || payload.old || {}) as Record<string, unknown>;
+            onChange(table, ev, row);
+          }
+        );
+      }
+
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          DiagnosticLogger.info('SupabaseGateway', `Realtime subscribed to [${tables.join(', ')}]`);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          DiagnosticLogger.warn(
+            'SupabaseGateway',
+            `Realtime channel ${status}, falling back to 30-second polling`
+          );
+          if (!fallbackInterval) {
+            fallbackInterval = setInterval(() => {
+              for (const table of tables) {
+                onChange(table, 'UPDATE', {});
+              }
+            }, 30000);
+          }
+        }
+      });
+    } catch (err) {
+      DiagnosticLogger.warn(
+        'SupabaseGateway',
+        `Realtime setup failed, starting 30s polling fallback: ${err instanceof Error ? err.message : String(err)}`
       );
+      fallbackInterval = setInterval(() => {
+        for (const table of tables) {
+          onChange(table, 'UPDATE', {});
+        }
+      }, 30000);
     }
 
-    return this.getVehicleById(id) as Promise<Vehicle>;
-  }
-
-  async createDriver(data: Omit<Driver, 'id' | 'isDeleted'>, _userId?: string): Promise<Driver> {
-    const payload = {
-      code: data.code,
-      name: data.name,
-      iqama_number: data.iqamaNumber,
-      license_number: data.licenseNumber,
-      license_class: data.licenseClass,
-      license_expiry: data.licenseExpiry,
-      mobile: data.mobile,
-      safety_rating: data.safetyRating,
-      performance_score: data.performanceScore,
-      certifications: data.certifications,
-      status: data.status,
-      version: 1,
-    };
-
-    const { data: inserted, error } = await this.client
-      .from('drivers')
-      .insert(payload)
-      .select('*')
-      .single();
-
-    if (error) this.handleError(error);
-    return this.getDriverById(String(inserted.id)) as Promise<Driver>;
-  }
-
-  async updateDriver(
-    id: string,
-    updates: Partial<Driver>,
-    _userId?: string,
-    expectedVersion?: number
-  ): Promise<Driver> {
-    let query = this.client.from('drivers').update({
-      name: updates.name,
-      mobile: updates.mobile,
-      status: updates.status,
-      safety_rating: updates.safetyRating,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id);
-
-    if (expectedVersion !== undefined) {
-      query = query.eq('version', expectedVersion);
-    }
-
-    const { data, error } = await query.select('*');
-    if (error) this.handleError(error);
-    if (!data || data.length === 0) {
-      throw new ConcurrencyError(
-        'ConcurrencyError: تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.'
-      );
-    }
-
-    return this.getDriverById(id) as Promise<Driver>;
-  }
-
-  async createMaintenanceOrder(
-    data: Omit<MaintenanceOrder, 'id' | 'docNumber' | 'isDeleted'>,
-    _userId?: string
-  ): Promise<MaintenanceOrder> {
-    const payload = {
-      vehicle_id: data.vehicleId,
-      order_type: data.orderType,
-      description: data.description,
-      fault_reported: data.faultReported,
-      estimated_cost: data.estimatedCost,
-      status: 'pending',
-      version: 1,
-    };
-
-    const { data: inserted, error } = await this.client
-      .from('maintenance_orders')
-      .insert(payload)
-      .select('*')
-      .single();
-
-    if (error) this.handleError(error);
-    return this.getMaintenanceOrderById(String(inserted.id)) as Promise<MaintenanceOrder>;
-  }
-
-  // --- Authoritative Command RPC Calls ---
-
-  async createTrip(params: CreateTripParams, _userId?: string): Promise<Trip> {
-    const { data, error } = await this.client.rpc('create_trip', {
-      p_request_id: params.requestId,
-      p_vehicle_id: params.vehicleId,
-      p_driver_id: params.driverId,
-      p_origin_plant: params.originPlant,
-      p_destination_location: params.destinationLocation,
-      p_cargo_type: params.cargoType,
-      p_cargo_volume_liters: params.cargoVolumeLiters,
-      p_scheduled_departure: params.scheduledDeparture,
-      p_scheduled_arrival: params.scheduledArrival,
-      p_start_odometer: params.startOdometer,
-    });
-
-    if (error) this.handleError(error);
-    const tripId = data?.trip_id || params.requestId;
-    const fresh = await this.getTripById(tripId);
-    if (!fresh) {
-      throw new Error('فشل استرجاع بيانات الرحلة بعد إنشائها على الخادم');
-    }
-    return fresh;
-  }
-
-  async completeTrip(params: CompleteTripParams, _userId?: string): Promise<Trip> {
-    const { error } = await this.client.rpc('complete_trip', {
-      p_request_id: params.requestId,
-      p_trip_id: params.tripId,
-      p_end_odometer: params.endOdometer,
-      p_actual_arrival: params.actualArrival || new Date().toISOString(),
-      p_fuel_liters_consumed: params.fuelLitersConsumed || 0,
-      p_fuel_cost: params.fuelCost || 0,
-      p_driver_allowance: params.driverAllowanceCost || 0,
-      p_expected_version: params.expectedVersion ?? null,
-    });
-
-    if (error) this.handleError(error);
-    const fresh = await this.getTripById(params.tripId);
-    if (!fresh) {
-      throw new Error('فشل استرجاع بيانات الرحلة بعد إغلاقها على الخادم');
-    }
-    return fresh;
-  }
-
-  async createFuelLog(
-    params: CreateFuelLogParams,
-    _userId?: string
-  ): Promise<{ fuelLog: FuelLog; anomalyAlert?: FuelAnomalyAlert }> {
-    const { data, error } = await this.client.rpc('create_fuel_log', {
-      p_request_id: params.requestId,
-      p_vehicle_id: params.vehicleId,
-      p_driver_id: params.driverId,
-      p_fuel_type: params.fuelType,
-      p_liters: params.quantityLiters,
-      p_unit_price: params.costPerLiter,
-      p_odometer: params.odometer,
-      p_station_name: params.stationName,
-      p_invoice_number: params.invoiceNumber || 'INV-PUMP',
-      p_plant_code: params.plantCode || '1100',
-    });
-
-    if (error) this.handleError(error);
-
-    const logId = data?.fuel_log_id;
-    const logs = await this.getFuelLogs(params.vehicleId);
-    const createdLog = logs.find((l) => l.id === logId) || logs[0];
-
-    return {
-      fuelLog: createdLog,
-      anomalyAlert: data?.is_anomaly
-        ? ({
-            id: `alert-${logId}`,
-            vehicleId: params.vehicleId,
-            vehiclePlate: createdLog?.vehiclePlate || '',
-            fuelLogId: logId,
-            driverId: params.driverId,
-            driverName: createdLog?.driverName || '',
-            date: params.date,
-            recordedLPer100Km: 45,
-            averageLPer100Km: 38,
-            deviationPercentage: 28,
-            severity: 'warning',
-            reasonSummary: 'تنبيه انحراف في استهلاك الوقود صادر من الخادم المرجعي',
-            status: 'active',
-            isDeleted: false,
-          } as FuelAnomalyAlert)
-        : undefined,
-    };
-  }
-
-  async issuePartsToMaintenanceOrder(
-    params: IssuePartsParams,
-    _userId?: string
-  ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
-    const { data, error } = await this.client.rpc('issue_parts_to_maintenance_order', {
-      p_request_id: params.requestId,
-      p_order_id: params.orderId,
-      p_parts: params.parts,
-      p_plant_code: params.plantCode,
-      p_expected_version: params.expectedVersion ?? null,
-    });
-
-    if (error) this.handleError(error);
-
-    const fresh = await this.getMaintenanceOrderById(params.orderId);
-    if (!fresh) {
-      throw new Error('فشل استرجاع بيانات أمر الصيانة بعد صرف القطع');
-    }
-    return { order: fresh, materialDocNumber: data?.mat_doc_number || '' };
-  }
-
-  async completeMaintenanceOrder(
-    params: CompleteMaintenanceOrderParams,
-    _userId?: string
-  ): Promise<MaintenanceOrder> {
-    const { error } = await this.client.rpc('complete_maintenance_order', {
-      p_request_id: params.requestId,
-      p_order_id: params.orderId,
-      p_labor_hours: params.laborHours,
-      p_labor_rate: params.laborRatePerHour || 120,
-      p_downtime_hours: params.downtimeHours,
-      p_completion_date: params.completionDate,
-      p_expected_version: params.expectedVersion ?? null,
-    });
-
-    if (error) this.handleError(error);
-
-    const fresh = await this.getMaintenanceOrderById(params.orderId);
-    if (!fresh) {
-      throw new Error('فشل استرجاع بيانات أمر الصيانة بعد اعتماده');
-    }
-    return fresh;
-  }
-
-  async postJournal(
-    params: PostJournalParams,
-    _userId?: string
-  ): Promise<{ success: boolean; docNumber: string; isDuplicate?: boolean }> {
-    const { data, error } = await this.client.rpc('post_journal', {
-      p_request_id: params.requestId,
-      p_source_type: params.sourceType,
-      p_source_id: params.sourceId,
-      p_event: params.event,
-      p_header_text: params.headerText,
-      p_lines: params.lines,
-      p_posting_date: params.postingDate || new Date().toISOString().slice(0, 10),
-      p_document_type: params.documentType || 'SA',
-    });
-
-    if (error) this.handleError(error);
-    return {
-      success: true,
-      docNumber: data?.doc_number || '',
-      isDuplicate: Boolean(data?.is_duplicate),
+    // Return strict subscription cleanup
+    return () => {
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+        fallbackInterval = null;
+      }
+      if (channel) {
+        this.client.removeChannel(channel).catch(() => {});
+        channel = null;
+      }
     };
   }
 }

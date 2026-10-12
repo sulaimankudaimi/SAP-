@@ -1,24 +1,18 @@
-/**
- * Unified Data Gateway Interface for Gulf Energy ERP
- *
- * Implements the server-authoritative command pattern defined in ADR 0001.
- * In server mode, clients never compute document numbers, balances, or journals.
- * All mutations execute via authoritative command methods mapping 1:1 to SQL RPCs.
- */
-
 import type {
+  Trip,
   Vehicle,
   Driver,
-  Trip,
   FuelLog,
-  FuelAnomalyAlert,
   MaintenanceOrder,
-  MaintenancePartItem,
   PreventiveSchedule,
+  FuelAnomalyAlert,
+  ExpiryAlert,
+  VehicleCostReport,
+  FleetSummaryKPIs,
 } from '../../types/models';
+import type { AuthSession } from '../services/AuthService';
 
-export interface CreateTripParams {
-  requestId: string;
+export interface CreateTripCommand {
   vehicleId: string;
   driverId: string;
   originPlant: string;
@@ -28,99 +22,167 @@ export interface CreateTripParams {
   scheduledDeparture: string;
   scheduledArrival: string;
   startOdometer: number;
+  userId?: string;
+  requestId?: string;
+  expectedVersion?: number;
 }
 
-export interface CompleteTripParams {
-  requestId: string;
+export interface CompleteTripCommand {
   tripId: string;
   endOdometer: number;
-  actualArrival?: string;
   fuelLitersConsumed?: number;
   fuelCost?: number;
   driverAllowanceCost?: number;
+  actualArrival?: string;
+  userId?: string;
+  requestId?: string;
   expectedVersion?: number;
 }
 
-export interface CreateFuelLogParams {
-  requestId: string;
+export interface CreateFuelLogCommand {
   vehicleId: string;
   driverId: string;
-  date: string;
   fuelType: 'Diesel' | 'Gasoline95' | 'Gasoline91';
+  date: string;
+  odometer: number;
   quantityLiters: number;
   costPerLiter: number;
-  odometer: number;
   stationName: string;
-  invoiceNumber?: string;
-  plantCode?: string;
-}
-
-export interface IssuePartsParams {
-  requestId: string;
-  orderId: string;
-  parts: MaintenancePartItem[];
-  plantCode: string;
+  userId?: string;
+  requestId?: string;
   expectedVersion?: number;
 }
 
-export interface CompleteMaintenanceOrderParams {
-  requestId: string;
+export interface IssuePartsCommand {
+  orderId: string;
+  plantCode: string;
+  parts: Array<{
+    lineItem?: number;
+    materialCode: string;
+    materialName?: string;
+    quantity: number;
+    unit?: string;
+    unitPrice?: number;
+    totalCost?: number;
+    storageLocation?: string;
+    costCenter?: string;
+  }>;
+  userId?: string;
+  requestId?: string;
+  expectedVersion?: number;
+}
+
+export interface CompleteMaintenanceOrderCommand {
   orderId: string;
   laborHours: number;
   laborRatePerHour?: number;
   downtimeHours: number;
   completionDate: string;
+  userId?: string;
+  requestId?: string;
   expectedVersion?: number;
 }
 
-export interface PostJournalLineParam {
-  postingKey: string;
-  accountNumber: string;
-  accountName: string;
-  debit: number;
-  credit: number;
-  costCenter?: string;
-  lineText?: string;
-}
-
-export interface PostJournalParams {
-  requestId: string;
+export interface PostJournalCommand {
   sourceType: string;
   sourceId: string;
-  event: string;
+  companyCode: string;
+  fiscalYear: string;
+  period: number;
+  postingDate: string;
+  documentDate: string;
+  documentType: string;
   headerText: string;
-  lines: PostJournalLineParam[];
-  postingDate?: string;
-  documentType?: string;
+  reference?: string;
+  lines: Array<{
+    accountNumber: string;
+    accountName: string;
+    debit: number;
+    credit: number;
+    costCenter?: string;
+    lineText?: string;
+  }>;
+  userId?: string;
+  requestId?: string;
+  expectedVersion?: number;
 }
 
-export interface IDataGateway {
-  readonly isServerMode: boolean;
+export interface VehicleFilters {
+  status?: string;
+  vehicleType?: string;
+  assignedPlant?: string;
+  search?: string;
+}
 
-  // --- Fleet Query Methods (Reads) ---
-  getVehicles(): Promise<Vehicle[]>;
+export interface DriverFilters {
+  status?: string;
+  assignedPlant?: string;
+  search?: string;
+}
+
+export interface TripFilters {
+  status?: string;
+  vehicleId?: string;
+  driverId?: string;
+  originPlant?: string;
+}
+
+export interface MaintenanceFilters {
+  vehicleId?: string;
+  status?: string;
+  orderType?: string;
+}
+
+export type RealtimeChangeCallback = (
+  table: string,
+  event: 'INSERT' | 'UPDATE' | 'DELETE',
+  payload: Record<string, unknown>
+) => void;
+
+export interface IDataGateway {
+  readonly mode: 'local' | 'server';
+
+  // Command Methods (1:1 with Server SQL RPCs)
+  createTrip(cmd: CreateTripCommand): Promise<Trip>;
+  completeTrip(cmd: CompleteTripCommand): Promise<Trip>;
+  createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog>;
+  issuePartsToMaintenanceOrder(cmd: IssuePartsCommand): Promise<{ order: MaintenanceOrder; materialDocNumber: string }>;
+  completeMaintenanceOrder(cmd: CompleteMaintenanceOrderCommand): Promise<MaintenanceOrder>;
+  postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }>;
+
+  // Additional Fleet Commands (Vehicles, Drivers, Orders)
+  createVehicle?(vehicle: Partial<Vehicle>): Promise<Vehicle>;
+  updateVehicle?(id: string, updates: Partial<Vehicle>, expectedVersion?: number): Promise<Vehicle>;
+  createDriver?(driver: Partial<Driver>): Promise<Driver>;
+  updateDriver?(id: string, updates: Partial<Driver>, expectedVersion?: number): Promise<Driver>;
+  createMaintenanceOrder?(order: Partial<MaintenanceOrder>): Promise<MaintenanceOrder>;
+  resolveFuelAnomalyAlert?(id: string, notes: string): Promise<void>;
+
+  // Fleet Query Methods
+  getVehicles(filters?: VehicleFilters): Promise<Vehicle[]>;
   getVehicleById(id: string): Promise<Vehicle | null>;
-  getDrivers(): Promise<Driver[]>;
+  getDrivers(filters?: DriverFilters): Promise<Driver[]>;
   getDriverById(id: string): Promise<Driver | null>;
-  getTrips(filters?: { status?: string | 'ALL'; vehicleId?: string }): Promise<Trip[]>;
+  getTrips(filters?: TripFilters): Promise<Trip[]>;
   getTripById(id: string): Promise<Trip | null>;
   getFuelLogs(vehicleId?: string): Promise<FuelLog[]>;
-  getMaintenanceOrders(vehicleId?: string): Promise<MaintenanceOrder[]>;
+  getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]>;
   getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null>;
   getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]>;
+  getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]>;
+  getVehicleExpiryAlerts(): Promise<ExpiryAlert[]>;
+  getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport>;
+  getFleetDashboardKPIs(): Promise<FleetSummaryKPIs>;
 
-  // Master Data Mutators (with OCC expectedVersion)
-  createVehicle(data: Omit<Vehicle, 'id' | 'isDeleted'>, userId?: string): Promise<Vehicle>;
-  updateVehicle(id: string, updates: Partial<Vehicle>, userId?: string, expectedVersion?: number): Promise<Vehicle>;
-  createDriver(data: Omit<Driver, 'id' | 'isDeleted'>, userId?: string): Promise<Driver>;
-  updateDriver(id: string, updates: Partial<Driver>, userId?: string, expectedVersion?: number): Promise<Driver>;
-  createMaintenanceOrder(data: Omit<MaintenanceOrder, 'id' | 'docNumber' | 'isDeleted'>, userId?: string): Promise<MaintenanceOrder>;
+  // Authentication
+  signIn(username: string, password: string): Promise<AuthSession>;
+  signOut(): Promise<void>;
+  changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void>;
+  restoreSession(): Promise<AuthSession | null>;
 
-  // --- 6 Authoritative Command RPCs (1:1 with PostgreSQL Functions) ---
-  createTrip(params: CreateTripParams, userId?: string): Promise<Trip>;
-  completeTrip(params: CompleteTripParams, userId?: string): Promise<Trip>;
-  createFuelLog(params: CreateFuelLogParams, userId?: string): Promise<{ fuelLog: FuelLog; anomalyAlert?: FuelAnomalyAlert }>;
-  issuePartsToMaintenanceOrder(params: IssuePartsParams, userId?: string): Promise<{ order: MaintenanceOrder; materialDocNumber: string }>;
-  completeMaintenanceOrder(params: CompleteMaintenanceOrderParams, userId?: string): Promise<MaintenanceOrder>;
-  postJournal(params: PostJournalParams, userId?: string): Promise<{ success: boolean; docNumber: string; isDuplicate?: boolean }>;
+  // Realtime Subscriptions
+  subscribeFleet(
+    tables: string[],
+    onChange: RealtimeChangeCallback
+  ): () => void;
 }

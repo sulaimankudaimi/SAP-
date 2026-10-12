@@ -9,8 +9,9 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../components/ui/Toast';
 import { AuthService } from '../core/services/AuthService';
-import { ServerAuthService } from '../core/gateway/ServerAuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
+import { dataGateway } from '../core/gateway/ServerGateway';
+import { isServerMode } from '../core/gateway/connectivity';
 
 const changePasswordSchema = z
   .object({
@@ -69,8 +70,12 @@ export const ChangePasswordPage: React.FC = () => {
     setServerError(null);
 
     try {
-      if (ServerAuthService.isServerMode()) {
-        await ServerAuthService.changePassword(data.newPassword);
+      if (isServerMode()) {
+        await dataGateway.instance.changePassword(user.id, data.currentPassword, data.newPassword);
+        // In server mode, update local auth store user flag
+        useAuthStore.setState((prev) => ({
+          user: prev.user ? { ...prev.user, mustChangePassword: false } : null,
+        }));
       } else {
         await AuthService.changePassword(user.id, data.currentPassword, data.newPassword);
         await refreshUser();

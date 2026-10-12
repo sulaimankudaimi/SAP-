@@ -16,6 +16,10 @@ import {
   UserCheck,
   ExternalLink,
   KeyRound,
+  Wifi,
+  WifiOff,
+  CloudUpload,
+  Inbox,
 } from 'lucide-react';
 import { t } from '../../i18n/ar';
 import { useToast } from '../ui/Toast';
@@ -25,6 +29,7 @@ import { useAuthStore } from '../../core/auth/useAuthStore';
 import { TCodeBar } from './TCodeBar';
 import { NotificationService } from '../../core/services/NotificationService';
 import { isRouteImplemented } from '../../app/routeStatus';
+import { useConnectivityStore, isServerMode } from '../../core/gateway/connectivity';
 import type { Notification } from '../../types/models';
 
 export interface HeaderProps {
@@ -48,6 +53,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
       window.removeEventListener('keydown', handleActivity);
     };
   }, [recordActivity]);
+
+  const isServer = isServerMode();
+  const isOnline = useConnectivityStore((s) => s.isOnline);
+  const isSyncing = useConnectivityStore((s) => s.isSyncing);
+  const pendingCount = useConnectivityStore((s) => s.pendingCount);
+  const needsReviewCount = useConnectivityStore((s) => s.needsReviewCount);
+  const totalOutbox = pendingCount + needsReviewCount;
 
   // Context Switcher State (Company / Plant / Fiscal Year)
   const [companyCode, setCompanyCode] = useState(user?.companyCode || '1000');
@@ -161,6 +173,63 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
             <Calendar className="w-3.5 h-3.5 text-[#F59E0B]" />
             <span className="font-mono font-bold">{fiscalYear}</span>
             <ChevronDown className="w-3 h-3 text-[#64748B]" />
+          </button>
+
+          {/* Connectivity Status Indicator (Online/Offline/Syncing) */}
+          <div
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
+              !isOnline
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : isSyncing
+                ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+                : isServer
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-700 border-slate-200'
+            }`}
+            title={
+              !isOnline
+                ? 'وضع غير متصل بالشبكة (العمليات المحلية وصندوق الإرسال نشطة)'
+                : isSyncing
+                ? 'جاري مزامنة صندوق الإرسال مع الخادم...'
+                : isServer
+                ? 'متصل بالخادم المركزي للأسطول'
+                : 'وضع محلي مستقل 100%'
+            }
+          >
+            {!isOnline ? (
+              <WifiOff className="w-3.5 h-3.5 text-rose-600" />
+            ) : isSyncing ? (
+              <CloudUpload className="w-3.5 h-3.5 text-amber-600" />
+            ) : (
+              <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            <span>
+              {!isOnline
+                ? 'غير متصل'
+                : isSyncing
+                ? 'مزامنة...'
+                : isServer
+                ? 'الخادم متصل'
+                : 'محلي (أوفلاين)'}
+            </span>
+          </div>
+
+          {/* Real Outbox Pending Badge / Button */}
+          <button
+            onClick={() => navigate('/fleet/outbox')}
+            className={`relative p-2 rounded-xl transition-colors cursor-pointer ${
+              totalOutbox > 0
+                ? 'text-amber-600 hover:bg-amber-50'
+                : 'text-[#64748B] hover:text-[#0F172A] hover:bg-[#F4F7FB]'
+            }`}
+            title={`صندوق الإرسال: ${pendingCount} قيد الإرسال، ${needsReviewCount} بحاجة لمراجعة`}
+          >
+            <Inbox className="w-5 h-5" />
+            {totalOutbox > 0 && (
+              <span className="absolute top-1.5 end-1.5 min-w-4 h-4 px-1 bg-amber-500 text-white rounded-full text-[9px] font-bold font-mono flex items-center justify-center ring-2 ring-white">
+                {totalOutbox}
+              </span>
+            )}
           </button>
 
           {/* Quick link to /admin/dev verification cockpit (Demo Mode & SYS_VIEW only) */}

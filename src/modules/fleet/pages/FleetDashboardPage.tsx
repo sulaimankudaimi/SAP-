@@ -12,6 +12,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
 import { useToast } from '../../../components/ui/Toast';
+import { dataGateway } from '../../../core/gateway/ServerGateway';
 import type { PreventiveSchedule, Trip } from '../../../types/models';
 import {
   Truck,
@@ -80,11 +81,22 @@ export const FleetDashboardPage: React.FC = () => {
     loadData();
 
     // Subscribe to real-time live telemetry stream
-    const unsubscribe = telemetryService.subscribeToUpdates((telemetryList) => {
+    const unsubscribeTelemetry = telemetryService.subscribeToUpdates((telemetryList) => {
       setActiveTelemetries(telemetryList);
     });
 
-    return () => unsubscribe();
+    // Subscribe to server/local fleet changes
+    const unsubscribeFleet = dataGateway.instance.subscribeFleet(
+      ['trips', 'vehicles', 'fuel_logs', 'maintenance_orders'],
+      () => {
+        loadData();
+      }
+    );
+
+    return () => {
+      unsubscribeTelemetry();
+      unsubscribeFleet();
+    };
   }, []);
 
   // Compute average speed and top speed from active telemetries

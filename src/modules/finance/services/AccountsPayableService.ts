@@ -486,7 +486,7 @@ export class AccountsPayableService {
       }
     }
 
-    if (invoice.status === 'cancelled' || invoice.paymentStatus === 'Cancelled') {
+    if (invoice.status === 'cancelled' || (invoice.paymentStatus as string) === 'Cancelled') {
       throw new Error('تم إلغاء/عكس هذه الفاتورة مسبقاً.');
     }
 

@@ -191,7 +191,6 @@ export interface Material {
   leadTimeDays?: number;
   weightKg?: number;
   barcode?: string;
-  version?: number;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
   isDeleted: boolean;
 }
@@ -236,7 +235,6 @@ export interface Vendor {
   crExpiryDate?: string;
   taxCertExpiryDate?: string;
   isoCertExpiryDate?: string;
-  version?: number;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
   isDeleted: boolean;
 }
@@ -602,10 +600,10 @@ export interface FuelLog {
   totalCost: number;
   odometer: number;
   stationName: string;
-  version?: number;
   calculatedConsumptionPer100Km?: number;
   isAnomaly?: boolean;
   anomalyDeviationPercentage?: number;
+  status?: string;
   isDeleted: boolean;
 }
 
@@ -931,7 +929,7 @@ export interface VendorInvoice extends TransactionDocument {
   totalAmount: number;
   vatAmount: number;
   netAmount: number;
-  paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid' | 'Cancelled';
+  paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
   paymentTerms?: string; // e.g., 'Net 30', '2/10 Net 30'
   cashDiscountPercentage?: number;
   cashDiscountDays?: number;
@@ -1312,22 +1310,61 @@ export interface PostingRegistryEntry {
   reversalDocNumber?: string;
 }
 
-// Offline Command Outbox Model (Dexie v4)
 export type OutboxCommandType = 'fuel_log' | 'trip_event' | 'odometer_reading' | 'inspection';
-export type OutboxStatus = 'pending' | 'sending' | 'done' | 'rejected' | 'needs_review';
+export type OutboxCommandStatus = 'pending' | 'sending' | 'done' | 'rejected' | 'needs_review';
 
-export interface OutboxEntry {
-  id: string; // The client-generated request_id uuid
+export interface OutboxCommand {
+  id: string; // The request_id UUID
   type: OutboxCommandType;
-  vehicleId?: string;
   payload: Record<string, unknown>;
   createdAt: string;
   attempts: number;
-  status: OutboxStatus;
+  status: OutboxCommandStatus;
   lastError?: string;
-  lastAttemptAt?: string;
+  vehicleId?: string;
+  updatedAt?: string;
   discardReason?: string;
-  discardedBy?: string;
-  discardedAt?: string;
+  lastAttemptAt?: string;
+}
+
+export interface VehicleCostReport {
+  vehicleId: string;
+  vehiclePlate: string;
+  vehicleCode: string;
+  makeModel: string;
+  totalDistanceKm: number;
+  fuelCostTotal: number;
+  maintenanceCostTotal: number;
+  driverAllowanceTotal: number;
+  depreciationCostTotal: number;
+  grandTotalCost: number;
+  costPerKm: number;
+}
+
+export interface ExpiryAlert {
+  id: string;
+  vehicleId: string;
+  vehiclePlate: string;
+  vehicleCode: string;
+  alertType: 'insurance' | 'registration';
+  title: string;
+  expiryDate: string;
+  daysRemaining: number;
+  isExpired: boolean;
+}
+
+export interface FleetSummaryKPIs {
+  totalVehicles: number;
+  onRoadCount: number;
+  availableCount: number;
+  maintenanceCount: number;
+  outOfServiceCount: number;
+  fleetUtilizationRate: number; // percentage
+  fuelConsumedTodayLiters: number;
+  fuelCostTodaySar: number;
+  fuelVsYesterdayChangePct: number;
+  activeTripsCount: number;
+  pendingMaintenanceCount: number;
+  criticalAnomaliesCount: number;
 }
 

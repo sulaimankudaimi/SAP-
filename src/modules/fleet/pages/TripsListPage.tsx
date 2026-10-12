@@ -8,6 +8,7 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useToast } from '../../../components/ui/Toast';
+import { dataGateway } from '../../../core/gateway/ServerGateway';
 import type { Trip } from '../../../types/models';
 import {
   Navigation,
@@ -50,6 +51,10 @@ export const TripsListPage: React.FC = () => {
 
   useEffect(() => {
     loadTrips();
+    const unsubscribe = dataGateway.instance.subscribeFleet(['trips'], () => {
+      loadTrips();
+    });
+    return () => unsubscribe();
   }, []);
 
   const filteredTrips = useMemo(() => {

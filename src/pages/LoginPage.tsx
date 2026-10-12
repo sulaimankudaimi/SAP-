@@ -11,11 +11,12 @@ import { Input } from '../components/ui/Input';
 import { Checkbox } from '../components/ui/Checkbox';
 import { useToast } from '../components/ui/Toast';
 import { AuthService } from '../core/services/AuthService';
-import { ServerAuthService } from '../core/gateway/ServerAuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
 import { DatabaseSeeder } from '../seed';
 import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { db } from '../core/db';
+import { dataGateway } from '../core/gateway/ServerGateway';
+import { isServerMode } from '../core/gateway/connectivity';
 
 const loginSchema = z.object({
   username: z.string().min(2, 'يرجى إدخال اسم المستخدم أو الرقم الوظيفي'),
@@ -120,19 +121,17 @@ export const LoginPage: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      let session: import('../core/services/AuthService').AuthSession;
-
-      if (ServerAuthService.isServerMode()) {
-        session = await ServerAuthService.login(data.username, data.password);
+      let session;
+      if (isServerMode()) {
+        session = await dataGateway.instance.signIn(data.username, data.password);
       } else {
         const seeded = await DatabaseSeeder.isSeeded();
         if (!seeded) {
           await DatabaseSeeder.seed();
         }
         session = await AuthService.login(data.username, data.password);
+        setSession(session);
       }
-
-      setSession(session);
       success('تم تسجيل الدخول بنجاح', `مرحباً بك، ${session.user.fullName} (${session.role.name})`);
 
       // Update local OTP state if bootstrap admin cleared the secret

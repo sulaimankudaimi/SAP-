@@ -1,47 +1,41 @@
-/**
- * ServerGateway Factory
- *
- * Instantiates SupabaseGateway when VITE_SERVER_MODE is true,
- * otherwise returns LocalDexieGateway so the client runs completely locally.
- */
-
 import type { IDataGateway } from './IDataGateway';
+import { isServerMode, getServerUrl, getServerAnonKey } from './connectivity';
 import { LocalDexieGateway } from './LocalDexieGateway';
 import { SupabaseGateway } from './SupabaseGateway';
 
+export { isServerMode, getServerUrl, getServerAnonKey } from './connectivity';
+export const getServerMode = isServerMode;
+
 let gatewayInstance: IDataGateway | null = null;
 
-export function getServerMode(): boolean {
-  return import.meta.env.VITE_SERVER_MODE === 'true';
-}
-
-export function getServerUrl(): string {
-  return import.meta.env.VITE_ERP_SERVER_URL || '';
-}
-
-export function getServerAnonKey(): string {
-  return import.meta.env.VITE_ERP_ANON_KEY || '';
-}
-
-export function createServerGateway(forceServerMode?: boolean): IDataGateway {
-  const isServer = forceServerMode !== undefined ? forceServerMode : getServerMode();
-
-  if (isServer) {
-    const url = getServerUrl();
-    const key = getServerAnonKey();
-    return new SupabaseGateway(url, key);
+/**
+ * Factory that returns the active data gateway based on VITE_SERVER_MODE.
+ * When VITE_SERVER_MODE=false or unset, returns LocalDexieGateway leaving the app 100% offline.
+ * When VITE_SERVER_MODE=true, returns SupabaseGateway for the Fleet slice.
+ */
+export function getGateway(): IDataGateway {
+  if (gatewayInstance) {
+    return gatewayInstance;
   }
 
-  return new LocalDexieGateway();
-}
-
-export function getServerGateway(): IDataGateway {
-  if (!gatewayInstance) {
-    gatewayInstance = createServerGateway();
+  if (isServerMode()) {
+    gatewayInstance = new SupabaseGateway();
+  } else {
+    gatewayInstance = new LocalDexieGateway();
   }
+
   return gatewayInstance;
 }
 
-export function _resetServerGatewayForTesting(mockGateway?: IDataGateway): void {
-  gatewayInstance = mockGateway || null;
+/**
+ * Reset helper for testing
+ */
+export function _setGatewayInstanceForTesting(gateway: IDataGateway | null): void {
+  gatewayInstance = gateway;
 }
+
+export const dataGateway = {
+  get instance(): IDataGateway {
+    return getGateway();
+  },
+};

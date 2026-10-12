@@ -97,7 +97,7 @@ export class GulfErpDatabase extends Dexie {
   approvalRules!: Table<import('../../types/models').ApprovalRule, string>;
   printTemplates!: Table<import('../../types/models').PrintTemplate, string>;
   postingRegistry!: Table<import('../../types/models').PostingRegistryEntry, string>;
-  outbox!: Table<import('../../types/models').OutboxEntry, string>;
+  outbox!: Table<import('../../types/models').OutboxCommand, string>;
 
   constructor() {
     super('gulf_erp');
@@ -170,9 +170,9 @@ export class GulfErpDatabase extends Dexie {
       postingRegistry: 'id, &[sourceType+sourceId+event], sourceType, sourceId, event, journalDocNumber, createdAt',
     });
 
-    // Version 4: Offline command outbox with vehicle FIFO & status indexing
+    // Version 4: Offline Outbox table
     this.version(4).stores({
-      outbox: 'id, type, vehicleId, status, createdAt, attempts',
+      outbox: 'id, type, status, createdAt, vehicleId, attempts',
     });
   }
 }

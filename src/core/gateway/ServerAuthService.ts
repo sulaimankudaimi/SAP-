@@ -4,11 +4,11 @@
  *
  * Maps username -> synthetic email: `${username}@erp.local`
  * Retrieves profiles row, roles row, and role_permissions.
- * Strictly uses anon key and user JWT; never ships service_role.
+ * Strictly uses anon key and user JWT; never ships administrative keys.
  */
 
 import { SupabaseGateway } from './SupabaseGateway';
-import { getServerUrl, getServerAnonKey, getServerMode } from './ServerGateway';
+import { getServerMode } from './ServerGateway';
 import type { AuthSession } from '../services/AuthService';
 import type { User, Role } from '../../types/models';
 
@@ -16,9 +16,7 @@ let supabaseAuthClient: SupabaseGateway | null = null;
 
 function getAuthGateway(): SupabaseGateway {
   if (!supabaseAuthClient) {
-    const url = getServerUrl();
-    const key = getServerAnonKey();
-    supabaseAuthClient = new SupabaseGateway(url, key);
+    supabaseAuthClient = new SupabaseGateway();
   }
   return supabaseAuthClient;
 }
@@ -100,8 +98,10 @@ export class ServerAuthService {
       id: profile.user_id,
       username: profile.username,
       fullName: profile.full_name,
+      email: `${profile.username || 'user'}@erp.local`,
       roleId: role.id,
       roleCode: role.code,
+      roleName: role.name,
       companyCode: '1000',
       plantCode: Array.isArray(profile.plant_codes) && profile.plant_codes.length > 0 ? profile.plant_codes[0] : '1100',
       department: 'Operations',
@@ -199,8 +199,10 @@ export class ServerAuthService {
         id: profile.user_id,
         username: profile.username,
         fullName: profile.full_name,
+        email: `${profile.username || 'user'}@erp.local`,
         roleId: role.id,
         roleCode: role.code,
+        roleName: role.name,
         companyCode: '1000',
         plantCode: Array.isArray(profile.plant_codes) && profile.plant_codes.length > 0 ? profile.plant_codes[0] : '1100',
         department: 'Operations',

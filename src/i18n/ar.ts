@@ -51,6 +51,7 @@ export const ar = {
   nav_trips: 'الرحلات والشحنات',
   nav_fuel: 'إدارة الوقود',
   nav_fleet_maintenance: 'صيانة الأسطول',
+  nav_fleet_outbox: 'عمليات بانتظار المراجعة',
 
   nav_assets: 'الأصول الثابتة',
   nav_assets_register: 'سجل الأصول (AS01/AS03)',
