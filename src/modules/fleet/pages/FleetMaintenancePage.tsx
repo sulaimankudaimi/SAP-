@@ -2,6 +2,7 @@ import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { FleetService } from '../services/FleetService';
 import { MaintenanceOrderModal } from '../components/MaintenanceOrderModal';
+import { MaintenanceOrderPrintModal } from '../components/MaintenanceOrderPrintModal';
 import { StatCard } from '../../../components/ui/StatCard';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
@@ -22,6 +23,7 @@ import {
   DollarSign,
   Calendar,
   Layers,
+  Printer,
 } from 'lucide-react';
 
 export const FleetMaintenancePage: React.FC = () => {
@@ -37,6 +39,7 @@ export const FleetMaintenancePage: React.FC = () => {
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<MaintenanceOrder | null>(null);
+  const [orderToPrint, setOrderToPrint] = useState<MaintenanceOrder | null>(null);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -279,17 +282,28 @@ export const FleetMaintenancePage: React.FC = () => {
                         {getStatusBadge(o.status)}
                       </td>
                       <td className="p-3 text-center">
-                        <Button
-                          size="sm"
-                          variant={o.status === 'completed' ? 'secondary' : 'primary'}
-                          icon={<Wrench className="w-3.5 h-3.5" />}
-                          onClick={() => {
-                            setSelectedOrder(o);
-                            setIsModalOpen(true);
-                          }}
-                        >
-                          {o.status === 'completed' ? 'استعراض' : 'صرف قطع / إغلاق'}
-                        </Button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={<Printer className="w-3.5 h-3.5" />}
+                            onClick={() => setOrderToPrint(o)}
+                            title="طباعة بطاقة أمر الصيانة"
+                          >
+                            طباعة
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={o.status === 'completed' ? 'secondary' : 'primary'}
+                            icon={<Wrench className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                              setSelectedOrder(o);
+                              setIsModalOpen(true);
+                            }}
+                          >
+                            {o.status === 'completed' ? 'استعراض' : 'صرف قطع / إغلاق'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -374,6 +388,13 @@ export const FleetMaintenancePage: React.FC = () => {
           success('نجاح', 'تم تحديث أوامر الصيانة وسجلات الأسطول');
         }}
         existingOrder={selectedOrder}
+      />
+
+      {/* Maintenance Order Print Modal */}
+      <MaintenanceOrderPrintModal
+        isOpen={!!orderToPrint}
+        onClose={() => setOrderToPrint(null)}
+        order={orderToPrint}
       />
     </div>
   );

@@ -36,23 +36,12 @@ import {
 export const FleetDashboardPage: React.FC = () => {
   const { success, error } = useToast();
 
-  const [kpis, setKpis] = useState<FleetSummaryKPIs>({
-    totalVehicles: 30,
-    onRoadCount: 14,
-    availableCount: 12,
-    maintenanceCount: 4,
-    outOfServiceCount: 0,
-    fleetUtilizationRate: 47,
-    fuelConsumedTodayLiters: 18450,
-    fuelCostTodaySar: 21217,
-    fuelVsYesterdayChangePct: -3.8,
-    activeTripsCount: 14,
-    pendingMaintenanceCount: 4,
-    criticalAnomaliesCount: 2,
-  });
-
+  const [kpis, setKpis] = useState<FleetSummaryKPIs | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTelemetries, setActiveTelemetries] = useState<VehicleTelemetry[]>([]);
   const [upcomingSchedules, setUpcomingSchedules] = useState<PreventiveSchedule[]>([]);
+  const [preventiveAlerts, setPreventiveAlerts] = useState<Array<PreventiveSchedule & { alertReason: string; isOverdue: boolean }>>([]);
   const [activeTrips, setActiveTrips] = useState<Trip[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 
@@ -63,17 +52,24 @@ export const FleetDashboardPage: React.FC = () => {
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
 
   const loadData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
-      const [kpiData, schedules, trips] = await Promise.all([
+      const [kpiData, schedules, trips, pAlerts] = await Promise.all([
         FleetService.getFleetDashboardKPIs(),
         FleetService.getPreventiveSchedules(),
         FleetService.getTrips({ status: 'in_progress' }),
+        FleetService.getPreventiveScheduleAlerts(),
       ]);
       setKpis(kpiData);
       setUpcomingSchedules(schedules);
       setActiveTrips(trips);
+      setPreventiveAlerts(pAlerts);
     } catch (err) {
       DiagnosticLogger.error('FleetDashboardPage', 'Error occurred', err);
+      setLoadError('تعذر تحميل بيانات ومؤشرات أداء الأسطول من الخادم المرجعي');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -163,36 +159,57 @@ export const FleetDashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Error State Banner */}
+      {loadError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between text-xs text-[#EF4444]">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-bold">{loadError}</span>
+          </div>
+          <Button variant="secondary" size="sm" onClick={loadData}>
+            إعادة المحاولة
+          </Button>
+        </div>
+      )}
+
       {/* 2. Fleet Status KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="إجمالي أسطول الصهاريج والشاحنات"
-          value={kpis.totalVehicles}
-          subtitle={`نسبة تشغيل الأسطول: ${kpis.fleetUtilizationRate}%`}
-          icon={<Truck className="w-5 h-5 text-[#0FA37F]" />}
-        />
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 bg-slate-200 rounded-2xl" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="إجمالي أسطول الصهاريج والشاحنات"
+            value={kpis?.totalVehicles ?? 0}
+            subtitle={`نسبة تشغيل الأسطول: ${kpis?.fleetUtilizationRate ?? 0}%`}
+            icon={<Truck className="w-5 h-5 text-[#0FA37F]" />}
+          />
 
-        <StatCard
-          label="مركبات في الطريق (On Road)"
-          value={kpis.onRoadCount}
-          subtitle="تنفذ رحلات إمداد وتوزيع نشطة"
-          icon={<Navigation className="w-5 h-5 text-[#2563EB]" />}
-        />
+          <StatCard
+            label="مركبات في الطريق (On Road)"
+            value={kpis?.onRoadCount ?? 0}
+            subtitle="تنفذ رحلات إمداد وتوزيع نشطة"
+            icon={<Navigation className="w-5 h-5 text-[#2563EB]" />}
+          />
 
-        <StatCard
-          label="مركبات جاهزة / متوقفة بالمحطة"
-          value={kpis.availableCount}
-          subtitle="متاحة للجدولة والتحميل الفوري"
-          icon={<CheckCircle2 className="w-5 h-5 text-[#0FA37F]" />}
-        />
+          <StatCard
+            label="مركبات جاهزة / متوقفة بالمحطة"
+            value={kpis?.availableCount ?? 0}
+            subtitle="متاحة للجدولة والتحميل الفوري"
+            icon={<CheckCircle2 className="w-5 h-5 text-[#0FA37F]" />}
+          />
 
-        <StatCard
-          label="مركبات قيد الصيانة والإصلاح"
-          value={kpis.maintenanceCount}
-          subtitle="في الورشة المركزية"
-          icon={<Wrench className="w-5 h-5 text-[#F59E0B]" />}
-        />
-      </div>
+          <StatCard
+            label="مركبات قيد الصيانة والإصلاح"
+            value={kpis?.maintenanceCount ?? 0}
+            subtitle="في الورشة المركزية"
+            icon={<Wrench className="w-5 h-5 text-[#F59E0B]" />}
+          />
+        </div>
+      )}
 
       {/* 3. SVG Map & Gauges Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -247,12 +264,12 @@ export const FleetDashboardPage: React.FC = () => {
             <div className="flex items-baseline justify-between pt-1">
               <div>
                 <span className="text-2xl font-bold font-mono text-[#0F172A]">
-                  {kpis.fuelConsumedTodayLiters.toLocaleString()}
+                  {(kpis?.fuelConsumedTodayLiters ?? 0).toLocaleString()}
                 </span>
                 <span className="text-xs text-[#64748B] ms-1">لتر</span>
               </div>
               <span className="text-xs font-mono font-bold text-[#0FA37F]">
-                {kpis.fuelCostTodaySar.toLocaleString()} ر.س
+                {(kpis?.fuelCostTodaySar ?? 0).toLocaleString()} ر.س
               </span>
             </div>
 
@@ -263,7 +280,7 @@ export const FleetDashboardPage: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span>تنبيهات استهلاك غير اعتيادي:</span>
-                <strong className="text-[#EF4444] font-mono">{kpis.criticalAnomaliesCount} تنبيهات</strong>
+                <strong className="text-[#EF4444] font-mono">{kpis?.criticalAnomaliesCount ?? 0} تنبيهات</strong>
               </div>
             </div>
           </div>
@@ -373,7 +390,7 @@ export const FleetDashboardPage: React.FC = () => {
             </div>
 
             <div className="p-4 divide-y divide-[#E5EAF2]">
-              {upcomingSchedules.slice(0, 5).map((pm) => (
+              {(preventiveAlerts.length > 0 ? preventiveAlerts : upcomingSchedules).slice(0, 5).map((pm) => (
                 <div key={pm.id} className="py-3 first:pt-0 last:pb-0 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-[#0F172A]">
@@ -387,10 +404,15 @@ export const FleetDashboardPage: React.FC = () => {
                     <span>استحقاق العداد: <strong className="font-mono text-[#0F172A]">{pm.nextDueOdometer.toLocaleString()} كم</strong></span>
                     <span>التاريخ: {pm.nextDueDate}</span>
                   </div>
+                  {'alertReason' in pm && Boolean((pm as { alertReason?: string }).alertReason) ? (
+                    <div className="text-[10px] text-amber-600 font-medium">
+                      ⚠️ {String((pm as { alertReason?: string }).alertReason)}
+                    </div>
+                  ) : null}
                 </div>
               ))}
 
-              {upcomingSchedules.length === 0 && (
+              {upcomingSchedules.length === 0 && preventiveAlerts.length === 0 && (
                 <div className="py-6 text-center text-xs text-[#64748B]">
                   كافة فحوصات الصيانة الوقائية محدثة وفق المعايير الفنية.
                 </div>

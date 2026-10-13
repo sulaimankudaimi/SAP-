@@ -22,27 +22,33 @@ import {
   DollarSign,
   Fuel,
   FileCheck,
+  Printer,
 } from 'lucide-react';
+import { TripPrintModal } from '../components/TripPrintModal';
 
 export const TripsListPage: React.FC = () => {
   const { success, error } = useToast();
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
   // Modals
   const [isTripModalOpen, setIsTripModalOpen] = useState(false);
   const [tripToComplete, setTripToComplete] = useState<Trip | null>(null);
+  const [tripToPrint, setTripToPrint] = useState<Trip | null>(null);
 
   const loadTrips = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const list = await FleetService.getTrips();
       setTrips(list);
     } catch (err) {
       DiagnosticLogger.error('TripsListPage', 'Error occurred', err);
+      setLoadError('تعذر تحميل سجل الرحلات');
       error('خطأ', 'تعذر تحميل سجل الرحلات');
     } finally {
       setIsLoading(false);
@@ -194,78 +200,108 @@ export const TripsListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF2]">
-              {filteredTrips.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3">
-                    <span className="font-mono font-bold text-[#0F172A] block">{t.docNumber}</span>
-                    <span className="text-[10px] text-[#64748B]">{t.scheduledDeparture?.slice(0, 10)}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className="font-mono font-bold text-[#0F172A] block">{t.vehiclePlate}</span>
-                    <span className="text-[11px] text-[#64748B]">{t.driverName}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className="font-bold text-[#0F172A] block">{t.destinationLocation}</span>
-                    <span className="text-[10px] text-[#64748B]">من: {t.originPlant}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className="font-bold text-[#0FA37F] block">{t.cargoType}</span>
-                    <span className="text-[10px] text-[#64748B] font-mono">
-                      {t.cargoVolumeLiters?.toLocaleString()} لتر
-                    </span>
-                  </td>
-                  <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
-                    {t.distanceKm ? `${t.distanceKm.toLocaleString()} كم` : 'قيد السير'}
-                  </td>
-                  <td className="p-3 text-center">
-                    {t.delayMinutes && t.delayMinutes > 0 ? (
-                      <span className="text-[#EF4444] font-bold text-[11px] flex items-center justify-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        تأخير {t.delayMinutes} دقيقة
-                      </span>
-                    ) : (
-                      <span className="text-[#0FA37F] font-semibold text-[11px] flex items-center justify-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        في الموعد المحدد
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-end font-mono font-bold">
-                    {t.totalTripCost ? (
-                      <span className="text-[#0FA37F] block">
-                        {t.totalTripCost.toLocaleString()} ر.س
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                    {t.postedAccountingDocNumber && (
-                      <span className="text-[9px] text-[#64748B] block font-mono">
-                        {t.postedAccountingDocNumber}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-center">
-                    {getStatusBadge(t.status)}
-                  </td>
-                  <td className="p-3 text-center">
-                    {t.status === 'in_progress' ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                        onClick={() => {
-                          setTripToComplete(t);
-                          setIsTripModalOpen(true);
-                        }}
-                      >
-                        تسجيل الوصول وإغلاق الرحلة
-                      </Button>
-                    ) : (
-                      <Badge variant="approved">مكتملة</Badge>
-                    )}
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={9} className="p-4 bg-slate-100/50">
+                      <div className="h-5 bg-slate-200 rounded w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredTrips.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-xs text-[#64748B]">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Navigation className="w-8 h-8 text-slate-300" />
+                      <span className="font-bold text-[#0F172A]">لا توجد رحلات مطابقة لمعايير البحث الحالية</span>
+                      <span className="text-[11px]">يمكنك إطلاق رحلة جديدة عبر زر "إطلاق رحلة نقل".</span>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredTrips.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3">
+                      <span className="font-mono font-bold text-[#0F172A] block">{t.docNumber}</span>
+                      <span className="text-[10px] text-[#64748B]">{t.scheduledDeparture?.slice(0, 10)}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-mono font-bold text-[#0F172A] block">{t.vehiclePlate}</span>
+                      <span className="text-[11px] text-[#64748B]">{t.driverName}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-bold text-[#0F172A] block">{t.destinationLocation}</span>
+                      <span className="text-[10px] text-[#64748B]">من: {t.originPlant}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-bold text-[#0FA37F] block">{t.cargoType}</span>
+                      <span className="text-[10px] text-[#64748B] font-mono">
+                        {t.cargoVolumeLiters?.toLocaleString()} لتر
+                      </span>
+                    </td>
+                    <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
+                      {t.distanceKm ? `${t.distanceKm.toLocaleString()} كم` : 'قيد السير'}
+                    </td>
+                    <td className="p-3 text-center">
+                      {t.delayMinutes && t.delayMinutes > 0 ? (
+                        <span className="text-[#EF4444] font-bold text-[11px] flex items-center justify-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          تأخير {t.delayMinutes} دقيقة
+                        </span>
+                      ) : (
+                        <span className="text-[#0FA37F] font-semibold text-[11px] flex items-center justify-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          في الموعد المحدد
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-end font-mono font-bold">
+                      {t.totalTripCost ? (
+                        <span className="text-[#0FA37F] block">
+                          {t.totalTripCost.toLocaleString()} ر.س
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                      {t.postedAccountingDocNumber && (
+                        <span className="text-[9px] text-[#64748B] block font-mono">
+                          {t.postedAccountingDocNumber}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">
+                      {getStatusBadge(t.status)}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Printer className="w-3.5 h-3.5 text-slate-600" />}
+                          onClick={() => setTripToPrint(t)}
+                        >
+                          طباعة
+                        </Button>
+                        {t.status === 'in_progress' ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                            onClick={() => {
+                              setTripToComplete(t);
+                              setIsTripModalOpen(true);
+                            }}
+                          >
+                            إغلاق
+                          </Button>
+                        ) : (
+                          <Badge variant="approved">مكتملة</Badge>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -283,6 +319,13 @@ export const TripsListPage: React.FC = () => {
           success('نجاح', 'تم تحديث سجل الرحلات بنجاح');
         }}
         tripToComplete={tripToComplete}
+      />
+
+      {/* Printable Trip Sheet Modal */}
+      <TripPrintModal
+        isOpen={Boolean(tripToPrint)}
+        onClose={() => setTripToPrint(null)}
+        trip={tripToPrint}
       />
     </div>
   );

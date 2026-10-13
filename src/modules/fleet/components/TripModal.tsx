@@ -145,10 +145,35 @@ export const TripModal: React.FC<TripModalProps> = ({
     }
 
     const selectedV = vehicles.find((v) => v.id === selectedVehicleId);
-    if (selectedV && startOdometer < selectedV.currentOdometer) {
+    if (!selectedV) {
+      error('خطأ', 'المركبة المحددة غير موجودة');
+      return;
+    }
+    if (selectedV.status !== 'available') {
+      error('المركبة غير متاحة', `المركبة (${selectedV.plateNumber}) غير متاحة للرحلة (حالتها: ${selectedV.status})`);
+      return;
+    }
+    if (startOdometer < selectedV.currentOdometer) {
       error(
         'خطأ في قراءة العداد',
         `عداد بداية الرحلة (${startOdometer} كم) لا يمكن أن يكون أقل من قراءة عداد المركبة الحالية (${selectedV.currentOdometer} كم).`
+      );
+      return;
+    }
+
+    const selectedD = drivers.find((d) => d.id === selectedDriverId);
+    if (!selectedD) {
+      error('خطأ', 'السائق المحدد غير موجود');
+      return;
+    }
+    if (selectedD.status !== 'available') {
+      error('السائق غير متاح', `السائق (${selectedD.name}) غير متاح حالياً للرحلة (حالته: ${selectedD.status})`);
+      return;
+    }
+    if (selectedD.licenseExpiry && new Date(selectedD.licenseExpiry) < new Date()) {
+      error(
+        'رخصة قيادة منتهية',
+        `رخصة قيادة السائق (${selectedD.name}) منتهية الصلاحية بتاريخ (${selectedD.licenseExpiry}) ولا يمكن تعيينه للرحلة.`
       );
       return;
     }

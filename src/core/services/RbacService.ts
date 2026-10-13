@@ -46,28 +46,31 @@ export class RbacService {
 
     if (!hasCode) return false;
 
-    // Evaluate Scope Constraints if specified
-    if (required.scope) {
+    // Evaluate Scope Constraints from role or required auth object
+    const scope = role.scope || required.scope;
+    if (scope) {
       if (
-        required.scope.plant &&
+        scope.plant &&
+        scope.plant.length > 0 &&
         contextPlant &&
-        !required.scope.plant.includes(contextPlant)
+        !scope.plant.includes(contextPlant)
       ) {
         return false;
       }
 
       if (
-        required.scope.costCenter &&
+        scope.costCenter &&
+        scope.costCenter.length > 0 &&
         contextCostCenter &&
-        !required.scope.costCenter.includes(contextCostCenter)
+        !scope.costCenter.includes(contextCostCenter)
       ) {
         return false;
       }
 
       if (
-        required.scope.amountLimit !== undefined &&
+        scope.amountLimit !== undefined &&
         contextAmount !== undefined &&
-        contextAmount > required.scope.amountLimit
+        contextAmount > scope.amountLimit
       ) {
         return false;
       }

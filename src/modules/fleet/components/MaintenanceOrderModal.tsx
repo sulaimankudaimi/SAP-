@@ -237,6 +237,11 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
     e.preventDefault();
     if (!existingOrder) return;
 
+    if ((!existingOrder.partsCost || existingOrder.partsCost <= 0) && (!laborHours || laborHours <= 0)) {
+      error('تنبيه الإغلاق', 'لا يمكن إغلاق أمر الصيانة بدون تسجيل ساعات عمل فنية أو صرف قطع غيار');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const completed = await saveWithConflict(

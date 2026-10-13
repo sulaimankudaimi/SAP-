@@ -9,6 +9,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useToast } from '../../../components/ui/Toast';
 import type { FuelLog, FuelAnomalyAlert } from '../../../types/models';
+import { useConnectivityStore } from '../../../core/gateway/connectivity';
 import {
   Fuel,
   Search,
@@ -22,29 +23,49 @@ import {
   FileText,
   DollarSign,
   ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
+  WifiOff,
 } from 'lucide-react';
 
 export const FuelManagementPage: React.FC = () => {
   const { success, error } = useToast();
 
+  const isOnline = useConnectivityStore((s) => s.isOnline);
   const [activeTab, setActiveTab] = useState<'logs' | 'anomalies'>('logs');
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [anomalyAlerts, setAnomalyAlerts] = useState<FuelAnomalyAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
 
-  const loadData = async () => {
+  // Pagination state for handling up to 50,000+ fuel records efficiently
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const loadData = async (page = currentPage) => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const [logs, alerts] = await Promise.all([
-        FleetService.getFuelLogs(),
+      const [paginatedResult, alerts] = await Promise.all([
+        FleetService.getPaginatedFuelLogs({
+          page,
+          pageSize,
+          search: searchQuery.trim() || undefined,
+        }),
         FleetService.getFuelAnomalyAlerts(),
       ]);
-      setFuelLogs(logs);
+      setFuelLogs(paginatedResult.data);
+      setTotalCount(paginatedResult.totalCount);
+      setTotalPages(paginatedResult.totalPages);
+      setCurrentPage(paginatedResult.page);
       setAnomalyAlerts(alerts);
     } catch (err) {
       DiagnosticLogger.error('FuelManagementPage', 'Error occurred', err);
+      setLoadError('تعذر تحميل بيانات الوقود من الخادم');
       error('خطأ', 'تعذر تحميل بيانات الوقود');
     } finally {
       setIsLoading(false);
@@ -52,32 +73,18 @@ export const FuelManagementPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(1);
+  }, [pageSize, searchQuery]);
 
   const handleResolveAlert = async (alertId: string) => {
     try {
       await FleetService.resolveFuelAnomalyAlert(alertId, 'تم التحقق من تقرير السائق والورشة واعتماد الاستهلاك');
       success('تم بنجاح', 'تمت تسوية تنبيه الشذوذ في الوقود');
-      loadData();
+      loadData(currentPage);
     } catch (err) {
       error('خطأ', 'تعذر تسوية التنبيه');
     }
   };
-
-  const filteredLogs = useMemo(() => {
-    return fuelLogs.filter((log) => {
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        return (
-          log.vehiclePlate.toLowerCase().includes(q) ||
-          log.driverName.toLowerCase().includes(q) ||
-          log.stationName.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [fuelLogs, searchQuery]);
 
   const totalFuelLiters = useMemo(
     () => fuelLogs.reduce((acc, curr) => acc + curr.quantityLiters, 0),
@@ -103,7 +110,7 @@ export const FuelManagementPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={loadData}>
+          <Button variant="secondary" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={() => loadData()}>
             تحديث
           </Button>
           <Button
@@ -180,14 +187,48 @@ export const FuelManagementPage: React.FC = () => {
       {/* TAB 1: FUEL LOGS TABLE */}
       {activeTab === 'logs' && (
         <div className="space-y-4">
-          <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] shadow-sm">
-            <Input
-              placeholder="بحث باللوحة، السائق، أو المحطة..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              startIcon={<Search className="w-4 h-4 text-[#64748B]" />}
-            />
+          <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex-1 w-full">
+              <Input
+                placeholder="بحث برقم اللوحة، اسم السائق، أو المحطة..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                startIcon={<Search className="w-4 h-4 text-[#64748B]" />}
+              />
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <span className="text-xs text-[#64748B] whitespace-nowrap">عرض:</span>
+              <select
+                aria-label="عدد السجلات في الصفحة"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="text-xs border border-[#E5EAF2] rounded-lg px-2.5 py-1.5 bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#0FA37F]"
+              >
+                <option value={25}>25 حركة</option>
+                <option value={50}>50 حركة</option>
+                <option value={100}>100 حركة</option>
+              </select>
+            </div>
           </div>
+
+          {!isOnline && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+              <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>أنت تعمل حالياً دون اتصال. يتم عرض البيانات المخزنة محلياً ويمكنك تسجيل قيود وقود جديدة ليتم إرسالها آلياً عند عودة الاتصال.</span>
+            </div>
+          )}
+
+          {loadError && (
+            <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center justify-between">
+              <span>{loadError}</span>
+              <Button size="sm" variant="secondary" onClick={() => loadData(currentPage)}>
+                إعادة المحاولة
+              </Button>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-[#E5EAF2] shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -206,43 +247,100 @@ export const FuelManagementPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EAF2]">
-                  {filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-mono text-[#64748B]">{log.date}</td>
-                      <td className="p-3 font-bold font-mono text-[#0F172A]">{log.vehiclePlate}</td>
-                      <td className="p-3 font-semibold text-[#0F172A]">{log.driverName}</td>
-                      <td className="p-3 text-[#64748B]">{log.stationName}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                        {log.quantityLiters.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-center font-mono text-[#64748B]">
-                        {log.odometer.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-center font-mono font-bold">
-                        <span
-                          className={
-                            log.isAnomaly
-                              ? 'text-[#EF4444] bg-red-50 px-2 py-0.5 rounded border border-red-200'
-                              : 'text-[#0FA37F]'
-                          }
-                        >
-                          {log.calculatedConsumptionPer100Km || 38.0}
-                        </span>
-                      </td>
-                      <td className="p-3 text-end font-mono font-bold text-[#0F172A]">
-                        {log.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ر.س
-                      </td>
-                      <td className="p-3 text-center">
-                        {log.isAnomaly ? (
-                          <Badge variant="critical">شذوذ +{log.anomalyDeviationPercentage}%</Badge>
-                        ) : (
-                          <Badge variant="approved">طبيعي</Badge>
-                        )}
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <tr key={idx} className="animate-pulse">
+                        <td className="p-3"><div className="h-4 bg-slate-200 rounded w-20" /></td>
+                        <td className="p-3"><div className="h-4 bg-slate-200 rounded w-24" /></td>
+                        <td className="p-3"><div className="h-4 bg-slate-200 rounded w-28" /></td>
+                        <td className="p-3"><div className="h-4 bg-slate-200 rounded w-24" /></td>
+                        <td className="p-3 text-center"><div className="h-4 bg-slate-200 rounded w-12 mx-auto" /></td>
+                        <td className="p-3 text-center"><div className="h-4 bg-slate-200 rounded w-16 mx-auto" /></td>
+                        <td className="p-3 text-center"><div className="h-4 bg-slate-200 rounded w-12 mx-auto" /></td>
+                        <td className="p-3 text-end"><div className="h-4 bg-slate-200 rounded w-16 ms-auto" /></td>
+                        <td className="p-3 text-center"><div className="h-4 bg-slate-200 rounded w-16 mx-auto" /></td>
+                      </tr>
+                    ))
+                  ) : fuelLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-xs text-[#64748B]">
+                        لا توجد حركات تزويد وقود مطابقة لمعايير البحث الحالية.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    fuelLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 font-mono text-[#64748B]">{log.date}</td>
+                        <td className="p-3 font-bold font-mono text-[#0F172A]">{log.vehiclePlate}</td>
+                        <td className="p-3 font-semibold text-[#0F172A]">{log.driverName}</td>
+                        <td className="p-3 text-[#64748B]">{log.stationName}</td>
+                        <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
+                          {log.quantityLiters.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-center font-mono text-[#64748B]">
+                          {log.odometer.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-center font-mono font-bold">
+                          <span
+                            className={
+                              log.isAnomaly
+                                ? 'text-[#EF4444] bg-red-50 px-2 py-0.5 rounded border border-red-200'
+                                : 'text-[#0FA37F]'
+                            }
+                          >
+                            {log.calculatedConsumptionPer100Km || 38.0}
+                          </span>
+                        </td>
+                        <td className="p-3 text-end font-mono font-bold text-[#0F172A]">
+                          {log.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ر.س
+                        </td>
+                        <td className="p-3 text-center">
+                          {log.isAnomaly ? (
+                            <Badge variant="critical">شذوذ +{log.anomalyDeviationPercentage}%</Badge>
+                          ) : (
+                            <Badge variant="approved">طبيعي</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Server-side Pagination Bar */}
+            <div className="p-4 bg-[#F8FAFC] border-t border-[#E5EAF2] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <span className="text-[#64748B]">
+                عرض <strong className="text-[#0F172A] font-mono">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> إلى{' '}
+                <strong className="text-[#0F172A] font-mono">{Math.min(currentPage * pageSize, totalCount)}</strong> من أصل{' '}
+                <strong className="text-[#0FA37F] font-mono">{totalCount.toLocaleString()}</strong> حركة وقود مسجلة
+              </span>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={currentPage <= 1 || isLoading}
+                  onClick={() => loadData(currentPage - 1)}
+                  icon={<ChevronRight className="w-3.5 h-3.5" />}
+                >
+                  السابق
+                </Button>
+
+                <span className="px-3 py-1 font-mono font-bold text-[#0F172A] bg-white border border-[#E5EAF2] rounded-lg">
+                  {currentPage} / {totalPages}
+                </span>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={currentPage >= totalPages || isLoading}
+                  onClick={() => loadData(currentPage + 1)}
+                  icon={<ChevronLeft className="w-3.5 h-3.5" />}
+                >
+                  التالي
+                </Button>
+              </div>
             </div>
           </div>
         </div>

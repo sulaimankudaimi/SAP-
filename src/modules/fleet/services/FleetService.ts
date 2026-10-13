@@ -435,10 +435,30 @@ export class FleetService {
     }
 
     const vehicle = await db.vehicles.get(input.vehicleId);
-    if (!vehicle) throw new Error('المركبة المحددة غير موجودة');
+    if (!vehicle || vehicle.isDeleted) throw new Error('مركبة الأسطول المحددة غير موجودة أو ملغاة');
+
+    if (vehicle.status !== 'available') {
+      throw new Error(`المركبة (${vehicle.plateNumber}) غير متاحة للرحلة (حالتها الحالية: ${vehicle.status})`);
+    }
+
+    if (input.startOdometer < vehicle.currentOdometer) {
+      throw new Error(
+        `عداد بداية الرحلة (${input.startOdometer} كم) لا يمكن أن يكون أقل من قراءة المركبة الحالية (${vehicle.currentOdometer} كم)`
+      );
+    }
 
     const driver = await db.drivers.get(input.driverId);
-    if (!driver) throw new Error('السائق المحدد غير موجود');
+    if (!driver || driver.isDeleted) throw new Error('السائق المحدد غير موجود أو ملغي');
+
+    if (driver.status !== 'available') {
+      throw new Error(`السائق (${driver.name}) غير متاح حالياً (حالته: ${driver.status})`);
+    }
+
+    if (driver.licenseExpiry && new Date(driver.licenseExpiry) < new Date()) {
+      throw new Error(
+        `رخصة قيادة السائق (${driver.name}) منتهية الصلاحية بتاريخ (${driver.licenseExpiry}) ولا يمكن تعيينه للرحلة`
+      );
+    }
 
     const now = new Date().toISOString();
     let trip!: Trip;
@@ -529,6 +549,10 @@ export class FleetService {
     if (!trip) throw new Error('الرحلة غير موجودة');
 
     requirePermission({ module: 'TM', activity: 'change' }, { plant: trip.originPlant });
+
+    if (trip.status === 'completed') {
+      throw new Error('تم إغلاق واعتماد هذه الرحلة مسبقاً');
+    }
 
     if (expectedVersion !== undefined) {
       const storedVer = typeof trip.version === 'number' ? trip.version : 1;
@@ -718,10 +742,22 @@ export class FleetService {
     }
 
     const vehicle = await db.vehicles.get(input.vehicleId);
-    if (!vehicle) throw new Error('المركبة غير موجودة');
+    if (!vehicle || vehicle.isDeleted) throw new Error('المركبة غير موجودة');
+
+    if (input.odometer < vehicle.currentOdometer) {
+      throw new Error(
+        `قراءة العداد المدخلة (${input.odometer} كم) لا يمكن أن تكون أقل من قراءة المركبة الحالية (${vehicle.currentOdometer} كم)`
+      );
+    }
+
+    if (vehicle.capacityLiters > 0 && input.quantityLiters > vehicle.capacityLiters) {
+      throw new Error(
+        `كمية الوقود المعبأة (${input.quantityLiters} لتر) تتجاوز سعة خزان الوقود للمركبة (${vehicle.capacityLiters} لتر)`
+      );
+    }
 
     const driver = await db.drivers.get(input.driverId);
-    if (!driver) throw new Error('السائق غير موجود');
+    if (!driver || driver.isDeleted) throw new Error('السائق غير موجود');
 
     // Calculate consumption L/100km using previous fuel log (pre-computed before transaction)
     const prevLogs = await db.fuelLogs
@@ -1140,6 +1176,14 @@ export class FleetService {
       }
     }
 
+    if (order.status === 'completed') {
+      throw new Error('تم إغلاق واعتماد أمر الصيانة هذا مسبقاً');
+    }
+
+    if ((order.partsCost || 0) <= 0 && (!input.laborHours || input.laborHours <= 0)) {
+      throw new Error('لا يمكن إغلاق أمر الصيانة بدون تسجيل ساعات عمل فنية أو صرف قطع غيار');
+    }
+
     const laborRate = input.laborRatePerHour || 120; // 120 SAR per tech hour
     const laborCost = input.laborHours * laborRate;
     const actualCost = order.partsCost + laborCost;
@@ -1216,6 +1260,74 @@ export class FleetService {
     return schedules;
   }
 
+  static async getPreventiveScheduleAlerts(): Promise<Array<PreventiveSchedule & { alertReason: string; isOverdue: boolean }>> {
+    const schedules = await this.getPreventiveSchedules();
+    const vehicles = await this.getVehicles();
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+
+    const now = new Date();
+    const alerts: Array<PreventiveSchedule & { alertReason: string; isOverdue: boolean }> = [];
+
+    for (const sched of schedules) {
+      const veh = vehicleMap.get(sched.vehicleId);
+      const currentOdometer = veh?.currentOdometer || sched.lastDoneOdometer;
+      const isOdoOverdue = sched.nextDueOdometer > 0 && currentOdometer >= sched.nextDueOdometer;
+      const isOdoSoon = sched.nextDueOdometer > 0 && currentOdometer >= sched.nextDueOdometer - 1000;
+
+      const dueDate = sched.nextDueDate ? new Date(sched.nextDueDate) : null;
+      const isDateOverdue = dueDate ? now.getTime() >= dueDate.getTime() : false;
+      const isDateSoon = dueDate ? dueDate.getTime() - now.getTime() <= 7 * 86400000 : false;
+
+      if (isOdoOverdue || isDateOverdue) {
+        alerts.push({
+          ...sched,
+          status: 'due',
+          isOverdue: true,
+          alertReason: isOdoOverdue
+            ? `تجاوز العداد المحدد (${currentOdometer.toLocaleString()} / ${sched.nextDueOdometer.toLocaleString()} كم)`
+            : `تجاوز موعد الصيانة الدوري (${sched.nextDueDate})`,
+        });
+      } else if (isOdoSoon || isDateSoon) {
+        alerts.push({
+          ...sched,
+          status: 'soon',
+          isOverdue: false,
+          alertReason: isOdoSoon
+            ? `اقتراب موعد الصيانة (${Math.max(0, sched.nextDueOdometer - currentOdometer).toLocaleString()} كم متبقية)`
+            : `اقتراب تاريخ الاستحقاق (${sched.nextDueDate})`,
+        });
+      }
+    }
+
+    return alerts.sort((a, b) => (a.isOverdue === b.isOverdue ? 0 : a.isOverdue ? -1 : 1));
+  }
+
+  static async getPaginatedFuelLogs(
+    filters: import('../../../core/gateway/IDataGateway').FuelLogFilters
+  ): Promise<import('../../../core/gateway/IDataGateway').PaginatedResult<FuelLog>> {
+    if (dataGateway.instance.getPaginatedFuelLogs) {
+      return await dataGateway.instance.getPaginatedFuelLogs(filters);
+    }
+    const all = await this.getFuelLogs(filters.vehicleId);
+    const page = Math.max(1, filters.page || 1);
+    const pageSize = Math.max(1, Math.min(200, filters.pageSize || 25));
+    const offset = (page - 1) * pageSize;
+    return {
+      data: all.slice(offset, offset + pageSize),
+      totalCount: all.length,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
+    };
+  }
+
+  static async getCostCenterFleetReconciliation(): Promise<import('../../../core/gateway/IDataGateway').CostCenterReconciliation[]> {
+    if (dataGateway.instance.getCostCenterFleetReconciliation) {
+      return await dataGateway.instance.getCostCenterFleetReconciliation();
+    }
+    return [];
+  }
+
   /**
    * 6. COST PER VEHICLE REPORT (Fuel + Maintenance + Driver + Depreciation; cost per km)
    */
@@ -1233,7 +1345,8 @@ export class FleetService {
       .filter((f) => !f.isDeleted)
       .toArray();
 
-    const fuelCostTotal = fuelLogs.reduce((acc, curr) => acc + curr.totalCost, 0);
+    const rawFuelTotal = fuelLogs.reduce((acc, curr) => acc + curr.totalCost, 0);
+    const fuelCostTotal = Math.round(rawFuelTotal * 100) / 100;
 
     const maintenanceOrders = await db.maintenanceOrders
       .where('vehicleId')

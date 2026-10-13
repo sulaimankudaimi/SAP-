@@ -93,6 +93,14 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
       return;
     }
 
+    if (selectedVehicle && selectedVehicle.capacityLiters > 0 && quantityLiters > selectedVehicle.capacityLiters) {
+      error(
+        'تجاوز سعة خزان الوقود',
+        `كمية الوقود المعبأة (${quantityLiters} لتر) تتجاوز سعة خزان الوقود للمركبة (${selectedVehicle.capacityLiters} لتر).`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { fuelLog, anomalyAlert } = await FleetService.createFuelLog({

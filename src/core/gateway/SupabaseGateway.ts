@@ -353,6 +353,52 @@ export class SupabaseGateway implements IDataGateway {
     return data as VehicleCostReport;
   }
 
+  async getPaginatedFuelLogs(filters: import('./IDataGateway').FuelLogFilters): Promise<import('./IDataGateway').PaginatedResult<FuelLog>> {
+    const page = Math.max(1, filters.page || 1);
+    const pageSize = Math.max(1, Math.min(200, filters.pageSize || 25));
+    const offset = (page - 1) * pageSize;
+
+    let query = this.client
+      .from('fuel_logs')
+      .select('*', { count: 'exact' })
+      .order('date', { ascending: false });
+
+    if (filters.vehicleId) {
+      query = query.eq('vehicle_id', filters.vehicleId);
+    }
+    if (filters.search && filters.search.trim()) {
+      query = query.ilike('vehicle_plate', `%${filters.search.trim()}%`);
+    }
+
+    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+
+    const totalCount = count || 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+    return {
+      data: (data || []) as FuelLog[],
+      totalCount,
+      page,
+      pageSize,
+      totalPages,
+    };
+  }
+
+  async getCostCenterFleetReconciliation(): Promise<import('./IDataGateway').CostCenterReconciliation[]> {
+    const { data, error } = await this.client.from('v_cost_center_fleet_reconciliation').select('*');
+    if (error) throw new Error(error.message);
+    return (data || []).map((row: Record<string, unknown>) => ({
+      costCenter: String(row.cost_center || ''),
+      totalFuel: Number(row.total_fuel || 0),
+      totalMaintenance: Number(row.total_maintenance || 0),
+      totalAllowance: Number(row.total_allowance || 0),
+      operationalTotalCost: Number(row.operational_total_cost || 0),
+      journalTotalDebit: Number(row.journal_total_debit || 0),
+      variance: Number(row.variance || 0),
+    }));
+  }
+
   async getFleetDashboardKPIs(): Promise<FleetSummaryKPIs> {
     const { data, error } = await this.client.rpc('get_fleet_dashboard_kpis');
     if (error) throw new Error(error.message);

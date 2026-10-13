@@ -201,13 +201,15 @@ describe('Idempotent Postings & Registry Verification Suite', () => {
     const jeCountAfterFirst = await db.journalEntries.count();
     expect(jeCountAfterFirst).toBe(initialJeCount + 1);
 
-    // Second completion on same trip
-    const completed2 = await FleetService.completeTrip(trip.id, {
-      endOdometer: trip.startOdometer + 400,
-      fuelLitersConsumed: 160,
-      fuelCost: 200,
-      driverAllowanceCost: 140,
-    });
+    // Second completion on same trip is rejected by business invariant
+    await expect(
+      FleetService.completeTrip(trip.id, {
+        endOdometer: trip.startOdometer + 400,
+        fuelLitersConsumed: 160,
+        fuelCost: 200,
+        driverAllowanceCost: 140,
+      })
+    ).rejects.toThrow(/تم إغلاق واعتماد هذه الرحلة مسبقاً/);
 
     // Does NOT create another journal entry!
     expect(await db.journalEntries.count()).toBe(jeCountAfterFirst);

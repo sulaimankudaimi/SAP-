@@ -47,6 +47,7 @@ export interface Role {
   description: string;
   permissionCodes: string[];
   isSystem: boolean;
+  scope?: AuthScopeConstraints;
   scopeConstraints?: AuthScopeConstraints;
   isDeleted?: boolean;
 }
@@ -536,6 +537,10 @@ export interface Vehicle {
   assignedDriverId?: string;
   assignedDriverName?: string;
   plantCode?: string;
+  assignedPlant?: string;
+  safetyInspectionExpiry?: string;
+  maintenanceDueOdometer?: number;
+  maintenanceDueDate?: string;
   insuranceExpiry: string;
   registrationExpiry: string;
   lastMaintenanceDate?: string;
@@ -554,11 +559,12 @@ export interface Driver {
   licenseExpiry: string;
   mobile: string;
   safetyRating: number;
-  performanceScore: number;
-  certifications: string[];
-  status: 'available' | 'on_trip' | 'vacation';
-  totalTripsCompleted: number;
-  totalDistanceKm: number;
+  performanceScore?: number;
+  certifications?: string[];
+  status: 'available' | 'on_trip' | 'vacation' | 'on_leave' | 'suspended';
+  assignedPlant?: string;
+  totalTripsCompleted?: number;
+  totalDistanceKm?: number;
   version?: number;
   isDeleted: boolean;
 }
@@ -1279,7 +1285,7 @@ export interface ApprovalRule {
 }
 
 // Print Templates Models
-export type PrintDocumentType = 'PO' | 'GR' | 'INVOICE' | 'VOUCHER';
+export type PrintDocumentType = 'PO' | 'GR' | 'INVOICE' | 'VOUCHER' | 'TRIP' | 'MAINTENANCE';
 
 export interface PrintTemplate {
   id: string;

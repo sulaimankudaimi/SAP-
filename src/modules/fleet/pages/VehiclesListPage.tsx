@@ -28,7 +28,9 @@ import {
   CheckCircle2,
   RefreshCw,
   Edit,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { FleetExcelImportModal } from '../components/FleetExcelImportModal';
 
 const VALID_VEHICLE_TYPES: readonly VehicleType[] = ['Tanker', 'HeavyTruck', 'LightTruck', 'Crane', 'Trailer'];
 
@@ -47,6 +49,7 @@ export const VehiclesListPage: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [expiryAlerts, setExpiryAlerts] = useState<ExpiryAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -264,6 +267,14 @@ export const VehiclesListPage: React.FC = () => {
             تحديث
           </Button>
           <Button
+            variant="secondary"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4 text-[#0FA37F]" />}
+            onClick={() => setIsImportModalOpen(true)}
+          >
+            استيراد إكسل (Excel)
+          </Button>
+          <Button
             variant="primary"
             size="sm"
             icon={<Plus className="w-4 h-4" />}
@@ -391,54 +402,74 @@ export const VehiclesListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF2]">
-              {filteredVehicles.map((v) => (
-                <tr key={v.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3">
-                    <span className="font-mono font-bold text-[#0F172A] block">{v.plateNumber}</span>
-                    <span className="text-[10px] text-[#64748B]">{v.code}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className="font-bold text-[#0F172A] block">{v.makeModel}</span>
-                    <span className="text-[10px] text-[#64748B]">{getTypeLabel(v.type)} ({v.year})</span>
-                  </td>
-                  <td className="p-3 font-mono text-[#64748B]">{v.vin || '—'}</td>
-                  <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                    {v.capacityLiters ? `${v.capacityLiters.toLocaleString()} لتر` : '—'}
-                  </td>
-                  <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
-                    {v.currentOdometer.toLocaleString()} كم
-                  </td>
-                  <td className="p-3 text-[#0F172A]">
-                    {v.assignedDriverName || 'غير معين'}
-                  </td>
-                  <td className="p-3 text-center font-mono text-[#64748B]">
-                    {v.insuranceExpiry || '2027-12-31'}
-                  </td>
-                  <td className="p-3 text-center">
-                    {getStatusBadge(v.status)}
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<Edit className="w-3.5 h-3.5" />}
-                        onClick={() => handleOpenEditModal(v)}
-                      >
-                        تعديل
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<DollarSign className="w-3.5 h-3.5" />}
-                        onClick={() => handleOpenCostReport(v.id)}
-                      >
-                        التكلفة / كم
-                      </Button>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={9} className="p-4 bg-slate-100/50">
+                      <div className="h-5 bg-slate-200 rounded w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredVehicles.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-xs text-[#64748B]">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Truck className="w-8 h-8 text-slate-300" />
+                      <span className="font-bold text-[#0F172A]">لا توجد مركبات مطابقة لمعايير البحث الحالية</span>
+                      <span className="text-[11px]">يمكنك إضافة شاحنة جديدة أو استيراد أسطول من ملف إكسل.</span>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredVehicles.map((v) => (
+                  <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3">
+                      <span className="font-mono font-bold text-[#0F172A] block">{v.plateNumber}</span>
+                      <span className="text-[10px] text-[#64748B]">{v.code}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-bold text-[#0F172A] block">{v.makeModel}</span>
+                      <span className="text-[10px] text-[#64748B]">{getTypeLabel(v.type)} ({v.year})</span>
+                    </td>
+                    <td className="p-3 font-mono text-[#64748B]">{v.vin || '—'}</td>
+                    <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
+                      {v.capacityLiters ? `${v.capacityLiters.toLocaleString()} لتر` : '—'}
+                    </td>
+                    <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
+                      {v.currentOdometer.toLocaleString()} كم
+                    </td>
+                    <td className="p-3 text-[#0F172A]">
+                      {v.assignedDriverName || 'غير معين'}
+                    </td>
+                    <td className="p-3 text-center font-mono text-[#64748B]">
+                      {v.insuranceExpiry || '2027-12-31'}
+                    </td>
+                    <td className="p-3 text-center">
+                      {getStatusBadge(v.status)}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Edit className="w-3.5 h-3.5" />}
+                          onClick={() => handleOpenEditModal(v)}
+                        >
+                          تعديل
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<DollarSign className="w-3.5 h-3.5" />}
+                          onClick={() => handleOpenCostReport(v.id)}
+                        >
+                          التكلفة / كم
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -698,6 +729,14 @@ export const VehiclesListPage: React.FC = () => {
 
       {/* Concurrent Conflict Dialog */}
       <ConflictModal />
+
+      {/* Excel Bulk Import Modal */}
+      <FleetExcelImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => loadVehicles()}
+        initialMode="vehicles"
+      />
     </div>
   );
 };

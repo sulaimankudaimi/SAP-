@@ -28,7 +28,9 @@ import {
   Truck,
   Eye,
   Edit,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { FleetExcelImportModal } from '../components/FleetExcelImportModal';
 
 type LicenseClass = 'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي';
 const VALID_LICENSE_CLASSES: readonly LicenseClass[] = ['نقل مواد خطرة (HazMat)', 'عمومي ثقيل', 'عمومي متوسط', 'خصوصي'];
@@ -44,6 +46,7 @@ export const DriversListPage: React.FC = () => {
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
 
@@ -229,6 +232,14 @@ export const DriversListPage: React.FC = () => {
             تحديث
           </Button>
           <Button
+            variant="secondary"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4 text-[#0FA37F]" />}
+            onClick={() => setIsImportModalOpen(true)}
+          >
+            استيراد إكسل (Excel)
+          </Button>
+          <Button
             variant="primary"
             size="sm"
             icon={<Plus className="w-4 h-4" />}
@@ -313,62 +324,82 @@ export const DriversListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF2]">
-              {filteredDrivers.map((d) => (
-                <tr key={d.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3">
-                    <span className="font-bold text-[#0F172A] block">{d.name}</span>
-                    <span className="text-[10px] text-[#64748B] font-mono">{d.code}</span>
-                  </td>
-                  <td className="p-3">
-                    <span className="font-semibold text-[#0B2545]">{d.licenseClass || 'عمومي ثقيل'}</span>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {d.certifications?.slice(0, 1).map((cert, i) => (
-                        <span key={i} className="text-[9px] px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded border border-blue-200">
-                          {cert}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-3 text-center font-mono text-[#64748B]">{d.iqamaNumber}</td>
-                  <td className="p-3 text-center font-mono text-[#64748B]">{d.licenseExpiry}</td>
-                  <td className="p-3 text-center font-mono" dir="ltr">{d.mobile}</td>
-                  <td className="p-3 text-center">
-                    <span className="font-bold text-[#0FA37F] flex items-center justify-center gap-1">
-                      <Star className="w-3.5 h-3.5 fill-[#0FA37F]" />
-                      {d.safetyRating}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
-                    {d.totalTripsCompleted || 0} رحلة
-                  </td>
-                  <td className="p-3 text-center">
-                    {getStatusBadge(d.status)}
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<Edit className="w-3.5 h-3.5" />}
-                        onClick={() => handleOpenEditModal(d)}
-                      >
-                        تعديل
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                        onClick={() => {
-                          setSelectedDriver(d);
-                          setIsDrawerOpen(true);
-                        }}
-                      >
-                        استعراض
-                      </Button>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={9} className="p-4 bg-slate-100/50">
+                      <div className="h-5 bg-slate-200 rounded w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredDrivers.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-xs text-[#64748B]">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Users className="w-8 h-8 text-slate-300" />
+                      <span className="font-bold text-[#0F172A]">لا يوجد سائقين مطابقين لمعايير البحث الحالية</span>
+                      <span className="text-[11px]">يمكنك تسجيل سائق جديد أو استيراد قائمة السائقين من ملف إكسل.</span>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredDrivers.map((d) => (
+                  <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3">
+                      <span className="font-bold text-[#0F172A] block">{d.name}</span>
+                      <span className="text-[10px] text-[#64748B] font-mono">{d.code}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-semibold text-[#0B2545]">{d.licenseClass || 'عمومي ثقيل'}</span>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {d.certifications?.slice(0, 1).map((cert, i) => (
+                          <span key={i} className="text-[9px] px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded border border-blue-200">
+                            {cert}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-3 text-center font-mono text-[#64748B]">{d.iqamaNumber}</td>
+                    <td className="p-3 text-center font-mono text-[#64748B]">{d.licenseExpiry}</td>
+                    <td className="p-3 text-center font-mono" dir="ltr">{d.mobile}</td>
+                    <td className="p-3 text-center">
+                      <span className="font-bold text-[#0FA37F] flex items-center justify-center gap-1">
+                        <Star className="w-3.5 h-3.5 fill-[#0FA37F]" />
+                        {d.safetyRating}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
+                      {d.totalTripsCompleted || 0} رحلة
+                    </td>
+                    <td className="p-3 text-center">
+                      {getStatusBadge(d.status)}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Edit className="w-3.5 h-3.5" />}
+                          onClick={() => handleOpenEditModal(d)}
+                        >
+                          تعديل
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={<Eye className="w-3.5 h-3.5" />}
+                          onClick={() => {
+                            setSelectedDriver(d);
+                            setIsDrawerOpen(true);
+                          }}
+                        >
+                          استعراض
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -602,6 +633,14 @@ export const DriversListPage: React.FC = () => {
 
       {/* Concurrent Conflict Dialog */}
       <ConflictModal />
+
+      {/* Excel Bulk Import Modal */}
+      <FleetExcelImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => loadDrivers()}
+        initialMode="drivers"
+      />
     </div>
   );
 };
