@@ -23,6 +23,9 @@ import type {
   DriverFilters,
   TripFilters,
   MaintenanceFilters,
+  FuelLogFilters,
+  PaginatedResult,
+  CostCenterReconciliation,
   RealtimeChangeCallback,
 } from './IDataGateway';
 import { FleetService } from '../../modules/fleet/services/FleetService';
@@ -167,8 +170,102 @@ export class LocalDexieGateway implements IDataGateway {
     return trip ?? null;
   }
 
-  async getFuelLogs(vehicleId?: string): Promise<FuelLog[]> {
-    return await FleetService.getFuelLogs(vehicleId);
+  async getFuelLogs(filtersOrVehicleId?: string | FuelLogFilters): Promise<FuelLog[]> {
+    if (typeof filtersOrVehicleId === 'string') {
+      return await FleetService.getFuelLogs(filtersOrVehicleId);
+    }
+    if (filtersOrVehicleId && typeof filtersOrVehicleId === 'object') {
+      const res = await this.getPaginatedFuelLogs(filtersOrVehicleId);
+      return res.data;
+    }
+    return await FleetService.getFuelLogs();
+  }
+
+  async getPaginatedFuelLogs(filters: FuelLogFilters): Promise<PaginatedResult<FuelLog>> {
+    const page = Math.max(1, filters.page || 1);
+    const pageSize = Math.max(1, Math.min(200, filters.pageSize || 25));
+
+    let items = await db.fuelLogs.filter((f) => !f.isDeleted).toArray();
+
+    if (filters.vehicleId) {
+      items = items.filter((f) => f.vehicleId === filters.vehicleId);
+    }
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      items = items.filter(
+        (f) =>
+          f.vehiclePlate.toLowerCase().includes(q) ||
+          f.driverName.toLowerCase().includes(q) ||
+          f.stationName.toLowerCase().includes(q)
+      );
+    }
+    if (filters.startDate) {
+      items = items.filter((f) => f.date >= filters.startDate!);
+    }
+    if (filters.endDate) {
+      items = items.filter((f) => f.date <= filters.endDate!);
+    }
+
+    const totalCount = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+    items.sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
+    const offset = (page - 1) * pageSize;
+    const data = items.slice(offset, offset + pageSize);
+
+    return {
+      data,
+      totalCount,
+      page,
+      pageSize,
+      totalPages,
+    };
+  }
+
+  async getCostCenterFleetReconciliation(): Promise<CostCenterReconciliation[]> {
+    const vehicles = await db.vehicles.filter((v) => !v.isDeleted).toArray();
+    const plantCodes = Array.from(new Set(vehicles.map((v) => v.plantCode || '1100')));
+    const result: CostCenterReconciliation[] = [];
+
+    for (const plant of plantCodes) {
+      const costCenter = `CC-${plant}`;
+      const plantVehicles = vehicles.filter((v) => (v.plantCode || '1100') === plant);
+      const vehicleIds = plantVehicles.map((v) => v.id);
+
+      const fuelLogs = await db.fuelLogs.filter((f) => !f.isDeleted && vehicleIds.includes(f.vehicleId)).toArray();
+      const totalFuel = fuelLogs.reduce((acc, curr) => acc + curr.totalCost, 0);
+
+      const maintOrders = await db.maintenanceOrders.filter((m) => !m.isDeleted && m.status === 'completed' && vehicleIds.includes(m.vehicleId)).toArray();
+      const totalMaintenance = maintOrders.reduce((acc, curr) => acc + curr.actualCost, 0);
+
+      const trips = await db.trips.filter((t) => !t.isDeleted && t.status === 'completed' && vehicleIds.includes(t.vehicleId)).toArray();
+      const totalAllowance = trips.reduce((acc, curr) => acc + (curr.driverAllowanceCost || 0), 0);
+
+      const operationalTotalCost = totalFuel + totalMaintenance + totalAllowance;
+
+      const journals = await db.journalEntries.filter((j) => j.status === 'posted').toArray();
+      let journalTotalDebit = 0;
+      for (const j of journals) {
+        const lines = j.lines || [];
+        for (const l of lines) {
+          if (l.costCenter === costCenter && ['601010', '602010', '603010'].includes(l.accountNumber)) {
+            journalTotalDebit += l.debit || 0;
+          }
+        }
+      }
+
+      result.push({
+        costCenter,
+        totalFuel,
+        totalMaintenance,
+        totalAllowance,
+        operationalTotalCost,
+        journalTotalDebit,
+        variance: Math.round((operationalTotalCost - journalTotalDebit) * 100) / 100,
+      });
+    }
+
+    return result;
   }
 
   async getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]> {

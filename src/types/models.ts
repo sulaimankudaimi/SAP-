@@ -535,6 +535,7 @@ export interface Vehicle {
   status: 'available' | 'on_trip' | 'maintenance' | 'out_of_service';
   assignedDriverId?: string;
   assignedDriverName?: string;
+  plantCode?: string;
   insuranceExpiry: string;
   registrationExpiry: string;
   lastMaintenanceDate?: string;

@@ -133,6 +133,33 @@ export interface MaintenanceFilters {
   orderType?: string;
 }
 
+export interface FuelLogFilters {
+  vehicleId?: string;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface CostCenterReconciliation {
+  costCenter: string;
+  totalFuel: number;
+  totalMaintenance: number;
+  totalAllowance: number;
+  operationalTotalCost: number;
+  journalTotalDebit: number;
+  variance: number;
+}
+
 export type RealtimeChangeCallback = (
   table: string,
   event: 'INSERT' | 'UPDATE' | 'DELETE',
@@ -165,13 +192,15 @@ export interface IDataGateway {
   getDriverById(id: string): Promise<Driver | null>;
   getTrips(filters?: TripFilters): Promise<Trip[]>;
   getTripById(id: string): Promise<Trip | null>;
-  getFuelLogs(vehicleId?: string): Promise<FuelLog[]>;
+  getFuelLogs(filtersOrVehicleId?: string | FuelLogFilters): Promise<FuelLog[]>;
+  getPaginatedFuelLogs?(filters: FuelLogFilters): Promise<PaginatedResult<FuelLog>>;
   getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]>;
   getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null>;
   getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]>;
   getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]>;
   getVehicleExpiryAlerts(): Promise<ExpiryAlert[]>;
   getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport>;
+  getCostCenterFleetReconciliation?(): Promise<CostCenterReconciliation[]>;
   getFleetDashboardKPIs(): Promise<FleetSummaryKPIs>;
 
   // Authentication
