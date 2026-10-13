@@ -107,6 +107,32 @@ export interface PostJournalCommand {
   expectedVersion?: number;
 }
 
+export interface RecordTripEventCommand {
+  requestId: string;
+  tripId: string;
+  vehicleId: string;
+  eventType: 'departed' | 'arrived' | 'delayed' | 'incident';
+  occurredAt: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface RecordOdometerReadingCommand {
+  requestId: string;
+  vehicleId: string;
+  readingKm: number;
+  capturedAt: string;
+  source?: string;
+}
+
+export interface RecordInspectionCommand {
+  requestId: string;
+  vehicleId: string;
+  inspectedAt: string;
+  result: 'pass' | 'fail' | 'warning';
+  notes?: string;
+  checklist?: Record<string, unknown>;
+}
+
 export interface VehicleFilters {
   status?: string;
   vehicleType?: string;

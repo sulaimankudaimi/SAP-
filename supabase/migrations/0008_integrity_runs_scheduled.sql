@@ -154,6 +154,13 @@ GRANT EXECUTE ON FUNCTION public.run_nightly_integrity_check(text) TO authentica
 -- Runs inside PostgreSQL without external dependencies.
 DO $$
 BEGIN
+    BEGIN
+        CREATE EXTENSION IF NOT EXISTS pg_cron;
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE NOTICE 'pg_cron extension not available: %', SQLERRM;
+    END;
+
     IF EXISTS (
         SELECT 1 FROM pg_extension WHERE extname = 'pg_cron'
     ) THEN
@@ -167,11 +174,13 @@ BEGIN
             '0 2 * * *',
             'SELECT public.run_nightly_integrity_check(''pg_cron'');'
         );
+    ELSE
+        RAISE NOTICE 'pg_cron extension not active; schedule via Edge Function or external cron.';
     END IF;
 EXCEPTION
     WHEN OTHERS THEN
         -- Non-blocking notice if pg_cron is disabled in target environment
-        RAISE NOTICE 'pg_cron extension not active; schedule via Edge Function or external cron.';
+        RAISE NOTICE 'pg_cron scheduling skipped: %', SQLERRM;
 END;
 $$;
 
