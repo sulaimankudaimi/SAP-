@@ -64,6 +64,7 @@ const ApprovalsInboxPage = lazy(() => import('../modules/admin/pages/ApprovalsIn
 const WorkflowConfigPage = lazy(() => import('../modules/admin/pages/WorkflowConfigPage').then((m) => ({ default: m.WorkflowConfigPage })));
 const BackupRestorePage = lazy(() => import('../modules/admin/pages/BackupRestorePage').then((m) => ({ default: m.BackupRestorePage })));
 const PrintTemplatesPage = lazy(() => import('../modules/admin/pages/PrintTemplatesPage').then((m) => ({ default: m.PrintTemplatesPage })));
+const IntegrityPage = lazy(() => import('../modules/admin/pages/IntegrityPage').then((m) => ({ default: m.IntegrityPage })));
 
 // Master Data Module
 const MasterDataHubPage = lazy(() => import('../modules/masterdata/pages/MasterDataHubPage').then((m) => ({ default: m.MasterDataHubPage })));
@@ -624,6 +625,14 @@ export const AppRoutes: React.FC = () => {
             element={
               <ProtectedRoute requiredAuth={{ module: 'ADM', activity: 'view' }}>
                 <PrintTemplatesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/integrity"
+            element={
+              <ProtectedRoute requiredAuth={{ module: 'SYS', activity: 'view' }}>
+                <IntegrityPage />
               </ProtectedRoute>
             }
           />

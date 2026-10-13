@@ -135,6 +135,7 @@ export interface Plant {
   city: string;
   address?: string;
   manager?: string;
+  allowsNegativeStock?: boolean;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
   isDeleted: boolean;
 }
@@ -596,6 +597,7 @@ export interface Trip extends TransactionDocument {
 
 export interface FuelLog {
   id: string;
+  docNumber?: string;
   vehicleId: string;
   vehiclePlate: string;
   driverId: string;
@@ -611,6 +613,9 @@ export interface FuelLog {
   isAnomaly?: boolean;
   anomalyDeviationPercentage?: number;
   status?: string;
+  postedAccountingDocNumber?: string;
+  createdBy?: string;
+  createdAt?: string;
   isDeleted: boolean;
 }
 
@@ -1373,5 +1378,66 @@ export interface FleetSummaryKPIs {
   activeTripsCount: number;
   pendingMaintenanceCount: number;
   criticalAnomaliesCount: number;
+}
+
+// ============================================================================
+// Integrity Checker & ADR Invariants Models
+// ============================================================================
+
+export interface InvariantResult {
+  invariantNumber: number;
+  invariantName: string;
+  status: 'PASS' | 'FAIL';
+  violationsCount: number;
+  sampleIds: string[];
+  description: string;
+}
+
+export interface AuditChainVerificationResult {
+  isValid: boolean;
+  totalRecords: number;
+  brokenSeq?: number | null;
+  brokenId?: string | null;
+  expectedHash?: string | null;
+  actualHash?: string | null;
+  errorMessage?: string;
+}
+
+export interface StuckOutboxItem {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  vehicleId?: string;
+  attempts?: number;
+  lastError?: string;
+}
+
+export interface StuckOutboxResult {
+  count: number;
+  sampleIds: string[];
+  items: StuckOutboxItem[];
+}
+
+export interface IntegrityReport {
+  id: string;
+  timestamp: string;
+  mode: 'local' | 'server';
+  status: 'PASS' | 'FAIL';
+  totalViolations: number;
+  invariants: InvariantResult[];
+  auditChain: AuditChainVerificationResult;
+  stuckOutbox: StuckOutboxResult;
+  executedBy: string;
+}
+
+export interface IntegrityRun {
+  id: string;
+  timestamp: string;
+  mode: 'local' | 'server';
+  status: 'PASS' | 'FAIL';
+  totalViolations: number;
+  reportJson: string;
+  executedBy: string;
 }
 

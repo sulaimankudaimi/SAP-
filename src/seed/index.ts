@@ -111,6 +111,8 @@ export class DatabaseSeeder {
       db.costAllocationCycles,
       db.internalOrders,
       db.postingRegistry,
+      db.outbox,
+      db.integrityRuns,
     ];
 
     for (const table of tableList) {

@@ -55,6 +55,7 @@ const commands: CommandItem[] = [
   { id: 'groups', title: 'مجموعات وتصنيفات المواد (Material Groups)', category: 'البيانات الرئيسية', path: '/master-data/material-groups', icon: Database },
   { id: 'units', title: 'وحدات القياس المعيارية (Units of Measure)', category: 'البيانات الرئيسية', path: '/master-data/units', icon: Database },
   { id: 'audit', title: 'سجل التدقيق وتتبع العمليات (Audit Log)', category: 'الإدارة', path: '/admin/audit', icon: ShieldCheck },
+  { id: 'integrity', title: 'فاحص سلامة البيانات ومحددات ADR (SYS01)', category: 'الإدارة', path: '/admin/integrity', icon: ShieldCheck },
   { id: 'rules', title: 'ملف قواعد المشروع الصارمة (/PROJECT_RULES.md)', category: 'النظام', path: '/rules', icon: FileCode },
 ];
 

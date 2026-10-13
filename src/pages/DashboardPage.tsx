@@ -41,6 +41,7 @@ import { OperationsMapCard } from '../modules/reports/components/OperationsMapCa
 import { RecentOrdersTable } from '../modules/reports/components/RecentOrdersTable';
 import { LowStockAlertsList } from '../modules/reports/components/LowStockAlertsList';
 import { KPIMetricsCard } from '../modules/reports/components/KPIMetricsCard';
+import { IntegrityAlertBanner } from '../components/common/IntegrityAlertBanner';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -180,6 +181,9 @@ export const DashboardPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Administrator Data Integrity Banner */}
+      <IntegrityAlertBanner />
 
       {/* Backup Reminder Warning Banner */}
       {backupReminder?.needsReminder && (

@@ -32,6 +32,7 @@ import {
   Activity,
   Calendar,
 } from 'lucide-react';
+import { IntegrityAlertBanner } from '../../../components/common/IntegrityAlertBanner';
 
 export const FleetDashboardPage: React.FC = () => {
   const { success, error } = useToast();
@@ -158,6 +159,9 @@ export const FleetDashboardPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Administrator Data Integrity Banner */}
+      <IntegrityAlertBanner />
 
       {/* Error State Banner */}
       {loadError && (

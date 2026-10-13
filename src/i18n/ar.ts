@@ -90,6 +90,7 @@ export const ar = {
   nav_print_templates: 'قوالب المطبوعات الرسمية (PRT01)',
   nav_notifications: 'مركز الإشعارات والتنبيهات',
   nav_diagnostics: 'سجلات التشخيص وصحة النظام',
+  nav_integrity: 'سلامة البيانات ومحددات ADR (SYS01)',
   nav_about: 'عن النظام والاختصارات',
 
   // Statuses

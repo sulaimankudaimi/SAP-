@@ -239,6 +239,7 @@ export const navigationConfig: NavItemWithModule[] = [
       { id: 'backup', path: '/admin/backup', titleKey: 'nav_backup' },
       { id: 'workflow', path: '/admin/workflow', titleKey: 'nav_workflow' },
       { id: 'print-templates', path: '/admin/print-templates', titleKey: 'nav_print_templates' },
+      { id: 'integrity', path: '/admin/integrity', titleKey: 'nav_integrity' },
       { id: 'dev-cockpit', path: '/admin/dev', titleKey: 'nav_audit_log' },
       { id: 'diagnostics', path: '/admin/diagnostics', titleKey: 'nav_diagnostics' },
       { id: 'users', path: '/admin/users', titleKey: 'nav_users' },

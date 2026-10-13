@@ -98,6 +98,7 @@ export class GulfErpDatabase extends Dexie {
   printTemplates!: Table<import('../../types/models').PrintTemplate, string>;
   postingRegistry!: Table<import('../../types/models').PostingRegistryEntry, string>;
   outbox!: Table<import('../../types/models').OutboxCommand, string>;
+  integrityRuns!: Table<import('../../types/models').IntegrityRun, string>;
 
   constructor() {
     super('gulf_erp');
@@ -173,6 +174,11 @@ export class GulfErpDatabase extends Dexie {
     // Version 4: Offline Outbox table
     this.version(4).stores({
       outbox: 'id, type, status, createdAt, vehicleId, attempts',
+    });
+
+    // Version 5: Integrity Runs table
+    this.version(5).stores({
+      integrityRuns: 'id, timestamp, status',
     });
   }
 }

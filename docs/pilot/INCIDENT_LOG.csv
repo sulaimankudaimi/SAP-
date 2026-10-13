@@ -1,0 +1,6 @@
+incident_id,date,time,severity,module,reporter_name,reporter_role,description,root_cause,action_taken,resolved_at,reset_day_count,sign_off
+INC-2026-0001,2026-10-14,09:30:00,S3,FLEET,خالد السبيعي,DRIVER,"تأخر فتح نموذج تسجيل الوقود لمدة ثانيتين على جهاز لوحي قديم","بطء مؤقت في معالجة واجهة الإدخال عند ضعف الذاكرة المحلية","تحسين خفة عناصر العرض في واجهة FuelLogModal دون تغيير قواعد الأعمال",2026-10-14 11:00:00,NO,م. فهد القحطاني
+# Template Guide / تعليمات درجات الخطورة:
+# S1 = Financial or stock data wrong (أخطاء مالية أو مخزنية أو قيود غير متوازنة) -> يترتب عليه إعادة عداد الـ 14 يوماً من الصفر (reset_day_count = YES)
+# S2 = Data lost or duplicated (فقدان بيانات أو تكرار أرقام مستندات أو فشل مزامنة) -> يترتب عليه إعادة عداد الـ 14 يوماً من الصفر (reset_day_count = YES)
+# S3 = Usability / UI issue (مشاكل تجربة مستخدم أو بطء واجهات دون مساس بالبيانات) -> لا يصفر العداد (reset_day_count = NO)

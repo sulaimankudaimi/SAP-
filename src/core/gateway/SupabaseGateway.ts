@@ -50,6 +50,10 @@ export class SupabaseGateway implements IDataGateway {
   readonly mode = 'server' as const;
   private client: SupabaseClient;
 
+  public get supabaseClient(): SupabaseClient {
+    return this.client;
+  }
+
   constructor() {
     const url = getServerUrl() || 'https://placeholder-erp.supabase.co';
     const anonKey = getServerAnonKey() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
