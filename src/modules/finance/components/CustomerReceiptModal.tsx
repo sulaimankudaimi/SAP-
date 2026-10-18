@@ -6,6 +6,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AutomaticPostingEngine } from '../services/AutomaticPostingEngine';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { Customer, CustomerInvoice, CustomerReceipt } from '../../../types/models';
 import { CheckCircle2, DollarSign } from 'lucide-react';
 
@@ -95,9 +96,9 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
         bankAccount,
         referenceNumber: referenceNumber || `REC-TRX-${Date.now().toString().slice(-6)}`,
         paymentMethod: 'BankTransfer',
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
         createdAt: now,
-        updatedBy: 'usr-admin-1',
+        updatedBy: currentActorId(),
         updatedAt: now,
         version: 1,
         isDeleted: false,
@@ -116,7 +117,7 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
       // Post to GL: Dr. Bank / Cr. Customer Receivable
       await AutomaticPostingEngine.postCustomerReceipt({
         receipt,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
       });
 
       showToast(`تم تسجيل سند القبض وترحيل القيد للأستاذ العام برقم ${docNumber}`, 'success');

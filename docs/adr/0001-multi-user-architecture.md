@@ -172,3 +172,17 @@ To ensure absolute operational safety and minimize organizational risk, the mult
 4. **Phase 4: Subsequent Module Migration**
    - Strictly **no other module is migrated** until the Fleet pilot exit criteria are fully satisfied and approved.
    - Subsequent sequence: Inventory & Warehouse Management $\rightarrow$ Accounts Payable & Finance $\rightarrow$ Asset Management & Controlling $\rightarrow$ Administrative Workflows.
+
+---
+
+## 8. Changed (Architecture Hardening & Defect Rectifications)
+
+- **Date**: 2026-10-13
+- **Context**: Post-review hardening addressing defects F1-F7 across migrations `0009` through `0013`:
+  1. **F1 (Missing Client Query Contracts)**: Provisioned `fuel_anomaly_alerts` table and client-matching RPCs (`get_vehicle_expiry_alerts`, `get_vehicle_cost_report`, `get_fleet_dashboard_kpis`) in `0012_fleet_reporting.sql`.
+  2. **F2 (Read-Only RLS & Missing Master RPCs)**: Implemented explicit whitelist mutation RPCs in `0010_fleet_master_commands.sql` (`create_vehicle`, `update_vehicle`, `set_vehicle_active`, `create_driver`, `update_driver`, `set_driver_active`) with OCC versioning and soft-deactivation (zero deletes).
+  3. **F3 (Offline Field Telemetry)**: Provisioned persistent tables (`trip_events`, `odometer_readings`, `vehicle_inspections`) and commands (`record_trip_event`, `record_odometer_reading`, `record_inspection`) in `0011_field_events.sql` with chronological boundary verification.
+  4. **F4 (Idempotency Race)**: Introduced `begin_command` atomic pessimistic row locking on `command_requests (status: in_progress | done)` in `0009_idempotency_security.sql`.
+  5. **F5 (Privilege Leakage & Authorization Fail-Closed)**: Revoked execute on public schema from `PUBLIC` and `anon`; tightened `has_permission` to fail closed if `must_change_password = true` or `p_plant` is NULL with restricted scopes; added `complete_password_change` RPC in `0009_idempotency_security.sql`.
+  6. **F6 (Role Drift Prevention)**: Built `scripts/generate-roles-sql.ts` to deterministically synchronize `SYSTEM_ROLES` to `0013_roles_sync.sql`, safeguarded by `roles-sync.test.ts`.
+  7. **F7 (Optional pg_cron Resilience)**: Wrapped `0008_integrity_runs_scheduled.sql` in a safe `DO` block with exception fallback when `pg_cron` is uninstalled.

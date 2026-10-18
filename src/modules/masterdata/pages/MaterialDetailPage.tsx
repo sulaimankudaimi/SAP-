@@ -111,7 +111,12 @@ export const MaterialDetailPage: React.FC = () => {
     if (!material || !id) return;
     try {
       setIsSaving(true);
-      await materialRepository.update(id, editForm, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await materialRepository.update(
+        id,
+        editForm,
+        { userId: user?.id, userName: user?.fullName || 'مدير النظام' },
+        { expectedVersion: material.version || 1 }
+      );
 
       showToast({
         title: 'تم تحديث بيانات الصنف',

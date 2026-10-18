@@ -11,6 +11,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { getErrorMessage } from '../../../core/utils';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { Vehicle, VehicleType } from '../../../types/models';
 import {
   Truck,
@@ -128,7 +129,7 @@ export const VehiclesListPage: React.FC = () => {
           FleetService.updateVehicle(
             editingVehicle.id,
             localData,
-            'u-flt-mgr',
+            currentActorId(),
             editingVehicle.version
           ),
         localData

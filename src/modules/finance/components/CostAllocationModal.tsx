@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { ControllingService } from '../services/ControllingService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { CostCenter } from '../../../types/models';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 
@@ -107,7 +108,7 @@ export const CostAllocationModal: React.FC<CostAllocationModalProps> = ({
         senderCostCenter,
         totalAmount: numTotal,
         segments,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
       });
 
       showToast(`تم بنجاح تشغيل دورة التوزيع وترحيل القيد للأستاذ العام برقم ${res.jeDocNumber}`, 'success');

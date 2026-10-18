@@ -87,6 +87,27 @@
 #### 6) الملف السادس: `0006_integrity.sql`
 - **الغرض**: بناء دالة التدقيق الشاملة `integrity_report()` التي تفحص محددات سلامة البيانات السبعة الواردة في وثيقة القرار المعماري ADR 0001.
 
+#### 7) الملف السابع: `0007_fleet_hardening.sql`
+- **الغرض**: فهارس التصفح المجمعة (Composite Indexes) لـ 50,000+ سجل وقود ورحلات، وإطلالات تكاليف المركبات والتسوية المحاسبية لمراكز التكلفة (`v_vehicle_costs` و `v_cost_center_fleet_reconciliation`).
+
+#### 8) الملف الثامن: `0008_integrity_runs_scheduled.sql`
+- **الغرض**: جدول وسجل فحص النزاهة التلقائي الليلي `integrity_runs` ودالة `run_nightly_integrity_check()` مع غلاف آمن متسامح (`DO` block) يرسل إشعاراً في حال عدم تفعيل ملحق `pg_cron`.
+
+#### 9) الملف التاسع: `0009_idempotency_security.sql`
+- **الغرض**: حل سباق التكرار والتزامن عبر دالة `begin_command` وحالة `in_progress` / `done`، وسحب كافة امتيازات التنفيذ من `PUBLIC` و `anon`، وضمان الفشل المغلق (Fail-Closed) في `has_permission` عند `must_change_password` أو غياب نطاق المحطة، ودالة `complete_password_change()`.
+
+#### 10) الملف العاشر: `0010_fleet_master_commands.sql`
+- **الغرض**: أوامر تعديل البيانات الأساسية للأسطول عبر الخادم (`create_vehicle`, `update_vehicle`, `set_vehicle_active`, `create_driver`, `update_driver`, `set_driver_active`) بقوائم حقول صريحة، والتحكم التفاؤلي بالإصدارات `expected_version`، والتعطيل الإداري بدلاً من الحذف الفيزيائي.
+
+#### 11) الملف الحادي عشر: `0011_field_events.sql`
+- **الغرض**: جداول وأوامر تسجيل العمليات الميدانية غير المتصلة (`trip_events`, `odometer_readings`, `vehicle_inspections`) مع التحقق الزمني الصارم من عدم تراجع قراءات العدادات وفق التسلسل الزمني الفعلي.
+
+#### 12) الملف الثاني عشر: `0012_fleet_reporting.sql`
+- **الغرض**: جدول تنبيهات شذوذ استهلاك الوقود `fuel_anomaly_alerts` ومحرك اكتشاف الانحراف (25%+ عن متوسط آخر 10 تموينات)، ودوال استعلامات التقارير المتطابقة تماماً مع عقود الواجهة الأمامية (`get_vehicle_expiry_alerts`, `get_vehicle_cost_report`, `get_fleet_dashboard_kpis`).
+
+#### 13) الملف الثالث عشر: `0013_roles_sync.sql`
+- **الغرض**: المزامنة القطعية غير القابلة للانجراف للأدوار والصلاحيات النظامية والمولدة برمجياً عبر `scripts/generate-roles-sql.ts`.
+
 ---
 
 ### 3. إنشاء المستخدم الإداري الأول وتفعيل الملف الشخصي

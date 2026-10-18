@@ -60,7 +60,11 @@ describe('Credential Hardening & Lifecycle Security Tests', () => {
     await ensureAdminRole();
     const legacySalt = AuthService.LEGACY_SALTS[0];
     const password = 'LegacyAdminPass#2026!';
-    const legacyHash = await CryptoService.hashPassword(password, legacySalt);
+    const legacyHash = await CryptoService.hashPassword(
+      password,
+      legacySalt,
+      CryptoService.LEGACY_ITERATIONS
+    );
 
     const legacyUser: User = {
       id: 'u-legacy',
@@ -74,6 +78,7 @@ describe('Credential Hardening & Lifecycle Security Tests', () => {
       plantCode: '1100',
       passwordSalt: legacySalt,
       passwordHash: legacyHash,
+      passwordIterations: CryptoService.LEGACY_ITERATIONS,
       failedLoginAttempts: 0,
       isLocked: false,
       mustChangePassword: false,
@@ -226,6 +231,7 @@ describe('Credential Hardening & Lifecycle Security Tests', () => {
       plantCode: '1100',
       passwordSalt: oldSalt,
       passwordHash: oldHash,
+      passwordIterations: CryptoService.CURRENT_ITERATIONS,
       failedLoginAttempts: 0,
       isLocked: false,
       mustChangePassword: true,

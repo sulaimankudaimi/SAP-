@@ -1,9 +1,15 @@
+import { z } from 'zod';
 import { db } from '../db';
 import type { OutboxCommand, OutboxCommandType } from '../../types/models';
 import { useConnectivityStore } from './connectivity';
 import { DiagnosticLogger } from '../services/DiagnosticLogger';
 import { AuditService } from '../services/AuditService';
 import type { IDataGateway } from './IDataGateway';
+import {
+  ValidationError,
+  ChronologyError,
+  AlreadyProcessed,
+} from '../errors';
 
 export const WHITELISTED_OFFLINE_COMMANDS: ReadonlyArray<OutboxCommandType> = [
   'fuel_log',
@@ -15,6 +21,121 @@ export const WHITELISTED_OFFLINE_COMMANDS: ReadonlyArray<OutboxCommandType> = [
 export const OFFLINE_BLOCKED_ARABIC_EXPLANATION =
   'لا يمكن تنفيذ هذه العملية بدون اتصال بالخادم. العمليات غير المعتمدة للعمل دون اتصال: (الترحيل، الإكمال، الاعتماد، الإلغاء، الحذف، والبيانات الرئيسية). يرجى التحقق من اتصال الشبكة.';
 
+// ----------------------------------------------------------------------------
+// Zod Schemas for Strict Offline Command Payloads
+// ----------------------------------------------------------------------------
+
+export const fuelLogPayloadSchema = z
+  .object({
+    vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
+    liters: z.number().optional(),
+    quantityLiters: z.number().optional(),
+    cost: z.number().optional(),
+    costPerLiter: z.number().optional(),
+    fuelType: z.string().optional().default('Diesel'),
+    currentOdometer: z.number().optional(),
+    odometer: z.number().optional(),
+    driverId: z.string().optional(),
+    vendorName: z.string().optional(),
+    invoiceNumber: z.string().optional(),
+    stationLocation: z.string().optional(),
+    stationName: z.string().optional(),
+    date: z.string().optional(),
+    occurredAt: z.string().optional(),
+  })
+  .transform((data) => {
+    const liters = data.liters ?? data.quantityLiters ?? 0;
+    const cost =
+      data.cost ?? (data.costPerLiter !== undefined ? data.costPerLiter * liters : 0);
+    const currentOdometer = data.currentOdometer ?? data.odometer ?? 0;
+    const stationLocation = data.stationLocation || data.stationName || 'محطة المحروقات';
+    const occurredAt = data.occurredAt || data.date || new Date().toISOString();
+    return {
+      ...data,
+      liters,
+      cost,
+      currentOdometer,
+      stationLocation,
+      occurredAt,
+    };
+  });
+
+export const tripEventPayloadSchema = z.object({
+  tripId: z.string().min(1, 'معرف الرحلة مطلوب'),
+  vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
+  eventType: z.enum(['departed', 'arrived', 'delayed', 'incident'], {
+    errorMap: () => ({ message: 'نوع الحدث التشغيلي غير مدعوم' }),
+  }),
+  occurredAt: z.string().min(1, 'وقت وقوع الحدث مطلوب'),
+  payload: z.record(z.unknown()).optional(),
+});
+
+export const odometerReadingPayloadSchema = z.object({
+  vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
+  readingKm: z.number().min(0, 'قراءة العداد لا يمكن أن تكون سالبة'),
+  capturedAt: z.string().min(1, 'وقت تسجيل القراءة مطلوب'),
+  source: z.string().optional(),
+});
+
+export const inspectionPayloadSchema = z.object({
+  vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
+  inspectedAt: z.string().min(1, 'تاريخ وتوقيت الفحص مطلوب'),
+  result: z.enum(['pass', 'fail', 'warning'], {
+    errorMap: () => ({ message: 'نتيجة الفحص غير صالحة' }),
+  }),
+  notes: z.string().optional(),
+  checklist: z.record(z.unknown()).optional(),
+});
+
+export function validatePayload(
+  type: string,
+  payload: Record<string, unknown>
+): { success: true; data: Record<string, unknown> } | { success: false; error: string } {
+  switch (type) {
+    case 'fuel_log': {
+      const res = fuelLogPayloadSchema.safeParse(payload);
+      return res.success
+        ? { success: true, data: res.data as Record<string, unknown> }
+        : {
+            success: false,
+            error: (res.error.issues || []).map((e: { message: string }) => e.message).join('، '),
+          };
+    }
+    case 'trip_event': {
+      const res = tripEventPayloadSchema.safeParse(payload);
+      return res.success
+        ? { success: true, data: res.data as Record<string, unknown> }
+        : {
+            success: false,
+            error: (res.error.issues || []).map((e: { message: string }) => e.message).join('، '),
+          };
+    }
+    case 'odometer_reading': {
+      const res = odometerReadingPayloadSchema.safeParse(payload);
+      return res.success
+        ? { success: true, data: res.data as Record<string, unknown> }
+        : {
+            success: false,
+            error: (res.error.issues || []).map((e: { message: string }) => e.message).join('، '),
+          };
+    }
+    case 'inspection': {
+      const res = inspectionPayloadSchema.safeParse(payload);
+      return res.success
+        ? { success: true, data: res.data as Record<string, unknown> }
+        : {
+            success: false,
+            error: (res.error.issues || []).map((e: { message: string }) => e.message).join('، '),
+          };
+    }
+    default:
+      return {
+        success: false,
+        error: `نوع العملية (${type}) غير مدعوم في القائمة البيضاء الميدانية.`,
+      };
+  }
+}
+
 export function isCommandWhitelisted(type: string): type is OutboxCommandType {
   return WHITELISTED_OFFLINE_COMMANDS.includes(type as OutboxCommandType);
 }
@@ -25,9 +146,6 @@ export function assertCommandWhitelisted(type: string): void {
   }
 }
 
-/**
- * Generates standard UUID v4 for request_id idempotency tracking
- */
 export function generateRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -40,7 +158,7 @@ let isProcessing = false;
 export class OutboxEngine {
   /**
    * Enqueues an offline command into the Dexie outbox table.
-   * Whitelist check is enforced before writing.
+   * Validates with Zod before saving.
    */
   static async enqueue(options: {
     type: OutboxCommandType;
@@ -50,13 +168,19 @@ export class OutboxEngine {
   }): Promise<OutboxCommand> {
     assertCommandWhitelisted(options.type);
 
+    // Validate payload against schema before queueing
+    const validation = validatePayload(options.type, options.payload);
+    if (!validation.success) {
+      throw new ValidationError(`بيانات العملية غير صالحة: ${validation.error}`);
+    }
+
     const requestId = options.customId || generateRequestId();
     const now = new Date().toISOString();
 
     const command: OutboxCommand = {
       id: requestId,
       type: options.type,
-      payload: options.payload,
+      payload: validation.data,
       createdAt: now,
       attempts: 0,
       status: 'pending',
@@ -66,7 +190,6 @@ export class OutboxEngine {
     await db.outbox.add(command);
     await useConnectivityStore.getState().refreshOutboxCounts();
 
-    // Trigger background process if online
     if (useConnectivityStore.getState().isOnline) {
       setTimeout(() => {
         OutboxEngine.processQueue().catch((err) => {
@@ -80,7 +203,6 @@ export class OutboxEngine {
 
   /**
    * Processes the outbox with strict FIFO per vehicle and exponential backoff.
-   * Does not drop rejected items (moves them to needs_review).
    * Reuses the exact same request_id on each retry.
    */
   static async processQueue(gatewayOverride?: IDataGateway): Promise<void> {
@@ -91,7 +213,6 @@ export class OutboxEngine {
     useConnectivityStore.getState().setSyncing(true);
 
     try {
-      // 1. Fetch pending and sending commands
       const items = await db.outbox
         .where('status')
         .equals('pending')
@@ -103,7 +224,7 @@ export class OutboxEngine {
         return;
       }
 
-      // 2. Group by vehicleId to enforce strict FIFO per vehicle
+      // Group by vehicleId to enforce strict FIFO per vehicle
       const groupedByVehicle = new Map<string, OutboxCommand[]>();
       for (const item of items) {
         const key = item.vehicleId || '__unassigned__';
@@ -112,25 +233,20 @@ export class OutboxEngine {
         groupedByVehicle.set(key, list);
       }
 
-      // Dynamically resolve gateway if not provided
       let gateway = gatewayOverride;
       if (!gateway) {
         const { getGateway } = await import('./ServerGateway');
         gateway = getGateway();
       }
 
-      // 3. Process each vehicle queue in strict FIFO order
       for (const [, queue] of groupedByVehicle.entries()) {
-        // Sort strictly by createdAt ascending
         queue.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
         for (const cmd of queue) {
-          // Check exponential backoff: 2s up to 5 min
           if (cmd.attempts > 0 && cmd.updatedAt) {
             const backoffMs = Math.min(300000, 2000 * Math.pow(2, cmd.attempts - 1));
             const elapsed = Date.now() - new Date(cmd.updatedAt).getTime();
             if (elapsed < backoffMs) {
-              // Not yet time for this command, stop subsequent commands for this vehicle
               break;
             }
           }
@@ -138,7 +254,6 @@ export class OutboxEngine {
           const currentAttempt = cmd.attempts + 1;
           const now = new Date().toISOString();
 
-          // Mark as sending with same request_id
           await db.outbox.update(cmd.id, {
             status: 'sending',
             attempts: currentAttempt,
@@ -148,14 +263,35 @@ export class OutboxEngine {
           try {
             await OutboxEngine.dispatchCommand(gateway, cmd);
 
-            // Marked as done on successful execution
+            // Successfully processed
             await db.outbox.update(cmd.id, {
               status: 'done',
               updatedAt: new Date().toISOString(),
             });
           } catch (err) {
+            // Check if AlreadyProcessed -> Treat as success returning stored result
+            if (
+              err instanceof AlreadyProcessed ||
+              (err instanceof Error && err.message.includes('AlreadyProcessed')) ||
+              (err instanceof Error && (err.message.includes('مكرر') || err.message.includes('already processed')))
+            ) {
+              await db.outbox.update(cmd.id, {
+                status: 'done',
+                updatedAt: new Date().toISOString(),
+              });
+              continue;
+            }
+
             const errorMsg = err instanceof Error ? err.message : String(err);
+            const isChronology =
+              err instanceof ChronologyError ||
+              errorMsg.includes('chronology') ||
+              errorMsg.includes('تناقص') ||
+              errorMsg.includes('يسبق');
+
             const isRejection =
+              isChronology ||
+              err instanceof ValidationError ||
               errorMsg.includes('rejected') ||
               errorMsg.includes('رفض') ||
               errorMsg.includes('غير صالح') ||
@@ -164,22 +300,21 @@ export class OutboxEngine {
               errorMsg.includes('validation');
 
             if (isRejection) {
-              // Server rejected item: move to needs_review with Arabic reason. NEVER DELETE!
+              // Server rejected item or chronological anomaly: move to needs_review with Arabic explanation. NEVER drop!
               await db.outbox.update(cmd.id, {
                 status: 'needs_review',
                 lastError: errorMsg,
                 updatedAt: new Date().toISOString(),
               });
-              // Stop subsequent commands for this vehicle until user resolves this command
+              // Stop subsequent commands for this vehicle
               break;
             } else {
-              // Transient network or connection failure: stay pending with backoff
+              // Transient network failure: keep pending with backoff
               await db.outbox.update(cmd.id, {
                 status: 'pending',
                 lastError: errorMsg,
                 updatedAt: new Date().toISOString(),
               });
-              // Stop subsequent commands for this vehicle
               break;
             }
           }
@@ -193,46 +328,77 @@ export class OutboxEngine {
   }
 
   /**
-   * Internal dispatcher for sending outbox commands to the gateway
+   * Internal dispatcher for sending outbox commands to their dedicated RPCs.
+   * NEVER maps to createTrip / completeTrip!
    */
   private static async dispatchCommand(gateway: IDataGateway, cmd: OutboxCommand): Promise<void> {
+    // 1. Re-validate payload before sending
+    const validation = validatePayload(cmd.type, cmd.payload);
+    if (!validation.success) {
+      throw new ValidationError(`بيانات العملية في صندوق الصادر غير صالحة: ${validation.error}`);
+    }
+
+    const payload = validation.data;
+
     switch (cmd.type) {
       case 'fuel_log': {
-        const payload = cmd.payload as unknown as import('./IDataGateway').CreateFuelLogCommand;
         await gateway.createFuelLog({
-          ...payload,
-          requestId: cmd.id, // Ensure request_id is reused on every retry
+          vehicleId: payload.vehicleId,
+          driverId: payload.driverId,
+          liters: payload.liters,
+          cost: payload.cost,
+          fuelType: payload.fuelType,
+          vendorName: payload.vendorName || payload.stationLocation || 'محطة المحروقات',
+          invoiceNumber: payload.invoiceNumber as string | undefined,
+          currentOdometer: payload.currentOdometer as number,
+          odometer: payload.currentOdometer as number,
+          stationLocation: payload.stationLocation as string | undefined,
+          occurredAt: payload.occurredAt || cmd.createdAt,
+          requestId: cmd.id, // Reuses exact request_id for idempotency
         });
         break;
       }
-      case 'trip_event':
-      case 'odometer_reading':
-      case 'inspection': {
-        // Dispatch to generic command RPC or maintenance/trip handler
-        if (cmd.payload.tripId && gateway.completeTrip) {
-          const payload = cmd.payload as unknown as import('./IDataGateway').CompleteTripCommand;
-          await gateway.completeTrip({
-            ...payload,
-            requestId: cmd.id,
-          });
-        } else if (gateway.createTrip) {
-          const payload = cmd.payload as unknown as import('./IDataGateway').CreateTripCommand;
-          await gateway.createTrip({
-            ...payload,
-            requestId: cmd.id,
-          });
-        }
+
+      case 'trip_event': {
+        await gateway.recordTripEvent({
+          requestId: cmd.id,
+          tripId: payload.tripId,
+          vehicleId: payload.vehicleId,
+          eventType: payload.eventType,
+          occurredAt: payload.occurredAt || cmd.createdAt,
+          payload: payload.payload || {},
+        });
         break;
       }
+
+      case 'odometer_reading': {
+        await gateway.recordOdometerReading({
+          requestId: cmd.id,
+          vehicleId: payload.vehicleId,
+          readingKm: payload.readingKm,
+          capturedAt: payload.capturedAt || cmd.createdAt,
+          source: payload.source || 'driver_check_in',
+        });
+        break;
+      }
+
+      case 'inspection': {
+        await gateway.recordInspection({
+          requestId: cmd.id,
+          vehicleId: payload.vehicleId,
+          inspectedAt: payload.inspectedAt || cmd.createdAt,
+          result: payload.result,
+          notes: payload.notes,
+          checklist: payload.checklist || {},
+        });
+        break;
+      }
+
       default:
-        throw new Error(`نوع العملية (${cmd.type}) غير معروف في قائمة انتظار الإرسال.`);
+        throw new ValidationError(`نوع العملية (${cmd.type}) غير معروف في قائمة انتظار الإرسال.`);
     }
   }
 
-  /**
-   * Retries an item in 'needs_review' or 'rejected' status.
-   * Resets status to 'pending' so the FIFO sender loop re-picks it up.
-   */
   static async retryItem(id: string): Promise<void> {
     const item = await db.outbox.get(id);
     if (!item) throw new Error('العملية غير موجودة في صندوق الإرسال.');
@@ -250,10 +416,6 @@ export class OutboxEngine {
     });
   }
 
-  /**
-   * Edits the payload of a rejected command and resubmits it as a fresh command.
-   * The old command is marked as replaced, and the new command is enqueued.
-   */
   static async editAndResubmit(
     oldId: string,
     newPayload: Record<string, unknown>
@@ -261,14 +423,12 @@ export class OutboxEngine {
     const oldItem = await db.outbox.get(oldId);
     if (!oldItem) throw new Error('العملية الأصلية غير موجودة.');
 
-    // Remove or mark old item done/superseded
     await db.outbox.update(oldId, {
       status: 'done',
-      lastError: `تم استبدال العملية بالعملية المعدلة الجديدة`,
+      lastError: 'تم استبدال العملية بالعملية المعدلة الجديدة',
       updatedAt: new Date().toISOString(),
     });
 
-    // Enqueue as a fresh command
     const newCmd = await OutboxEngine.enqueue({
       type: oldItem.type,
       payload: newPayload,
@@ -278,9 +438,6 @@ export class OutboxEngine {
     return newCmd;
   }
 
-  /**
-   * Discards a command from the outbox with a mandatory audited reason.
-   */
   static async discardItem(options: {
     id: string;
     reason: string;
@@ -294,7 +451,6 @@ export class OutboxEngine {
     const item = await db.outbox.get(options.id);
     if (!item) throw new Error('العملية غير موجودة في صندوق الإرسال.');
 
-    // Log mandatory audit entry for discarding unposted command
     await AuditService.log({
       userId: options.userId,
       userName: options.userName || 'مدير الأسطول',

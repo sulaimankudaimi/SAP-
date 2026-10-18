@@ -74,7 +74,12 @@ export const CustomerDetailPage: React.FC = () => {
     if (!customer || !id) return;
     try {
       setIsSaving(true);
-      await customerRepository.update(id, editForm, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await customerRepository.update(
+        id,
+        editForm,
+        { userId: user?.id, userName: user?.fullName || 'مدير النظام' },
+        { expectedVersion: customer.version || 1 }
+      );
 
       showToast({
         title: 'تم تحديث بيانات العميل',

@@ -56,7 +56,7 @@ export class FinanceService {
   /**
    * Initializes standard 12 fiscal periods for a given year if not existing.
    */
-  static async initFiscalPeriods(fiscalYear: string = '2026', currentUserId: string = 'usr-admin-1'): Promise<void> {
+  static async initFiscalPeriods(fiscalYear: string = '2026', currentUserId?: string): Promise<void> {
     const existing = await db.fiscalPeriods.where({ fiscalYear }).count();
     if (existing >= 12) return;
 

@@ -1070,4 +1070,61 @@ export class AutomaticPostingEngine {
       },
     });
   }
+
+  /**
+   * Fleet Trip completion GL posting wrapper.
+   */
+  static async postTripCompletionCost(params: {
+    tripDocNumber: string;
+    vehiclePlate: string;
+    driverName?: string;
+    fuelCost?: number;
+    driverAllowanceCost?: number;
+    completionDate: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    const amount = (params.fuelCost || 0) + (params.driverAllowanceCost || 0);
+    return await this.postTripCost({
+      tripDocNumber: params.tripDocNumber,
+      vehiclePlate: params.vehiclePlate,
+      amount,
+      postingDate: params.completionDate,
+      createdBy: params.createdBy,
+    });
+  }
+
+  /**
+   * Fleet Fuel expense GL posting wrapper.
+   */
+  static async postFuelExpense(params: {
+    fuelDocId: string;
+    vehiclePlate: string;
+    amount: number;
+    date: string;
+    stationName?: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    return await this.postFuelCost({
+      fuelLogId: params.fuelDocId,
+      vehiclePlate: params.vehiclePlate,
+      amount: params.amount,
+      date: params.date,
+      stationName: params.stationName || 'محطة المحروقات',
+      createdBy: params.createdBy,
+    });
+  }
+
+  /**
+   * Fleet Maintenance Order cost GL posting wrapper.
+   */
+  static async postMaintenanceOrderCost(params: {
+    orderDocNumber: string;
+    vehiclePlate: string;
+    amount: number;
+    completionDate: string;
+    createdBy: string;
+  }): Promise<{ success: boolean; jeDocNumber: string }> {
+    return await this.postMaintenanceCost(params);
+  }
 }
+

@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { BudgetService } from '../services/BudgetService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { CostCenter } from '../../../types/models';
 import { CheckCircle2, DollarSign } from 'lucide-react';
 
@@ -55,7 +56,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await BudgetService.saveBudget(costCenter, fiscalYear, amount, 'usr-admin-1');
+      await BudgetService.saveBudget(costCenter, fiscalYear, amount, currentActorId());
       showToast('تم حفظ واعتماد الميزانية التقديرية بنجاح.', 'success');
       onSuccess();
       onClose();

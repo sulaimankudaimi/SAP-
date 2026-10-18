@@ -12,6 +12,7 @@ import type { Driver } from '../../../types/models';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   Users,
   Search,
@@ -119,7 +120,7 @@ export const DriversListPage: React.FC = () => {
           FleetService.updateDriver(
             editingDriver.id,
             localData,
-            'u-flt-mgr',
+            currentActorId(),
             editingDriver.version
           ),
         localData

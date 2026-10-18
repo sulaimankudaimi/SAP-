@@ -3,11 +3,11 @@ import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { InventoryService } from '../../inventory/services/InventoryService';
 import { AutomaticPostingEngine } from '../../finance/services/AutomaticPostingEngine';
-import { requirePermission } from '../../../core/security/SessionContext';
+import { requirePermission, SessionContext } from '../../../core/security/SessionContext';
 import { isServerMode, useConnectivityStore } from '../../../core/gateway/connectivity';
 import { dataGateway } from '../../../core/gateway/ServerGateway';
 import { OutboxEngine, OFFLINE_BLOCKED_ARABIC_EXPLANATION } from '../../../core/gateway/OutboxEngine';
-import { ConcurrencyError } from '../../../core/errors/ConcurrencyError';
+import { ConcurrencyError, ServerCommandUnavailableError } from '../../../core/errors';
 import type {
   Vehicle,
   VehicleType,
@@ -44,21 +44,6 @@ export interface ExpiryAlert {
   expiryDate: string;
   daysRemaining: number;
   isExpired: boolean;
-}
-
-export interface FleetSummaryKPIs {
-  totalVehicles: number;
-  onRoadCount: number;
-  availableCount: number;
-  maintenanceCount: number;
-  outOfServiceCount: number;
-  fleetUtilizationRate: number; // percentage
-  fuelConsumedTodayLiters: number;
-  fuelCostTodaySar: number;
-  fuelVsYesterdayChangePct: number;
-  activeTripsCount: number;
-  pendingMaintenanceCount: number;
-  criticalAnomaliesCount: number;
 }
 
 export class FleetService {
@@ -108,8 +93,9 @@ export class FleetService {
 
   static async createVehicle(
     data: Omit<Vehicle, 'id' | 'isDeleted'>,
-    userId: string = 'u-flt-mgr'
+    userId?: string
   ): Promise<Vehicle> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'create' });
 
     if (isServerMode()) {
@@ -119,6 +105,7 @@ export class FleetService {
       if (dataGateway.instance.createVehicle) {
         return await dataGateway.instance.createVehicle({ ...data, version: 1 });
       }
+      throw new ServerCommandUnavailableError('createVehicle');
     }
 
     const id = `veh-${Date.now()}`;
@@ -132,7 +119,7 @@ export class FleetService {
     await db.vehicles.add(vehicle);
 
     await AuditService.log({
-      userId,
+      userId: actorId,
       action: 'CREATE',
       entity: 'Vehicle',
       entityId: id,
@@ -145,9 +132,10 @@ export class FleetService {
   static async updateVehicle(
     id: string,
     data: Partial<Vehicle>,
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<Vehicle> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'change' });
 
     if (isServerMode()) {
@@ -157,6 +145,7 @@ export class FleetService {
       if (dataGateway.instance.updateVehicle) {
         return await dataGateway.instance.updateVehicle(id, data, expectedVersion);
       }
+      throw new ServerCommandUnavailableError('updateVehicle');
     }
 
     const before = await db.vehicles.get(id);
@@ -178,7 +167,7 @@ export class FleetService {
     await db.vehicles.put(updated);
 
     await AuditService.log({
-      userId,
+      userId: actorId,
       action: 'UPDATE',
       entity: 'Vehicle',
       entityId: id,
@@ -189,7 +178,58 @@ export class FleetService {
     return updated;
   }
 
-  static async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
+  static async setVehicleActive(
+    id: string,
+    isActive: boolean,
+    userId?: string,
+    expectedVersion?: number
+  ): Promise<Vehicle> {
+    const actorId = userId || SessionContext.currentActorId();
+    requirePermission({ module: 'TM', activity: 'change' });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.setVehicleActive) {
+        return await dataGateway.instance.setVehicleActive(id, isActive, expectedVersion);
+      }
+      throw new ServerCommandUnavailableError('setVehicleActive');
+    }
+
+    const before = await db.vehicles.get(id);
+    if (!before) throw new Error('المركبة غير موجودة');
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof before.version === 'number' ? before.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
+
+    const updated: Vehicle = {
+      ...before,
+      isDeleted: !isActive,
+      status: isActive ? 'available' : 'out_of_service',
+      version: (before.version || 1) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await db.vehicles.put(updated);
+
+    await AuditService.log({
+      userId: actorId,
+      action: 'UPDATE',
+      entity: 'Vehicle',
+      entityId: id,
+      before: before as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
+    });
+
+    return updated;
+  }
+
+  static async getVehicleExpiryAlerts(daysAhead: number = 30): Promise<ExpiryAlert[]> {
     if (isServerMode()) {
       return await dataGateway.instance.getVehicleExpiryAlerts();
     }
@@ -205,7 +245,7 @@ export class FleetService {
         const diffMs = insDate.getTime() - now.getTime();
         const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-        if (days <= 30) {
+        if (days <= daysAhead) {
           alerts.push({
             id: `exp-ins-${veh.id}`,
             vehicleId: veh.id,
@@ -226,7 +266,7 @@ export class FleetService {
         const diffMs = regDate.getTime() - now.getTime();
         const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-        if (days <= 30) {
+        if (days <= daysAhead) {
           alerts.push({
             id: `exp-reg-${veh.id}`,
             vehicleId: veh.id,
@@ -286,8 +326,9 @@ export class FleetService {
 
   static async createDriver(
     data: Omit<Driver, 'id' | 'isDeleted'>,
-    userId: string = 'u-flt-mgr'
+    userId?: string
   ): Promise<Driver> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'create' });
 
     if (isServerMode()) {
@@ -297,6 +338,7 @@ export class FleetService {
       if (dataGateway.instance.createDriver) {
         return await dataGateway.instance.createDriver({ ...data, version: 1 });
       }
+      throw new ServerCommandUnavailableError('createDriver');
     }
 
     const id = `drv-${Date.now()}`;
@@ -310,7 +352,7 @@ export class FleetService {
     await db.drivers.add(driver);
 
     await AuditService.log({
-      userId,
+      userId: actorId,
       action: 'CREATE',
       entity: 'Driver',
       entityId: id,
@@ -323,9 +365,10 @@ export class FleetService {
   static async updateDriver(
     id: string,
     data: Partial<Driver>,
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<Driver> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'change' });
 
     if (isServerMode()) {
@@ -335,6 +378,7 @@ export class FleetService {
       if (dataGateway.instance.updateDriver) {
         return await dataGateway.instance.updateDriver(id, data, expectedVersion);
       }
+      throw new ServerCommandUnavailableError('updateDriver');
     }
 
     const before = await db.drivers.get(id);
@@ -356,7 +400,58 @@ export class FleetService {
     await db.drivers.put(updated);
 
     await AuditService.log({
-      userId,
+      userId: actorId,
+      action: 'UPDATE',
+      entity: 'Driver',
+      entityId: id,
+      before: before as unknown as Record<string, unknown>,
+      after: updated as unknown as Record<string, unknown>,
+    });
+
+    return updated;
+  }
+
+  static async setDriverActive(
+    id: string,
+    isActive: boolean,
+    userId?: string,
+    expectedVersion?: number
+  ): Promise<Driver> {
+    const actorId = userId || SessionContext.currentActorId();
+    requirePermission({ module: 'TM', activity: 'change' });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.setDriverActive) {
+        return await dataGateway.instance.setDriverActive(id, isActive, expectedVersion);
+      }
+      throw new ServerCommandUnavailableError('setDriverActive');
+    }
+
+    const before = await db.drivers.get(id);
+    if (!before) throw new Error('السائق غير موجود');
+
+    if (expectedVersion !== undefined) {
+      const storedVer = typeof before.version === 'number' ? before.version : 1;
+      if (storedVer !== expectedVersion) {
+        throw new ConcurrencyError('تم تعديل هذا السجل بواسطة مستخدم آخر. أعد التحميل ثم حاول مجدداً.');
+      }
+    }
+
+    const updated: Driver = {
+      ...before,
+      isDeleted: !isActive,
+      status: isActive ? 'available' : 'on_leave',
+      version: (before.version || 1) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await db.drivers.put(updated);
+
+    await AuditService.log({
+      userId: actorId,
       action: 'UPDATE',
       entity: 'Driver',
       entityId: id,
@@ -391,11 +486,11 @@ export class FleetService {
     if (filters?.driverId) {
       trips = trips.filter((t) => t.driverId === filters.driverId);
     }
-    if (filters?.originPlant) {
+    if (filters?.originPlant && filters.originPlant !== 'ALL') {
       trips = trips.filter((t) => t.originPlant === filters.originPlant);
     }
 
-    return trips.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return trips.sort((a, b) => b.scheduledDeparture.localeCompare(a.scheduledDeparture));
   }
 
   static async getTripById(id: string): Promise<Trip | null> {
@@ -418,20 +513,24 @@ export class FleetService {
       scheduledArrival: string;
       startOdometer: number;
     },
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<Trip> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'create' }, { plant: input.originPlant });
 
     if (isServerMode()) {
       if (!useConnectivityStore.getState().isOnline) {
         throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
-      return await dataGateway.instance.createTrip({
-        ...input,
-        userId,
-        expectedVersion,
-      });
+      if (dataGateway.instance.createTrip) {
+        return await dataGateway.instance.createTrip({
+          ...input,
+          userId: actorId,
+          expectedVersion,
+        });
+      }
+      throw new ServerCommandUnavailableError('createTrip');
     }
 
     const vehicle = await db.vehicles.get(input.vehicleId);
@@ -472,7 +571,7 @@ export class FleetService {
         trip = {
           id: `trip-${Date.now()}`,
           docNumber,
-          status: 'in_progress', // Active dispatched
+          status: 'in_progress',
           vehicleId: input.vehicleId,
           vehiclePlate: vehicle.plateNumber,
           driverId: input.driverId,
@@ -485,15 +584,14 @@ export class FleetService {
           scheduledArrival: input.scheduledArrival,
           actualDeparture: now.slice(0, 16).replace('T', ' '),
           startOdometer: input.startOdometer,
-          createdBy: userId,
+          createdBy: actorId,
           createdAt: now,
-          updatedBy: userId,
+          updatedBy: actorId,
           updatedAt: now,
           version: 1,
           isDeleted: false,
         };
 
-        // Update vehicle and driver status to on_trip
         await db.vehicles.update(vehicle.id, {
           status: 'on_trip',
           assignedDriverId: driver.id,
@@ -507,7 +605,7 @@ export class FleetService {
         await db.trips.add(trip);
 
         await AuditService.log({
-          userId,
+          userId: actorId,
           action: 'CREATE',
           entity: 'Trip',
           entityId: trip.id,
@@ -528,24 +626,27 @@ export class FleetService {
       fuelCost?: number;
       driverAllowanceCost?: number;
     },
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<Trip> {
-    const trip = await db.trips.get(tripId);
+    const actorId = userId || SessionContext.currentActorId();
 
     if (isServerMode()) {
-      requirePermission({ module: 'TM', activity: 'change' }, { plant: trip?.originPlant });
       if (!useConnectivityStore.getState().isOnline) {
         throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
-      return await dataGateway.instance.completeTrip({
-        tripId,
-        ...input,
-        userId,
-        expectedVersion,
-      });
+      if (dataGateway.instance.completeTrip) {
+        return await dataGateway.instance.completeTrip({
+          tripId,
+          ...input,
+          userId: actorId,
+          expectedVersion,
+        });
+      }
+      throw new ServerCommandUnavailableError('completeTrip');
     }
 
+    const trip = await db.trips.get(tripId);
     if (!trip) throw new Error('الرحلة غير موجودة');
 
     requirePermission({ module: 'TM', activity: 'change' }, { plant: trip.originPlant });
@@ -569,42 +670,24 @@ export class FleetService {
 
     const distanceKm = input.endOdometer - trip.startOdometer;
     const now = new Date().toISOString();
-    const arrivalTime = input.actualArrival || now.slice(0, 16).replace('T', ' ');
+    const actualArrival = input.actualArrival || now.slice(0, 16).replace('T', ' ');
 
-    // Delay detection logic: compare scheduled arrival vs actual arrival
-    let delayMinutes = 0;
-    let delayReason: string | undefined = undefined;
-
-    if (trip.scheduledArrival) {
-      const scheduledMs = new Date(trip.scheduledArrival).getTime();
-      const actualMs = new Date(arrivalTime).getTime();
-      if (actualMs > scheduledMs) {
-        delayMinutes = Math.round((actualMs - scheduledMs) / (1000 * 60));
-        delayReason =
-          delayMinutes > 30
-            ? `تأخير وصول الشحنة بمقدار ${delayMinutes} دقيقة عن الموعد المجدول`
-            : undefined;
-      }
-    }
-
-    const fuelCost = input.fuelCost || (input.fuelLitersConsumed ? input.fuelLitersConsumed * 1.15 : 0);
-    const allowance = input.driverAllowanceCost || Math.round(distanceKm * 0.35); // 0.35 SAR/km standard driver allowance
-    const totalTripCost = fuelCost + allowance;
+    const fuelLiters = input.fuelLitersConsumed || 0;
+    const fuelCost = input.fuelCost || Math.round(fuelLiters * 1.15);
+    const driverAllowance = input.driverAllowanceCost || 0;
+    const totalTripCost = fuelCost + driverAllowance;
 
     const updatedTrip: Trip = {
       ...trip,
       status: 'completed',
-      actualArrival: arrivalTime,
       endOdometer: input.endOdometer,
       distanceKm,
-      delayMinutes,
-      delayReason,
-      fuelLitersConsumed: input.fuelLitersConsumed || Math.round(distanceKm * 0.38), // approx 38 L / 100km
+      actualArrival,
+      fuelLitersConsumed: fuelLiters,
       fuelCost,
-      driverAllowanceCost: allowance,
+      driverAllowanceCost: driverAllowance,
       totalTripCost,
-      postedAccountingDocNumber: '',
-      updatedBy: userId,
+      updatedBy: actorId,
       updatedAt: now,
       version: trip.version + 1,
     };
@@ -622,35 +705,14 @@ export class FleetService {
     ];
 
     await db.transaction('rw', txTables, async () => {
-      // Re-read inside transaction or check status
-      const currentTrip = await db.trips.get(tripId);
-      if (!currentTrip) throw new Error('الرحلة غير موجودة');
-      if (currentTrip.status === 'completed') {
-        return;
-      }
-
-      // Idempotent GL posting for trip completion costs
-      const postRes = await AutomaticPostingEngine.postTripCost({
-        tripDocNumber: currentTrip.docNumber,
-        vehiclePlate: currentTrip.vehiclePlate,
-        amount: totalTripCost,
-        postingDate: arrivalTime.split(' ')[0] || now.split('T')[0],
-        createdBy: userId,
-      });
-
-      const accountingDocNumber = postRes.jeDocNumber || `ACC-TRIP-2026-${currentTrip.docNumber.split('-')[2] || '000001'}`;
-      updatedTrip.postedAccountingDocNumber = accountingDocNumber;
-
       await db.trips.put(updatedTrip);
 
-      // Free vehicle and update its odometer
-      await db.vehicles.update(currentTrip.vehicleId, {
+      await db.vehicles.update(trip.vehicleId, {
         status: 'available',
         currentOdometer: input.endOdometer,
       });
 
-      // Free driver and update driver statistics
-      const driver = await db.drivers.get(currentTrip.driverId);
+      const driver = await db.drivers.get(trip.driverId);
       if (driver) {
         await db.drivers.update(driver.id, {
           status: 'available',
@@ -659,12 +721,28 @@ export class FleetService {
         });
       }
 
+      if (totalTripCost > 0) {
+        const postingResult = await AutomaticPostingEngine.postTripCompletionCost({
+          tripDocNumber: trip.docNumber,
+          vehiclePlate: trip.vehiclePlate,
+          driverName: trip.driverName,
+          fuelCost,
+          driverAllowanceCost: driverAllowance,
+          completionDate: actualArrival,
+          createdBy: actorId,
+        });
+        if (postingResult && postingResult.jeDocNumber) {
+          updatedTrip.postedAccountingDocNumber = postingResult.jeDocNumber;
+          await db.trips.put(updatedTrip);
+        }
+      }
+
       await AuditService.log({
-        userId,
+        userId: actorId,
         action: 'STATUS_CHANGE',
         entity: 'Trip',
-        entityId: currentTrip.id,
-        before: currentTrip as unknown as Record<string, unknown>,
+        entityId: trip.id,
+        before: trip as unknown as Record<string, unknown>,
         after: updatedTrip as unknown as Record<string, unknown>,
       });
     });
@@ -673,7 +751,7 @@ export class FleetService {
   }
 
   /**
-   * 4. FUEL MANAGEMENT & ANOMALIES DETECTION (> 25% deviation)
+   * 4. FUEL MANAGEMENT & ANOMALIES DETECTION
    */
   static async getFuelLogs(vehicleId?: string): Promise<FuelLog[]> {
     if (isServerMode()) {
@@ -698,28 +776,37 @@ export class FleetService {
       odometer: number;
       stationName: string;
     },
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<{ fuelLog: FuelLog; anomalyAlert?: FuelAnomalyAlert }> {
+    const actorId = userId || SessionContext.currentActorId();
     const totalCost = input.quantityLiters * input.costPerLiter;
     requirePermission({ module: 'TM', activity: 'create' }, { amount: totalCost });
 
     if (isServerMode()) {
       if (!useConnectivityStore.getState().isOnline) {
-        // Offline field entry: whitelisted command enqueued to Outbox
         const cmd = await OutboxEngine.enqueue({
           type: 'fuel_log',
-          payload: { ...input, userId, expectedVersion },
+          payload: {
+            vehicleId: input.vehicleId,
+            driverId: input.driverId,
+            liters: input.quantityLiters,
+            cost: totalCost,
+            fuelType: input.fuelType,
+            currentOdometer: input.odometer,
+            occurredAt: input.date,
+            stationLocation: input.stationName,
+            vendorName: input.stationName,
+          },
           vehicleId: input.vehicleId,
         });
 
-        const vehicle = await db.vehicles.get(input.vehicleId);
         const optimisticLog: FuelLog = {
           id: cmd.id,
           vehicleId: input.vehicleId,
-          vehiclePlate: vehicle?.plateNumber || 'FLT-QUEUED',
+          vehiclePlate: 'FLT-QUEUED',
           driverId: input.driverId,
-          driverName: vehicle?.assignedDriverName || 'سائق',
+          driverName: 'سائق',
           date: input.date,
           fuelType: input.fuelType,
           quantityLiters: input.quantityLiters,
@@ -733,12 +820,22 @@ export class FleetService {
         return { fuelLog: optimisticLog };
       }
 
-      const log = await dataGateway.instance.createFuelLog({
-        ...input,
-        userId,
-        expectedVersion,
-      });
-      return { fuelLog: log };
+      if (dataGateway.instance.createFuelLog) {
+        const log = await dataGateway.instance.createFuelLog({
+          vehicleId: input.vehicleId,
+          driverId: input.driverId,
+          liters: input.quantityLiters,
+          cost: totalCost,
+          fuelType: input.fuelType,
+          vendorName: input.stationName,
+          currentOdometer: input.odometer,
+          occurredAt: input.date,
+          userId: actorId,
+          expectedVersion,
+        });
+        return { fuelLog: log };
+      }
+      throw new ServerCommandUnavailableError('createFuelLog');
     }
 
     const vehicle = await db.vehicles.get(input.vehicleId);
@@ -759,84 +856,48 @@ export class FleetService {
     const driver = await db.drivers.get(input.driverId);
     if (!driver || driver.isDeleted) throw new Error('السائق غير موجود');
 
-    // Calculate consumption L/100km using previous fuel log (pre-computed before transaction)
     const prevLogs = await db.fuelLogs
       .where('vehicleId')
       .equals(input.vehicleId)
-      .filter((f) => !f.isDeleted && f.odometer < input.odometer)
+      .filter((f) => !f.isDeleted)
       .sortBy('odometer');
 
-    const lastLog = prevLogs.length > 0 ? prevLogs[prevLogs.length - 1] : null;
+    const lastLog = prevLogs[prevLogs.length - 1];
 
-    let calculatedLPer100Km = 38.0; // benchmark fallback for heavy tanker
+    let calculatedConsumptionLPer100Km: number | undefined;
+    let anomalyAlert: FuelAnomalyAlert | undefined;
+
     if (lastLog && input.odometer > lastLog.odometer) {
-      const deltaKm = input.odometer - lastLog.odometer;
-      if (deltaKm > 0) {
-        calculatedLPer100Km = Math.round((input.quantityLiters / deltaKm) * 100 * 10) / 10;
+      const distance = input.odometer - lastLog.odometer;
+      calculatedConsumptionLPer100Km = Math.round((input.quantityLiters / distance) * 100 * 100) / 100;
+
+      const baselineRate = 32.5;
+      const deviationPct = Math.round(((calculatedConsumptionLPer100Km - baselineRate) / baselineRate) * 100);
+
+      if (deviationPct > 25) {
+        anomalyAlert = {
+          id: `anom-${Date.now()}`,
+          vehicleId: vehicle.id,
+          vehiclePlate: vehicle.plateNumber,
+          driverId: driver.id,
+          driverName: driver.name,
+          logDate: input.date,
+          fuelQuantityLiters: input.quantityLiters,
+          distanceSinceLastFuelKm: distance,
+          calculatedConsumptionLPer100Km,
+          baselineConsumptionLPer100Km: baselineRate,
+          deviationPct,
+          status: 'active',
+          alertReason: `انحراف في معدل استهلاك الوقود يتجاوز الحد المسموح بنسبة (${deviationPct}%) مقارنة بالمعدل المعياري`,
+          createdAt: new Date().toISOString(),
+          isDeleted: false,
+        };
       }
     }
 
-    // Historical average of this vehicle
-    const allVehicleLogs = await db.fuelLogs
-      .where('vehicleId')
-      .equals(input.vehicleId)
-      .filter((f) => !f.isDeleted && !!f.calculatedConsumptionPer100Km)
-      .toArray();
+    const now = new Date().toISOString();
+    let fuelLog!: FuelLog;
 
-    const historicalAvg =
-      allVehicleLogs.length > 0
-        ? allVehicleLogs.reduce((acc, curr) => acc + (curr.calculatedConsumptionPer100Km || 38), 0) /
-          allVehicleLogs.length
-        : 38.0;
-
-    // Check deviation percentage
-    const deviation = Math.round(((calculatedLPer100Km - historicalAvg) / historicalAvg) * 100);
-    const isAnomaly = Math.abs(deviation) >= 25;
-
-    const logId = `fl-${Date.now()}`;
-    const fuelLog: FuelLog = {
-      id: logId,
-      vehicleId: input.vehicleId,
-      vehiclePlate: vehicle.plateNumber,
-      driverId: input.driverId,
-      driverName: driver.name,
-      date: input.date,
-      fuelType: input.fuelType,
-      quantityLiters: input.quantityLiters,
-      costPerLiter: input.costPerLiter,
-      totalCost,
-      odometer: input.odometer,
-      stationName: input.stationName,
-      calculatedConsumptionPer100Km: calculatedLPer100Km,
-      isAnomaly,
-      anomalyDeviationPercentage: deviation,
-      isDeleted: false,
-    };
-
-    let anomalyAlert: FuelAnomalyAlert | undefined = undefined;
-
-    if (isAnomaly) {
-      anomalyAlert = {
-        id: `anom-${Date.now()}`,
-        vehicleId: input.vehicleId,
-        vehiclePlate: vehicle.plateNumber,
-        fuelLogId: logId,
-        date: input.date,
-        liters: input.quantityLiters,
-        recordedLPer100Km: calculatedLPer100Km,
-        averageLPer100Km: Math.round(historicalAvg * 10) / 10,
-        deviationPercentage: deviation,
-        severity: Math.abs(deviation) >= 40 ? 'critical' : 'warning',
-        reasonSummary:
-          deviation > 0
-            ? `استهلاك مرتفع جداً يتجاوز المعدل بنسبة ${deviation}% (احتمال تسريب وقود، تهريب محرك، أو تشغيل مكيف مفرط)`
-            : `استهلاك منخفض بنسبة غير اعتيادية ${Math.abs(deviation)}% (فارق قراءة عداد أو تزويد جزئي)`,
-        status: 'active',
-        isDeleted: false,
-      };
-    }
-
-    // Wrap persistence and updates atomically including GL posting
     const txTables = [
       db.fuelLogs,
       db.vehicles,
@@ -850,32 +911,46 @@ export class FleetService {
     ];
 
     await db.transaction('rw', txTables, async () => {
-      await db.fuelLogs.add(fuelLog);
+      fuelLog = {
+        id: `fuel-${Date.now()}`,
+        vehicleId: input.vehicleId,
+        vehiclePlate: vehicle.plateNumber,
+        driverId: input.driverId,
+        driverName: driver.name,
+        date: input.date,
+        fuelType: input.fuelType,
+        quantityLiters: input.quantityLiters,
+        costPerLiter: input.costPerLiter,
+        totalCost,
+        odometer: input.odometer,
+        calculatedConsumptionLPer100Km,
+        stationName: input.stationName,
+        status: 'approved',
+        createdBy: actorId,
+        createdAt: now,
+        isDeleted: false,
+      };
 
-      // Update vehicle odometer if higher
-      if (input.odometer > vehicle.currentOdometer) {
-        await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
-      }
+      await db.vehicles.update(vehicle.id, { currentOdometer: input.odometer });
+      await db.fuelLogs.add(fuelLog);
 
       if (anomalyAlert) {
         await db.fuelAnomalyAlerts.add(anomalyAlert);
       }
 
-      // Idempotent GL posting for fuel cost inside the same transaction
-      await AutomaticPostingEngine.postFuelCost({
-        fuelLogId: logId,
+      await AutomaticPostingEngine.postFuelExpense({
+        fuelDocId: fuelLog.id,
         vehiclePlate: vehicle.plateNumber,
         amount: totalCost,
         date: input.date,
-        stationName: input.stationName,
-        createdBy: userId,
+        createdBy: actorId,
       });
 
       await AuditService.log({
-        userId,
+        userId: actorId,
         action: 'CREATE',
         entity: 'FuelLog',
-        entityId: logId,
+        entityId: fuelLog.id,
         after: fuelLog as unknown as Record<string, unknown>,
       });
     });
@@ -884,24 +959,45 @@ export class FleetService {
   }
 
   static async getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]> {
-    return (await db.fuelAnomalyAlerts.filter((a) => !a.isDeleted).toArray()).sort((a, b) =>
-      b.date.localeCompare(a.date)
-    );
+    if (isServerMode()) {
+      return await dataGateway.instance.getFuelAnomalyAlerts();
+    }
+    return await db.fuelAnomalyAlerts
+      .filter((a) => !a.isDeleted && a.status === 'active')
+      .reverse()
+      .sortBy('createdAt');
   }
 
   static async resolveFuelAnomalyAlert(
     alertId: string,
     notes: string,
-    userId: string = 'u-flt-mgr'
+    userId?: string
   ): Promise<void> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'change' });
+
+    if (isServerMode()) {
+      if (!useConnectivityStore.getState().isOnline) {
+        throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
+      }
+      if (dataGateway.instance.resolveFuelAnomalyAlert) {
+        return await dataGateway.instance.resolveFuelAnomalyAlert(alertId, notes);
+      }
+      throw new ServerCommandUnavailableError('resolveFuelAnomalyAlert');
+    }
+
+    const alert = await db.fuelAnomalyAlerts.get(alertId);
+    if (!alert) throw new Error('تنبيه الوقود غير موجود');
+
     await db.fuelAnomalyAlerts.update(alertId, {
       status: 'resolved',
+      resolvedBy: actorId,
+      resolvedAt: new Date().toISOString(),
       resolvedNotes: notes,
     });
 
     await AuditService.log({
-      userId,
+      userId: actorId,
       action: 'UPDATE',
       entity: 'FuelAnomalyAlert',
       entityId: alertId,
@@ -956,8 +1052,9 @@ export class FleetService {
       startDate: string;
       preventiveScheduleId?: string;
     },
-    userId: string = 'u-flt-mgr'
+    userId?: string
   ): Promise<MaintenanceOrder> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission(
       { module: 'TM', activity: 'create' },
       { amount: input.estimatedCost }
@@ -970,6 +1067,7 @@ export class FleetService {
       if (dataGateway.instance.createMaintenanceOrder) {
         return await dataGateway.instance.createMaintenanceOrder(input);
       }
+      throw new ServerCommandUnavailableError('createMaintenanceOrder');
     }
 
     const vehicle = await db.vehicles.get(input.vehicleId);
@@ -1002,21 +1100,19 @@ export class FleetService {
           downtimeHours: 0,
           partsUsed: [],
           preventiveScheduleId: input.preventiveScheduleId,
-          createdBy: userId,
+          createdBy: actorId,
           createdAt: now,
-          updatedBy: userId,
+          updatedBy: actorId,
           updatedAt: now,
           version: 1,
           isDeleted: false,
         };
 
-        // Mark vehicle under maintenance
         await db.vehicles.update(vehicle.id, { status: 'maintenance' });
-
         await db.maintenanceOrders.add(order);
 
         await AuditService.log({
-          userId,
+          userId: actorId,
           action: 'CREATE',
           entity: 'MaintenanceOrder',
           entityId: order.id,
@@ -1028,29 +1124,34 @@ export class FleetService {
     return order;
   }
 
-  /**
-   * Issue spare parts from inventory to Maintenance Order using SAP Movement Type 261
-   */
   static async issuePartsToMaintenanceOrder(
     orderId: string,
     parts: MaintenancePartItem[],
     plantCode: string = '1100',
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'WM', activity: 'post' }, { plant: plantCode });
 
     if (isServerMode()) {
       if (!useConnectivityStore.getState().isOnline) {
         throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
-      return await dataGateway.instance.issuePartsToMaintenanceOrder({
-        orderId,
-        plantCode,
-        parts,
-        userId,
-        expectedVersion,
-      });
+      if (dataGateway.instance.issuePartsToMaintenanceOrder) {
+        return await dataGateway.instance.issuePartsToMaintenanceOrder({
+          orderId,
+          items: parts.map((p) => ({
+            materialCode: p.materialCode,
+            plantCode,
+            storageLocationCode: p.storageLocation || 'SL01',
+            quantity: p.quantity,
+          })),
+          userId: actorId,
+          expectedVersion,
+        });
+      }
+      throw new ServerCommandUnavailableError('issuePartsToMaintenanceOrder');
     }
 
     const order = await db.maintenanceOrders.get(orderId);
@@ -1088,7 +1189,6 @@ export class FleetService {
     let materialDocNumber = '';
 
     await db.transaction('rw', txTables, async () => {
-      // Call InventoryService with Movement Type 261 (Goods Issue for Maintenance Order)
       const movementResult = await InventoryService.postMaterialDocument({
         movementType: '261',
         plantCode,
@@ -1103,7 +1203,7 @@ export class FleetService {
           orderNumber: order.docNumber,
           costCenter: 'CC-1001',
         })),
-        userId,
+        userId: actorId,
       });
 
       materialDocNumber = movementResult.docNumber;
@@ -1119,7 +1219,7 @@ export class FleetService {
         actualCost: totalActualCost,
         partsUsed: updatedPartsUsed,
         materialDocNumber: movementResult.docNumber,
-        updatedBy: userId,
+        updatedBy: actorId,
         updatedAt: new Date().toISOString(),
         version: order.version + 1,
       };
@@ -1127,7 +1227,7 @@ export class FleetService {
       await db.maintenanceOrders.put(resultOrder);
 
       await AuditService.log({
-        userId,
+        userId: actorId,
         action: 'UPDATE',
         entity: 'MaintenanceOrder',
         entityId: order.id,
@@ -1147,27 +1247,32 @@ export class FleetService {
       downtimeHours: number;
       completionDate: string;
     },
-    userId: string = 'u-flt-mgr',
+    userId?: string,
     expectedVersion?: number
   ): Promise<MaintenanceOrder> {
-    const order = await db.maintenanceOrders.get(orderId);
+    const actorId = userId || SessionContext.currentActorId();
+    requirePermission({ module: 'TM', activity: 'change' });
 
     if (isServerMode()) {
-      requirePermission({ module: 'TM', activity: 'change' });
       if (!useConnectivityStore.getState().isOnline) {
         throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
-      return await dataGateway.instance.completeMaintenanceOrder({
-        orderId,
-        ...input,
-        userId,
-        expectedVersion,
-      });
+      if (dataGateway.instance.completeMaintenanceOrder) {
+        return await dataGateway.instance.completeMaintenanceOrder({
+          orderId,
+          actualLaborHours: input.laborHours,
+          actualLaborCost: (input.laborRatePerHour || 120) * input.laborHours,
+          downtimeHours: input.downtimeHours,
+          completionDate: input.completionDate,
+          userId: actorId,
+          expectedVersion,
+        });
+      }
+      throw new ServerCommandUnavailableError('completeMaintenanceOrder');
     }
 
+    const order = await db.maintenanceOrders.get(orderId);
     if (!order) throw new Error('أمر الصيانة غير موجود');
-
-    requirePermission({ module: 'TM', activity: 'change' });
 
     if (expectedVersion !== undefined) {
       const storedVer = typeof order.version === 'number' ? order.version : 1;
@@ -1184,7 +1289,7 @@ export class FleetService {
       throw new Error('لا يمكن إغلاق أمر الصيانة بدون تسجيل ساعات عمل فنية أو صرف قطع غيار');
     }
 
-    const laborRate = input.laborRatePerHour || 120; // 120 SAR per tech hour
+    const laborRate = input.laborRatePerHour || 120;
     const laborCost = input.laborHours * laborRate;
     const actualCost = order.partsCost + laborCost;
 
@@ -1196,7 +1301,7 @@ export class FleetService {
       actualCost,
       downtimeHours: input.downtimeHours,
       completionDate: input.completionDate,
-      updatedBy: userId,
+      updatedBy: actorId,
       updatedAt: new Date().toISOString(),
       version: order.version + 1,
     };
@@ -1215,7 +1320,6 @@ export class FleetService {
     await db.transaction('rw', txTables, async () => {
       await db.maintenanceOrders.put(updatedOrder);
 
-      // Return vehicle to available status and advance maintenance milestone
       const vehicle = await db.vehicles.get(order.vehicleId);
       if (vehicle) {
         const nextDue = (vehicle.currentOdometer || 0) + 10000;
@@ -1226,17 +1330,16 @@ export class FleetService {
         });
       }
 
-      // Idempotent GL posting for completed maintenance actual cost inside same transaction
       await AutomaticPostingEngine.postMaintenanceCost({
         orderDocNumber: order.docNumber,
         vehiclePlate: order.vehiclePlate,
         amount: actualCost,
         completionDate: input.completionDate,
-        createdBy: userId,
+        createdBy: actorId,
       });
 
       await AuditService.log({
-        userId,
+        userId: actorId,
         action: 'STATUS_CHANGE',
         entity: 'MaintenanceOrder',
         entityId: order.id,
@@ -1329,7 +1432,7 @@ export class FleetService {
   }
 
   /**
-   * 6. COST PER VEHICLE REPORT (Fuel + Maintenance + Driver + Depreciation; cost per km)
+   * 6. COST PER VEHICLE REPORT
    */
   static async getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport> {
     if (isServerMode()) {
@@ -1374,7 +1477,6 @@ export class FleetService {
       trips.reduce((acc, curr) => acc + (curr.distanceKm || 0), 0) ||
       Math.max(1, vehicle.currentOdometer);
 
-    // Depreciation: 12% of baseline estimated vehicle asset value (e.g. 350,000 SAR for heavy tanker)
     const baselineAssetValue =
       vehicle.type === 'Tanker'
         ? 450000
@@ -1426,10 +1528,9 @@ export class FleetService {
 
     const fleetUtilizationRate = Math.round((onRoadCount / totalVehicles) * 100);
 
-    // Calculate fuel today (sample sum of latest entries)
     const fuelConsumedTodayLiters = fuelLogs.slice(0, 15).reduce((acc, curr) => acc + curr.quantityLiters, 0);
     const fuelCostTodaySar = Math.round(fuelConsumedTodayLiters * 1.15);
-    const fuelVsYesterdayChangePct = -3.8; // e.g. -3.8% efficiency improvement
+    const fuelVsYesterdayChangePct = -3.8;
 
     const activeTripsCount = trips.filter((t) => t.status === 'in_progress').length;
     const pendingMaintenanceCount = maintenance.filter((m) => m.status === 'in_progress').length;

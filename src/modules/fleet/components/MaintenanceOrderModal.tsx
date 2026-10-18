@@ -10,6 +10,7 @@ import { FleetService } from '../services/FleetService';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type {
   Vehicle,
   MaintenanceOrder,
@@ -210,7 +211,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
             existingOrder.id,
             partsToIssue,
             '1100',
-            'u-flt-mgr',
+            currentActorId(),
             existingOrder.version
           ),
         { partsCount: partsToIssue.length }
@@ -254,7 +255,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
               downtimeHours,
               completionDate,
             },
-            'u-flt-mgr',
+            currentActorId(),
             existingOrder.version
           ),
         {

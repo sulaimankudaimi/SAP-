@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { IRepository, RepositoryQuery, ActionContext, UpdateOptions } from './IRepository';
+import { VERSIONED_ENTITIES } from './IRepository';
 import { AuditService } from '../services/AuditService';
 import { ConcurrencyError } from '../errors';
 import { DependencyGuard } from '../security/DependencyGuard';
@@ -118,13 +119,21 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
     let contextCandidate: ActionContext | string | undefined;
     let uName: string | undefined;
 
-    if (contextOrUserId && typeof contextOrUserId === 'object' && 'expectedVersion' in contextOrUserId) {
+    if (
+      contextOrUserId &&
+      typeof contextOrUserId === 'object' &&
+      ('expectedVersion' in contextOrUserId || 'skipVersionCheck' in contextOrUserId)
+    ) {
       options = contextOrUserId as UpdateOptions;
     } else {
       contextCandidate = contextOrUserId as ActionContext | string | undefined;
     }
 
-    if (userNameOrOptions && typeof userNameOrOptions === 'object' && 'expectedVersion' in userNameOrOptions) {
+    if (
+      userNameOrOptions &&
+      typeof userNameOrOptions === 'object' &&
+      ('expectedVersion' in userNameOrOptions || 'skipVersionCheck' in userNameOrOptions)
+    ) {
       options = userNameOrOptions as UpdateOptions;
     } else if (typeof userNameOrOptions === 'string') {
       uName = userNameOrOptions;
@@ -140,6 +149,22 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
       const existing = await this.table.get(id);
       if (!existing || existing.isDeleted) {
         throw new Error(`Record with ID ${id} not found in ${this.entityName}`);
+      }
+
+      // Enforce optimistic versioning on VERSIONED_ENTITIES
+      const isVersioned = (VERSIONED_ENTITIES as readonly string[]).includes(this.entityName);
+      if (isVersioned) {
+        if (options?.skipVersionCheck === true) {
+          if (!options.reason || !options.reason.trim()) {
+            throw new Error(
+              `خطأ برمجي: تجاوز التحقق من النسخة لكيان [${this.entityName}] يتطلب تقديم سبب التجاوز صراحة { skipVersionCheck: true, reason: string }.`
+            );
+          }
+        } else if (options?.expectedVersion === undefined) {
+          throw new Error(
+            `خطأ برمجي: الكيان [${this.entityName}] من الكيانات المحمية بإصدار متفائل (VERSIONED_ENTITIES) ويتطلب تمرير expectedVersion صراحة لمنع فقدان البيانات، أو تمرير { skipVersionCheck: true, reason: '...' } للتحديثات الداخلية للنظام.`
+          );
+        }
       }
 
       if (options?.expectedVersion !== undefined) {
@@ -162,7 +187,10 @@ export class DexieRepository<T extends { id: string; isDeleted?: boolean; [key: 
       await this.table.put(updated);
 
       const action = 'status' in patch && Object.keys(patch).length <= 3 ? 'STATUS_CHANGE' : 'UPDATE';
-      await AuditService.log(action, this.entityName, id, existing, updated, context);
+      const auditPayload = options?.skipVersionCheck
+        ? { ...updated, _versionCheckSkippedReason: options.reason }
+        : updated;
+      await AuditService.log(action, this.entityName, id, existing, auditPayload, context);
 
       return updated;
     };

@@ -18,6 +18,7 @@ import type { OutboxCommand } from '../../../types/models';
 import { OutboxEngine } from '../../../core/gateway/OutboxEngine';
 import { useConnectivityStore } from '../../../core/gateway/connectivity';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { useToast } from '../../../components/ui/Toast';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
@@ -108,7 +109,7 @@ export const FleetOutboxPage: React.FC = () => {
       await OutboxEngine.discardItem({
         id: itemToDiscard.id,
         reason: discardReason,
-        userId: user?.id || 'u-flt-mgr',
+        userId: user?.id || currentActorId(),
         userName: user?.fullName || user?.username || 'مدير الأسطول',
       });
       success('تم استبعاد العملية', 'تم إلغاء وتوثيق استبعاد العملية بنجاح في سجل الرقابة.');

@@ -5,6 +5,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { t } from '../../../i18n/ar';
 import { FinanceService } from '../services/FinanceService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { JournalEntry } from '../../../types/models';
 import { Printer, RotateCcw, AlertTriangle, FileText, CheckCircle2, ShieldCheck } from 'lucide-react';
 
@@ -39,7 +40,7 @@ export const JournalDetailModal: React.FC<JournalDetailModalProps> = ({
       const revDoc = await FinanceService.reverseJournalEntry(
         entry.docNumber,
         reversalReason,
-        'usr-admin-1'
+        currentActorId()
       );
       showToast(`تم عكس وإلغاء القيد بنجاح بموجب المستند المعاكس ${revDoc.docNumber}`, 'success');
       setShowReverseConfirm(false);

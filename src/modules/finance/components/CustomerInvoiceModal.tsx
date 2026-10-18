@@ -6,6 +6,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AutomaticPostingEngine } from '../services/AutomaticPostingEngine';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { Customer, CustomerInvoice } from '../../../types/models';
 import { FilePlus, Plus, Trash2 } from 'lucide-react';
 
@@ -110,9 +111,9 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
         netAmount,
         paymentStatus: 'Unpaid',
         items: formattedItems,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
         createdAt: now,
-        updatedBy: 'usr-admin-1',
+        updatedBy: currentActorId(),
         updatedAt: now,
         version: 1,
         isDeleted: false,
@@ -123,7 +124,7 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
       // Post to GL
       await AutomaticPostingEngine.postCustomerInvoice({
         invoice,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
       });
 
       showToast(`تم إصدار فاتورة المبيعات وترحيلها للأستاذ العام برقم ${docNumber}`, 'success');

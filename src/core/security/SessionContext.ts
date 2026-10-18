@@ -38,6 +38,13 @@ export class SessionContext {
   }
 
   /**
+   * Returns the current actor user ID, or throws if unauthenticated.
+   */
+  static currentActorId(): string {
+    return currentActorId();
+  }
+
+  /**
    * Service-level guard. Validates the active actor's role against the required AuthObject.
    * Throws if no actor exists or if the actor lacks required permissions or scope.
    */
@@ -56,6 +63,16 @@ export class SessionContext {
       scope?.amount
     );
   }
+}
+
+/**
+ * Returns the currently active actor userId or throws if no authenticated actor session exists.
+ */
+export function currentActorId(): string {
+  if (!activeActor || !activeActor.userId) {
+    throw new Error('لا توجد جلسة مستخدم نشطة (No active actor session).');
+  }
+  return activeActor.userId;
 }
 
 /**

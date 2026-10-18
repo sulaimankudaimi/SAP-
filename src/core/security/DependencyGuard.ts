@@ -43,6 +43,22 @@ export class DependencyGuard {
       case 'materials':
       case 'material':
         return [db.materials, db.stockBalances, db.stockLedger, db.materialDocuments, db.purchaseOrders, db.auditLogs] as unknown as Table<unknown, string>[];
+      case 'drivers':
+      case 'driver':
+        return [db.drivers, db.trips, db.vehicles, db.auditLogs] as unknown as Table<unknown, string>[];
+      case 'customers':
+      case 'customer':
+        return [db.customers, db.contracts, db.auditLogs] as unknown as Table<unknown, string>[];
+      case 'contracts':
+      case 'contract':
+        return [db.contracts, db.purchaseOrders, db.auditLogs] as unknown as Table<unknown, string>[];
+      case 'costcenters':
+      case 'costcenter':
+        return [db.costCenters, db.vehicles, db.maintenanceOrders, db.budgets, db.journalEntries, db.auditLogs] as unknown as Table<unknown, string>[];
+      case 'journalentries':
+      case 'journalentry':
+      case 'je':
+        return [db.journalEntries, db.postingRegistry, db.auditLogs] as unknown as Table<unknown, string>[];
       default:
         return [db.auditLogs] as unknown as Table<unknown, string>[];
     }
@@ -97,7 +113,7 @@ export class DependencyGuard {
         const po = await db.purchaseOrders.get(id);
         if (!po || po.isDeleted) return { canDelete: true, blockingReferences: [] };
 
-        // 1. Check Goods Receipts (MIGO)
+        // 1. Check Goods Receipts (MIGO) & Material Documents
         const grs = await db.goodsReceipts
           .where('poNumber')
           .equals(po.docNumber)
@@ -105,6 +121,15 @@ export class DependencyGuard {
           .toArray();
         if (grs.length > 0) {
           blockingReferences.push(...grs.map((g) => `سند استلام بضاعة (GR): ${g.docNumber}`));
+        }
+
+        const matDocs = await db.materialDocuments
+          .where('poNumber')
+          .equals(po.docNumber)
+          .filter((m) => !m.isDeleted)
+          .toArray();
+        if (matDocs.length > 0) {
+          blockingReferences.push(...matDocs.map((m) => `مستند استلام مواد (MIGO): ${m.docNumber}`));
         }
 
         // 2. Check Vendor Invoices (MIRO)
@@ -336,6 +361,134 @@ export class DependencyGuard {
           return {
             canDelete: false,
             reason: `لا يمكن حذف المادة [${mat.materialCode}] لوجود رصيد أو حركات مستودعية سابقة:\n${blockingReferences.join('، ')}`,
+            blockingReferences,
+          };
+        }
+        break;
+      }
+
+      case 'drivers':
+      case 'driver': {
+        const driver = await db.drivers.get(id);
+        if (!driver || driver.isDeleted) return { canDelete: true, blockingReferences: [] };
+
+        const trips = await db.trips.where('driverId').equals(id).filter((t) => !t.isDeleted).count();
+        if (trips > 0) blockingReferences.push(`رحلات مسجلة للسائق: ${trips} رحلة`);
+
+        const vehicles = await db.vehicles.where('assignedDriverId').equals(id).filter((v) => !v.isDeleted).count();
+        if (vehicles > 0) blockingReferences.push(`مركبات معينة للسائق: ${vehicles} مركبة`);
+
+        if (blockingReferences.length > 0) {
+          return {
+            canDelete: false,
+            reason: `لا يمكن حذف السائق [${driver.name}] لوجود رحلات أو مركبات معينة له:\n${blockingReferences.join('، ')}`,
+            blockingReferences,
+          };
+        }
+        break;
+      }
+
+      case 'customers':
+      case 'customer': {
+        const customer = await db.customers.get(id);
+        if (!customer || customer.isDeleted) return { canDelete: true, blockingReferences: [] };
+
+        const contracts = await db.contracts.where('vendorCode').equals(customer.customerCode).filter((c) => !c.isDeleted).count();
+        if (contracts > 0) blockingReferences.push(`عقود تجارية مرتبطة بالعميل: ${contracts}`);
+
+        if (blockingReferences.length > 0) {
+          return {
+            canDelete: false,
+            reason: `لا يمكن حذف العميل [${customer.customerCode}] لوجود تعاملات تجارية:\n${blockingReferences.join('، ')}`,
+            blockingReferences,
+          };
+        }
+        break;
+      }
+
+      case 'contracts':
+      case 'contract': {
+        const contract = await db.contracts.get(id);
+        if (!contract || contract.isDeleted) return { canDelete: true, blockingReferences: [] };
+
+        const pos = await db.purchaseOrders.where('contractNumber').equals(contract.contractNumber).filter((p) => !p.isDeleted).count();
+        if (pos > 0) blockingReferences.push(`أوامر شراء مرتبطة بالعقد: ${pos}`);
+
+        if (blockingReferences.length > 0) {
+          return {
+            canDelete: false,
+            reason: `لا يمكن حذف العقد [${contract.contractNumber}] لوجود أوامر شراء مسجلة:\n${blockingReferences.join('، ')}`,
+            blockingReferences,
+          };
+        }
+        break;
+      }
+
+      case 'costcenters':
+      case 'costcenter': {
+        const cc = await db.costCenters.get(id);
+        if (!cc || cc.isDeleted) return { canDelete: true, blockingReferences: [] };
+
+        const vehicles = await db.vehicles
+          .where('costCenter')
+          .equals(cc.code)
+          .filter((v) => !v.isDeleted)
+          .count();
+        if (vehicles > 0) blockingReferences.push(`مركبات مسندة لمركز التكلفة: ${vehicles}`);
+
+        const orders = await db.maintenanceOrders
+          .filter((m) => !m.isDeleted && m.costCenter === cc.code)
+          .count();
+        if (orders > 0) blockingReferences.push(`أوامر صيانة مرتبطة بمركز التكلفة: ${orders}`);
+
+        const budgets = await db.budgets
+          .where('costCenter')
+          .equals(cc.code)
+          .filter((b) => !b.isDeleted)
+          .count();
+        if (budgets > 0) blockingReferences.push(`موازنات تقديرية معتمدة لمركز التكلفة: ${budgets}`);
+
+        const journals = await db.journalEntries
+          .filter((j) => !j.isDeleted && j.lines.some((l) => l.costCenter === cc.code))
+          .count();
+        if (journals > 0) blockingReferences.push(`قيود محاسبية مسجلة على مركز التكلفة: ${journals}`);
+
+        if (blockingReferences.length > 0) {
+          return {
+            canDelete: false,
+            reason: `لا يمكن حذف مركز التكلفة [${cc.code}] لوجود ارتباطات تشغيلية أو مالية مسجلة:\n${blockingReferences.join('، ')}`,
+            blockingReferences,
+          };
+        }
+        break;
+      }
+
+      case 'journalentries':
+      case 'journalentry':
+      case 'je': {
+        const je = await db.journalEntries.get(id);
+        if (!je || je.isDeleted) return { canDelete: true, blockingReferences: [] };
+
+        if (je.status === 'posted') {
+          blockingReferences.push('القيد في حالة مرحل نهائياً (posted) ولا يمكن حذفه إلا عبر قيد عكسي');
+        }
+        if (je.isReversed) {
+          blockingReferences.push(`القيد تم عكسه مسبقاً بموجب القيد [${je.reversalDocNumber || ''}]`);
+        }
+        if (je.reversalDocNumber) {
+          blockingReferences.push(`مرتبط بقيد عكسي رقم: ${je.reversalDocNumber}`);
+        }
+        const reversedEntries = await db.journalEntries
+          .filter((j) => !j.isDeleted && j.reversalDocNumber === je.docNumber)
+          .count();
+        if (reversedEntries > 0) {
+          blockingReferences.push(`هذا القيد يمثل عملية عكس لقيود أخرى سابقة: ${reversedEntries}`);
+        }
+
+        if (blockingReferences.length > 0) {
+          return {
+            canDelete: false,
+            reason: `لا يمكن حذف القيد المحاسبي [${je.docNumber}] لارتباطه بدورة الإلغاء والعكس المحاسبي:\n${blockingReferences.join('، ')}`,
             blockingReferences,
           };
         }

@@ -1,6 +1,6 @@
 import { db } from '../../../core/db';
 import { AuditService } from '../../../core/services/AuditService';
-import { requirePermission } from '../../../core/security/SessionContext';
+import { requirePermission, SessionContext } from '../../../core/security/SessionContext';
 import type { Budget, CostCenter } from '../../../types/models';
 
 export interface BudgetAvailabilityCheckResult {
@@ -92,8 +92,9 @@ export class BudgetService {
     costCenter: string,
     amount: number,
     fiscalYear: string = '2026',
-    userId: string = 'usr-admin-1'
+    userId?: string
   ): Promise<void> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'CO', activity: 'change' }, { costCenter, amount });
     const budget = await db.budgets.where({ costCenter, fiscalYear }).first();
     if (!budget) return;
@@ -103,7 +104,7 @@ export class BudgetService {
 
     await db.budgets.put(budget);
     await AuditService.log({
-      userId,
+      userId: actorId,
       action: 'UPDATE',
       entity: 'Budget',
       entityId: budget.id,
@@ -118,8 +119,9 @@ export class BudgetService {
     costCenter: string,
     amount: number,
     fiscalYear: string = '2026',
-    userId: string = 'usr-admin-1'
+    userId?: string
   ): Promise<void> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'CO', activity: 'change' }, { costCenter, amount });
     const budget = await db.budgets.where({ costCenter, fiscalYear }).first();
     if (!budget) return;

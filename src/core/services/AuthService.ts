@@ -139,29 +139,19 @@ export class AuthService {
       }
     }
 
-    // Verify Password Hash using stored iterations count (defaulting to 100,000 for legacy users)
-    let userIterations = user.passwordIterations ?? CryptoService.LEGACY_ITERATIONS;
+    // Timing documentation: Accounts that were created prior to the 600,000 iteration upgrade
+    // execute PBKDF2 with 100,000 iterations until they log in or change their password.
+    // This creates an accepted, transient ~5x timing difference compared to unknown usernames
+    // or upgraded accounts (which run 600,000 iterations). Once migrated or authenticated,
+    // they are automatically upgraded to 600,000 iterations, equalizing timing.
+    const userIterations = user.passwordIterations ?? CryptoService.CURRENT_ITERATIONS;
     await applyFailureThrottle(cleanUsername);
-    let isValid = await CryptoService.verifyPassword(
+    const isValid = await CryptoService.verifyPassword(
       password,
       user.passwordSalt,
       user.passwordHash,
       userIterations
     );
-
-    // If passwordIterations was missing and 100k failed, check CURRENT_ITERATIONS in case user had default hash
-    if (!isValid && user.passwordIterations === undefined) {
-      const isCurrentDefaultValid = await CryptoService.verifyPassword(
-        password,
-        user.passwordSalt,
-        user.passwordHash,
-        CryptoService.CURRENT_ITERATIONS
-      );
-      if (isCurrentDefaultValid) {
-        isValid = true;
-        userIterations = CryptoService.CURRENT_ITERATIONS;
-      }
-    }
 
     if (!isValid) {
       recordFailureInThrottle(cleanUsername);
@@ -268,7 +258,7 @@ export class AuthService {
             },
           });
 
-          if (needsUpgrade) {
+          if (isLegacySalt) {
             await AuditService.log({
               action: 'UPDATE',
               entity: 'users',
@@ -276,9 +266,20 @@ export class AuthService {
               userId: user.id,
               userName: user.username,
               after: {
-                reason: isLegacyIterations
-                  ? 'Cryptographic PBKDF2 Iteration Upgrade to 600,000'
-                  : 'Cryptographic Salt Upgrade to Random Salt',
+                reason: 'Cryptographic Salt Upgrade to Random Salt',
+              },
+            });
+          }
+
+          if (isLegacyIterations) {
+            await AuditService.log({
+              action: 'UPDATE',
+              entity: 'users',
+              entityId: user.id,
+              userId: user.id,
+              userName: user.username,
+              after: {
+                reason: 'Cryptographic PBKDF2 Iteration Upgrade to 600,000',
               },
             });
           }
@@ -330,22 +331,14 @@ export class AuthService {
       throw new Error('المستخدم غير موجود.');
     }
 
-    // 1. Verify current password
-    const currentIterations = existingUser.passwordIterations ?? CryptoService.LEGACY_ITERATIONS;
-    let isCurrentValid = await CryptoService.verifyPassword(
+    // 1. Verify current password in single pass
+    const currentIterations = existingUser.passwordIterations ?? CryptoService.CURRENT_ITERATIONS;
+    const isCurrentValid = await CryptoService.verifyPassword(
       currentPlainPassword,
       existingUser.passwordSalt,
       existingUser.passwordHash,
       currentIterations
     );
-    if (!isCurrentValid && existingUser.passwordIterations === undefined) {
-      isCurrentValid = await CryptoService.verifyPassword(
-        currentPlainPassword,
-        existingUser.passwordSalt,
-        existingUser.passwordHash,
-        CryptoService.CURRENT_ITERATIONS
-      );
-    }
     if (!isCurrentValid) {
       throw new Error('كلمة المرور الحالية غير صحيحة.');
     }

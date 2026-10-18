@@ -10,7 +10,6 @@ import type {
   VehicleCostReport,
   FleetSummaryKPIs,
 } from '../../types/models';
-import type { AuthSession } from '../services/AuthService';
 
 export interface CreateTripCommand {
   vehicleId: string;
@@ -41,13 +40,16 @@ export interface CompleteTripCommand {
 
 export interface CreateFuelLogCommand {
   vehicleId: string;
-  driverId: string;
-  fuelType: 'Diesel' | 'Gasoline95' | 'Gasoline91';
-  date: string;
-  odometer: number;
-  quantityLiters: number;
-  costPerLiter: number;
-  stationName: string;
+  driverId?: string;
+  liters: number;
+  cost: number;
+  fuelType: string;
+  vendorName: string;
+  invoiceNumber?: string;
+  currentOdometer: number;
+  odometer?: number;
+  stationLocation?: string;
+  occurredAt?: string;
   userId?: string;
   requestId?: string;
   expectedVersion?: number;
@@ -55,17 +57,11 @@ export interface CreateFuelLogCommand {
 
 export interface IssuePartsCommand {
   orderId: string;
-  plantCode: string;
-  parts: Array<{
-    lineItem?: number;
+  items: Array<{
     materialCode: string;
-    materialName?: string;
+    plantCode: string;
+    storageLocationCode: string;
     quantity: number;
-    unit?: string;
-    unitPrice?: number;
-    totalCost?: number;
-    storageLocation?: string;
-    costCenter?: string;
   }>;
   userId?: string;
   requestId?: string;
@@ -74,9 +70,9 @@ export interface IssuePartsCommand {
 
 export interface CompleteMaintenanceOrderCommand {
   orderId: string;
-  laborHours: number;
-  laborRatePerHour?: number;
-  downtimeHours: number;
+  actualLaborHours?: number;
+  actualLaborCost?: number;
+  notes?: string;
   completionDate: string;
   userId?: string;
   requestId?: string;
@@ -151,19 +147,23 @@ export interface TripFilters {
   vehicleId?: string;
   driverId?: string;
   originPlant?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface FuelLogFilters {
+  vehicleId?: string;
+  driverId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface MaintenanceFilters {
   vehicleId?: string;
   status?: string;
   orderType?: string;
-}
-
-export interface FuelLogFilters {
-  vehicleId?: string;
-  page?: number;
-  pageSize?: number;
-  search?: string;
   startDate?: string;
   endDate?: string;
 }
@@ -203,11 +203,18 @@ export interface IDataGateway {
   completeMaintenanceOrder(cmd: CompleteMaintenanceOrderCommand): Promise<MaintenanceOrder>;
   postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }>;
 
-  // Additional Fleet Commands (Vehicles, Drivers, Orders)
-  createVehicle?(vehicle: Partial<Vehicle>): Promise<Vehicle>;
-  updateVehicle?(id: string, updates: Partial<Vehicle>, expectedVersion?: number): Promise<Vehicle>;
-  createDriver?(driver: Partial<Driver>): Promise<Driver>;
-  updateDriver?(id: string, updates: Partial<Driver>, expectedVersion?: number): Promise<Driver>;
+  // Field & Operational Telemetry RPCs
+  recordTripEvent(cmd: RecordTripEventCommand): Promise<{ requestId: string; tripId: string; eventType: string }>;
+  recordOdometerReading(cmd: RecordOdometerReadingCommand): Promise<{ requestId: string; vehicleId: string; readingKm: number }>;
+  recordInspection(cmd: RecordInspectionCommand): Promise<{ requestId: string; vehicleId: string; result: string }>;
+
+  // Master Data Commands (Vehicles & Drivers)
+  createVehicle?(vehicle: Partial<Vehicle>, requestId?: string): Promise<Vehicle>;
+  updateVehicle?(id: string, updates: Partial<Vehicle>, expectedVersion?: number, requestId?: string): Promise<Vehicle>;
+  setVehicleActive?(id: string, isActive: boolean, expectedVersion?: number, requestId?: string): Promise<Vehicle>;
+  createDriver?(driver: Partial<Driver>, requestId?: string): Promise<Driver>;
+  updateDriver?(id: string, updates: Partial<Driver>, expectedVersion?: number, requestId?: string): Promise<Driver>;
+  setDriverActive?(id: string, isActive: boolean, expectedVersion?: number, requestId?: string): Promise<Driver>;
   createMaintenanceOrder?(order: Partial<MaintenanceOrder>): Promise<MaintenanceOrder>;
   resolveFuelAnomalyAlert?(id: string, notes: string): Promise<void>;
 
@@ -228,12 +235,6 @@ export interface IDataGateway {
   getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport>;
   getCostCenterFleetReconciliation?(): Promise<CostCenterReconciliation[]>;
   getFleetDashboardKPIs(): Promise<FleetSummaryKPIs>;
-
-  // Authentication
-  signIn(username: string, password: string): Promise<AuthSession>;
-  signOut(): Promise<void>;
-  changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void>;
-  restoreSession(): Promise<AuthSession | null>;
 
   // Realtime Subscriptions
   subscribeFleet(

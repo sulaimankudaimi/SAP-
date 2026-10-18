@@ -10,8 +10,6 @@ import type {
   ExpiryAlert,
   VehicleCostReport,
   FleetSummaryKPIs,
-  User,
-  Role,
 } from '../../types/models';
 import type {
   IDataGateway,
@@ -21,30 +19,28 @@ import type {
   IssuePartsCommand,
   CompleteMaintenanceOrderCommand,
   PostJournalCommand,
+  RecordTripEventCommand,
+  RecordOdometerReadingCommand,
+  RecordInspectionCommand,
   VehicleFilters,
   DriverFilters,
   TripFilters,
+  FuelLogFilters,
   MaintenanceFilters,
+  PaginatedResult,
+  CostCenterReconciliation,
   RealtimeChangeCallback,
 } from './IDataGateway';
 import { getServerUrl, getServerAnonKey } from './connectivity';
-import { ConcurrencyError } from '../errors/ConcurrencyError';
+import {
+  ConcurrencyError,
+  PermissionError,
+  ValidationError,
+  AlreadyProcessed,
+  ChronologyError,
+  GenericServerError,
+} from '../errors';
 import { DiagnosticLogger } from '../services/DiagnosticLogger';
-import { SessionContext } from '../security/SessionContext';
-import { useAuthStore } from '../auth/useAuthStore';
-import type { AuthSession } from '../services/AuthService';
-
-interface ProfileRow {
-  id: string;
-  username: string;
-  full_name?: string;
-  role_code: string;
-  role_name?: string;
-  assigned_plants?: string[];
-  company_code?: string;
-  must_change_password?: boolean;
-  is_locked?: boolean;
-}
 
 export class SupabaseGateway implements IDataGateway {
   readonly mode = 'server' as const;
@@ -58,7 +54,6 @@ export class SupabaseGateway implements IDataGateway {
     const url = getServerUrl() || 'https://placeholder-erp.supabase.co';
     const anonKey = getServerAnonKey() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder';
 
-    // Safe custom storage wrapper with try/catch to satisfy storage security requirements
     const safeStorage = {
       getItem: (key: string): string | null => {
         try {
@@ -71,7 +66,7 @@ export class SupabaseGateway implements IDataGateway {
         try {
           if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
         } catch {
-          // Ignore write failure
+          // Ignore
         }
       },
       removeItem: (key: string): void => {
@@ -93,37 +88,87 @@ export class SupabaseGateway implements IDataGateway {
     });
   }
 
-  getSupabaseClient(): SupabaseClient {
-    return this.client;
-  }
-
   getClient(): SupabaseClient {
     return this.client;
   }
 
-  // Helper to handle and map RPC errors
-  private handleRpcError(err: unknown, entityName: string, entityId: string, expectedVersion?: number): never {
-    const msg = err instanceof Error ? err.message : String(err);
-    const isConflict =
-      msg.includes('conflict') ||
-      msg.includes('concurrency') ||
-      msg.includes('version mismatch') ||
-      msg.includes('P0001') ||
-      msg.includes('تعارض');
+  getSupabaseClient(): SupabaseClient {
+    return this.client;
+  }
 
-    if (isConflict && expectedVersion !== undefined) {
+  /**
+   * Helper to map server/RPC errors into typed Arabic errors without leaking raw SQL internals
+   */
+  private handleRpcError(err: unknown, entityName: string, entityId: string, expectedVersion?: number): never {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+
+    // 1. Concurrency / Version conflict
+    const isConflict =
+      rawMsg.includes('conflict') ||
+      rawMsg.includes('concurrency') ||
+      rawMsg.includes('version mismatch') ||
+      rawMsg.includes('P0001') ||
+      rawMsg.includes('تعارض');
+
+    if (isConflict) {
       throw new ConcurrencyError({
         entityName,
         entityId,
-        expectedVersion,
-        message: msg,
+        expectedVersion: expectedVersion ?? 1,
+        message: rawMsg || 'تعارض في التعديل المتزامن: تم تعديل هذا السجل بواسطة مستخدم آخر على الخادم.',
       });
     }
 
-    throw new Error(msg);
+    // 2. Permission / Authorization failure
+    if (
+      rawMsg.includes('permission') ||
+      rawMsg.includes('غير مصرح') ||
+      rawMsg.includes('permission denied') ||
+      rawMsg.includes('42501')
+    ) {
+      throw new PermissionError(rawMsg);
+    }
+
+    // 3. Chronology / Past event or odometer rollback
+    if (
+      rawMsg.includes('chronology') ||
+      rawMsg.includes('تناقص') ||
+      rawMsg.includes('يسبق') ||
+      (rawMsg.includes('odometer') && rawMsg.includes('less'))
+    ) {
+      throw new ChronologyError(rawMsg);
+    }
+
+    // 4. Validation / Business rule check violation
+    if (
+      rawMsg.includes('validation') ||
+      rawMsg.includes('غير صالح') ||
+      rawMsg.includes('تتجاوز سعة') ||
+      rawMsg.includes('منتهية الصلاحية') ||
+      rawMsg.includes('لا يمكن إغلاق') ||
+      rawMsg.includes('لا يمكن صرف') ||
+      rawMsg.includes('23514')
+    ) {
+      throw new ValidationError(rawMsg);
+    }
+
+    // 5. Idempotency duplicate already processed
+    if (
+      rawMsg.includes('already processed') ||
+      rawMsg.includes('مكرر') ||
+      rawMsg.includes('سبق تنفيذه')
+    ) {
+      throw new AlreadyProcessed(rawMsg);
+    }
+
+    // 6. Generic safe server error (never leak raw SQL syntax / table internals)
+    throw new GenericServerError('حدث خطأ في معالجة الطلب على الخادم. يرجى مراجعة إدارة النظام.');
   }
 
-  // 1. Command: createTrip -> RPC create_trip
+  // --------------------------------------------------------------------------
+  // Core Operational Commands
+  // --------------------------------------------------------------------------
+
   async createTrip(cmd: CreateTripCommand): Promise<Trip> {
     const { data, error } = await this.client.rpc('create_trip', {
       p_vehicle_id: cmd.vehicleId,
@@ -146,7 +191,6 @@ export class SupabaseGateway implements IDataGateway {
     return data as Trip;
   }
 
-  // 2. Command: completeTrip -> RPC complete_trip
   async completeTrip(cmd: CompleteTripCommand): Promise<Trip> {
     const { data, error } = await this.client.rpc('complete_trip', {
       p_trip_id: cmd.tripId,
@@ -166,19 +210,23 @@ export class SupabaseGateway implements IDataGateway {
     return data as Trip;
   }
 
-  // 3. Command: createFuelLog -> RPC create_fuel_log
   async createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog> {
+    const occurredAt = cmd.occurredAt || new Date().toISOString();
     const { data, error } = await this.client.rpc('create_fuel_log', {
-      p_vehicle_id: cmd.vehicleId,
-      p_driver_id: cmd.driverId,
-      p_fuel_type: cmd.fuelType,
-      p_date: cmd.date,
-      p_odometer: cmd.odometer,
-      p_quantity_liters: cmd.quantityLiters,
-      p_cost_per_liter: cmd.costPerLiter,
-      p_station_name: cmd.stationName,
       p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_vehicle_id: cmd.vehicleId,
+      p_driver_id: cmd.driverId || null,
+      p_fuel_type: cmd.fuelType,
+      p_odometer: cmd.currentOdometer,
+      p_quantity_liters: cmd.liters,
+      p_cost_per_liter: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : 0,
+      p_station_name: cmd.vendorName || cmd.stationLocation || 'محطة المحروقات',
+      p_date: occurredAt.substring(0, 10),
+      p_expected_version: cmd.expectedVersion ?? null,
+      p_occurred_at: occurredAt,
+      p_liters: cmd.liters,
+      p_unit_price: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : 0,
+      p_invoice_number: cmd.invoiceNumber || null,
     });
 
     if (error) {
@@ -188,14 +236,13 @@ export class SupabaseGateway implements IDataGateway {
     return data as FuelLog;
   }
 
-  // 4. Command: issuePartsToMaintenanceOrder -> RPC issue_parts_to_maintenance_order
   async issuePartsToMaintenanceOrder(
     cmd: IssuePartsCommand
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
     const { data, error } = await this.client.rpc('issue_parts_to_maintenance_order', {
       p_order_id: cmd.orderId,
-      p_plant_code: cmd.plantCode,
-      p_parts: cmd.parts,
+      p_plant_code: cmd.items?.[0]?.plantCode || '1100',
+      p_parts: cmd.items,
       p_request_id: cmd.requestId,
       p_expected_version: cmd.expectedVersion,
     });
@@ -204,17 +251,15 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'MaintenanceOrder', cmd.orderId, cmd.expectedVersion);
     }
 
-    const res = data as { order: MaintenanceOrder; materialDocNumber: string };
-    return res;
+    return data as { order: MaintenanceOrder; materialDocNumber: string };
   }
 
-  // 5. Command: completeMaintenanceOrder -> RPC complete_maintenance_order
   async completeMaintenanceOrder(cmd: CompleteMaintenanceOrderCommand): Promise<MaintenanceOrder> {
     const { data, error } = await this.client.rpc('complete_maintenance_order', {
       p_order_id: cmd.orderId,
-      p_labor_hours: cmd.laborHours,
-      p_labor_rate_per_hour: cmd.laborRatePerHour,
-      p_downtime_hours: cmd.downtimeHours,
+      p_labor_hours: cmd.actualLaborHours,
+      p_labor_rate_per_hour: cmd.actualLaborCost && cmd.actualLaborHours ? cmd.actualLaborCost / cmd.actualLaborHours : 0,
+      p_downtime_hours: 0,
       p_completion_date: cmd.completionDate,
       p_request_id: cmd.requestId,
       p_expected_version: cmd.expectedVersion,
@@ -227,7 +272,6 @@ export class SupabaseGateway implements IDataGateway {
     return data as MaintenanceOrder;
   }
 
-  // 6. Command: postJournal -> RPC post_journal
   async postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }> {
     const { data, error } = await this.client.rpc('post_journal', {
       p_source_type: cmd.sourceType,
@@ -249,104 +293,379 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'JournalEntry', cmd.sourceId, cmd.expectedVersion);
     }
 
-    const res = data as { docNumber: string; jeId: string };
-    return res;
+    return data as { docNumber: string; jeId: string };
   }
 
-  // Fleet Queries
+  // --------------------------------------------------------------------------
+  // Field Telemetry Commands (Whitelisted Offline Sync)
+  // --------------------------------------------------------------------------
+
+  async recordTripEvent(cmd: RecordTripEventCommand): Promise<{ requestId: string; tripId: string; eventType: string }> {
+    const { data, error } = await this.client.rpc('record_trip_event', {
+      p_request_id: cmd.requestId,
+      p_trip_id: cmd.tripId,
+      p_vehicle_id: cmd.vehicleId,
+      p_event_type: cmd.eventType,
+      p_occurred_at: cmd.occurredAt,
+      p_payload: cmd.payload || {},
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'TripEvent', cmd.tripId);
+    }
+
+    return data as { requestId: string; tripId: string; eventType: string };
+  }
+
+  async recordOdometerReading(cmd: RecordOdometerReadingCommand): Promise<{ requestId: string; vehicleId: string; readingKm: number }> {
+    const { data, error } = await this.client.rpc('record_odometer_reading', {
+      p_request_id: cmd.requestId,
+      p_vehicle_id: cmd.vehicleId,
+      p_reading_km: cmd.readingKm,
+      p_captured_at: cmd.capturedAt,
+      p_source: cmd.source || 'driver_check_in',
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'OdometerReading', cmd.vehicleId);
+    }
+
+    return data as { requestId: string; vehicleId: string; readingKm: number };
+  }
+
+  async recordInspection(cmd: RecordInspectionCommand): Promise<{ requestId: string; vehicleId: string; result: string }> {
+    const { data, error } = await this.client.rpc('record_inspection', {
+      p_request_id: cmd.requestId,
+      p_vehicle_id: cmd.vehicleId,
+      p_inspected_at: cmd.inspectedAt,
+      p_result: cmd.result,
+      p_notes: cmd.notes || null,
+      p_checklist: cmd.checklist || {},
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'VehicleInspection', cmd.vehicleId);
+    }
+
+    return data as { requestId: string; vehicleId: string; result: string };
+  }
+
+  // --------------------------------------------------------------------------
+  // Master Data Commands (Vehicles & Drivers)
+  // --------------------------------------------------------------------------
+
+  async createVehicle(vehicle: Partial<Vehicle>, requestId?: string): Promise<Vehicle> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('create_vehicle', {
+      p_request_id: reqId,
+      p_code: vehicle.code || vehicle.plateNumber,
+      p_plate_number: vehicle.plateNumber,
+      p_type: vehicle.type,
+      p_make_model: vehicle.makeModel || `${vehicle.make || ''} ${vehicle.model || ''}`.trim(),
+      p_plant_code: vehicle.plantCode || '1100',
+      p_cost_center: vehicle.costCenter || 'CC-FLT-1100',
+      p_vin: vehicle.vin || null,
+      p_year: vehicle.year || null,
+      p_capacity_liters: vehicle.capacityLiters || 0,
+      p_current_odometer: vehicle.currentOdometer || 0,
+      p_fuel_type: vehicle.fuelType || 'Diesel',
+      p_assigned_driver_id: vehicle.assignedDriverId || null,
+      p_insurance_expiry: vehicle.insuranceExpiry || null,
+      p_registration_expiry: vehicle.registrationExpiry || null,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Vehicle', vehicle.plateNumber || 'new');
+    }
+
+    return data as Vehicle;
+  }
+
+  async updateVehicle(
+    id: string,
+    updates: Partial<Vehicle>,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<Vehicle> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('update_vehicle', {
+      p_request_id: reqId,
+      p_id: id,
+      p_expected_version: expectedVersion ?? null,
+      p_plate_number: updates.plateNumber ?? null,
+      p_make_model: updates.makeModel ?? (updates.make || updates.model ? `${updates.make || ''} ${updates.model || ''}`.trim() : null),
+      p_type: updates.type ?? null,
+      p_fuel_type: updates.fuelType ?? null,
+      p_capacity_liters: updates.capacityLiters ?? null,
+      p_assigned_driver_id: updates.assignedDriverId ?? null,
+      p_plant_code: updates.plantCode ?? null,
+      p_cost_center: updates.costCenter ?? null,
+      p_status: updates.status ?? null,
+      p_insurance_expiry: updates.insuranceExpiry ?? null,
+      p_registration_expiry: updates.registrationExpiry ?? null,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Vehicle', id, expectedVersion);
+    }
+
+    return data as Vehicle;
+  }
+
+  async setVehicleActive(
+    id: string,
+    isActive: boolean,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<Vehicle> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('set_vehicle_active', {
+      p_request_id: reqId,
+      p_id: id,
+      p_is_active: isActive,
+      p_expected_version: expectedVersion ?? null,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Vehicle', id, expectedVersion);
+    }
+
+    return data as Vehicle;
+  }
+
+  async createDriver(driver: Partial<Driver>, requestId?: string): Promise<Driver> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('create_driver', {
+      p_request_id: reqId,
+      p_code: driver.code || driver.iqamaNumber || 'DRV-NEW',
+      p_name: driver.name,
+      p_iqama_number: driver.iqamaNumber,
+      p_mobile: driver.mobile,
+      p_license_number: driver.licenseNumber,
+      p_license_class: driver.licenseClass || 'Heavy',
+      p_license_expiry: driver.licenseExpiry,
+      p_plant_code: driver.plantCode || '1100',
+      p_safety_rating: driver.safetyRating || 5.0,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Driver', driver.name || 'new');
+    }
+
+    return data as Driver;
+  }
+
+  async updateDriver(
+    id: string,
+    updates: Partial<Driver>,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<Driver> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('update_driver', {
+      p_request_id: reqId,
+      p_id: id,
+      p_expected_version: expectedVersion ?? null,
+      p_name: updates.name ?? null,
+      p_mobile: updates.mobile ?? null,
+      p_license_number: updates.licenseNumber ?? null,
+      p_license_class: updates.licenseClass ?? null,
+      p_license_expiry: updates.licenseExpiry ?? null,
+      p_plant_code: updates.plantCode ?? null,
+      p_status: updates.status ?? null,
+      p_safety_rating: updates.safetyRating ?? null,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Driver', id, expectedVersion);
+    }
+
+    return data as Driver;
+  }
+
+  async setDriverActive(
+    id: string,
+    isActive: boolean,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<Driver> {
+    const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('set_driver_active', {
+      p_request_id: reqId,
+      p_id: id,
+      p_is_active: isActive,
+      p_expected_version: expectedVersion ?? null,
+    });
+
+    if (error) {
+      this.handleRpcError(error, 'Driver', id, expectedVersion);
+    }
+
+    return data as Driver;
+  }
+
+  async createMaintenanceOrder(order: Partial<MaintenanceOrder>): Promise<MaintenanceOrder> {
+    const { data, error } = await this.client.from('maintenance_orders').insert({
+      vehicle_id: order.vehicleId,
+      order_type: order.orderType,
+      priority: order.priority || 'medium',
+      plant_code: order.plantCode || '1100',
+      description: order.description,
+      scheduled_date: order.scheduledDate || new Date().toISOString(),
+      status: 'pending',
+      version: 1,
+    }).select().single();
+
+    if (error) {
+      this.handleRpcError(error, 'MaintenanceOrder', order.vehicleId || 'new');
+    }
+
+    return data as MaintenanceOrder;
+  }
+
+  // --------------------------------------------------------------------------
+  // Fleet Query Methods
+  // --------------------------------------------------------------------------
+
   async getVehicles(filters?: VehicleFilters): Promise<Vehicle[]> {
-    let query = this.client.from('vehicles').select('*');
+    let query = this.client.from('vehicles').select('*').eq('is_deleted', false);
     if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.vehicleType) query = query.eq('vehicle_type', filters.vehicleType);
-    if (filters?.assignedPlant) query = query.eq('assigned_plant', filters.assignedPlant);
+    if (filters?.vehicleType) query = query.eq('type', filters.vehicleType);
+    if (filters?.assignedPlant) query = query.eq('plant_code', filters.assignedPlant);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data || []) as Vehicle[];
+    return data as Vehicle[];
   }
 
   async getVehicleById(id: string): Promise<Vehicle | null> {
     const { data, error } = await this.client.from('vehicles').select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as Vehicle) ?? null;
+    return data as Vehicle | null;
   }
 
   async getDrivers(filters?: DriverFilters): Promise<Driver[]> {
-    let query = this.client.from('drivers').select('*');
+    let query = this.client.from('drivers').select('*').eq('is_deleted', false);
     if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.assignedPlant) query = query.eq('assigned_plant', filters.assignedPlant);
+    if (filters?.assignedPlant) query = query.eq('plant_code', filters.assignedPlant);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data || []) as Driver[];
+    return data as Driver[];
   }
 
   async getDriverById(id: string): Promise<Driver | null> {
     const { data, error } = await this.client.from('drivers').select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as Driver) ?? null;
+    return data as Driver | null;
   }
 
   async getTrips(filters?: TripFilters): Promise<Trip[]> {
-    let query = this.client.from('trips').select('*').order('created_at', { ascending: false });
+    let query = this.client.from('trips').select('*').eq('is_deleted', false);
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
     if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
     if (filters?.originPlant) query = query.eq('origin_plant', filters.originPlant);
+    if (filters?.startDate) query = query.gte('scheduled_departure', filters.startDate);
+    if (filters?.endDate) query = query.lte('scheduled_departure', filters.endDate);
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('scheduled_departure', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data || []) as Trip[];
+    return data as Trip[];
   }
 
   async getTripById(id: string): Promise<Trip | null> {
     const { data, error } = await this.client.from('trips').select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as Trip) ?? null;
+    return data as Trip | null;
   }
 
-  async getFuelLogs(vehicleId?: string): Promise<FuelLog[]> {
-    let query = this.client.from('fuel_logs').select('*').order('date', { ascending: false });
-    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
+  async getFuelLogs(filtersOrVehicleId?: string | FuelLogFilters): Promise<FuelLog[]> {
+    let query = this.client.from('fuel_logs').select('*').eq('is_deleted', false);
+    if (typeof filtersOrVehicleId === 'string') {
+      query = query.eq('vehicle_id', filtersOrVehicleId);
+    } else if (filtersOrVehicleId) {
+      if (filtersOrVehicleId.vehicleId) query = query.eq('vehicle_id', filtersOrVehicleId.vehicleId);
+      if (filtersOrVehicleId.driverId) query = query.eq('driver_id', filtersOrVehicleId.driverId);
+      if (filtersOrVehicleId.startDate) query = query.gte('date', filtersOrVehicleId.startDate);
+      if (filtersOrVehicleId.endDate) query = query.lte('date', filtersOrVehicleId.endDate);
+    }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('odometer', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data || []) as FuelLog[];
+    return data as FuelLog[];
+  }
+
+  async getPaginatedFuelLogs(filters: FuelLogFilters): Promise<PaginatedResult<FuelLog>> {
+    const page = filters.page || 1;
+    const pageSize = filters.pageSize || 25;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = this.client.from('fuel_logs').select('*', { count: 'exact' }).eq('is_deleted', false);
+    if (filters.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
+    if (filters.driverId) query = query.eq('driver_id', filters.driverId);
+    if (filters.startDate) query = query.gte('date', filters.startDate);
+    if (filters.endDate) query = query.lte('date', filters.endDate);
+
+    const { data, count, error } = await query.order('odometer', { ascending: false }).range(from, to);
+    if (error) throw new Error(error.message);
+
+    const totalCount = count || 0;
+    return {
+      data: (data || []) as FuelLog[],
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
+    };
   }
 
   async getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]> {
-    const vehicleId = typeof filtersOrVehicleId === 'string' ? filtersOrVehicleId : filtersOrVehicleId?.vehicleId;
-    let query = this.client.from('maintenance_orders').select('*').order('created_at', { ascending: false });
-    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
+    let query = this.client.from('maintenance_orders').select('*').eq('is_deleted', false);
+    if (typeof filtersOrVehicleId === 'string') {
+      query = query.eq('vehicle_id', filtersOrVehicleId);
+    } else if (filtersOrVehicleId) {
+      if (filtersOrVehicleId.vehicleId) query = query.eq('vehicle_id', filtersOrVehicleId.vehicleId);
+      if (filtersOrVehicleId.status) query = query.eq('status', filtersOrVehicleId.status);
+      if (filtersOrVehicleId.orderType) query = query.eq('order_type', filtersOrVehicleId.orderType);
+    }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('scheduled_date', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data || []) as MaintenanceOrder[];
+    return data as MaintenanceOrder[];
   }
 
   async getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null> {
     const { data, error } = await this.client.from('maintenance_orders').select('*').eq('id', id).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as MaintenanceOrder) ?? null;
+    return data as MaintenanceOrder | null;
   }
 
   async getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]> {
-    let query = this.client.from('preventive_schedules').select('*');
+    let query = this.client.from('preventive_schedules').select('*').eq('is_active', true);
     if (vehicleId) query = query.eq('vehicle_id', vehicleId);
-
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data || []) as PreventiveSchedule[];
+    return data as PreventiveSchedule[];
   }
 
   async getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]> {
-    const { data, error } = await this.client.from('fuel_anomaly_alerts').select('*').order('date', { ascending: false });
+    const { data, error } = await this.client.from('fuel_anomaly_alerts').select('*').eq('is_resolved', false);
     if (error) throw new Error(error.message);
-    return (data || []) as FuelAnomalyAlert[];
+    return data as FuelAnomalyAlert[];
+  }
+
+  async resolveFuelAnomalyAlert(id: string, notes: string): Promise<void> {
+    const { error } = await this.client
+      .from('fuel_anomaly_alerts')
+      .update({ is_resolved: true, resolution_notes: notes, resolved_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
-    const { data, error } = await this.client.rpc('get_vehicle_expiry_alerts');
+    const { data, error } = await this.client.rpc('get_vehicle_expiry_alerts', { p_days_ahead: 30 });
     if (error) throw new Error(error.message);
     return (data || []) as ExpiryAlert[];
   }
@@ -357,50 +676,10 @@ export class SupabaseGateway implements IDataGateway {
     return data as VehicleCostReport;
   }
 
-  async getPaginatedFuelLogs(filters: import('./IDataGateway').FuelLogFilters): Promise<import('./IDataGateway').PaginatedResult<FuelLog>> {
-    const page = Math.max(1, filters.page || 1);
-    const pageSize = Math.max(1, Math.min(200, filters.pageSize || 25));
-    const offset = (page - 1) * pageSize;
-
-    let query = this.client
-      .from('fuel_logs')
-      .select('*', { count: 'exact' })
-      .order('date', { ascending: false });
-
-    if (filters.vehicleId) {
-      query = query.eq('vehicle_id', filters.vehicleId);
-    }
-    if (filters.search && filters.search.trim()) {
-      query = query.ilike('vehicle_plate', `%${filters.search.trim()}%`);
-    }
-
-    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
-    if (error) throw new Error(error.message);
-
-    const totalCount = count || 0;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-
-    return {
-      data: (data || []) as FuelLog[],
-      totalCount,
-      page,
-      pageSize,
-      totalPages,
-    };
-  }
-
-  async getCostCenterFleetReconciliation(): Promise<import('./IDataGateway').CostCenterReconciliation[]> {
+  async getCostCenterFleetReconciliation(): Promise<CostCenterReconciliation[]> {
     const { data, error } = await this.client.from('v_cost_center_fleet_reconciliation').select('*');
     if (error) throw new Error(error.message);
-    return (data || []).map((row: Record<string, unknown>) => ({
-      costCenter: String(row.cost_center || ''),
-      totalFuel: Number(row.total_fuel || 0),
-      totalMaintenance: Number(row.total_maintenance || 0),
-      totalAllowance: Number(row.total_allowance || 0),
-      operationalTotalCost: Number(row.operational_total_cost || 0),
-      journalTotalDebit: Number(row.journal_total_debit || 0),
-      variance: Number(row.variance || 0),
-    }));
+    return (data || []) as CostCenterReconciliation[];
   }
 
   async getFleetDashboardKPIs(): Promise<FleetSummaryKPIs> {
@@ -409,168 +688,10 @@ export class SupabaseGateway implements IDataGateway {
     return data as FleetSummaryKPIs;
   }
 
-  // Authentication against Supabase Auth
-  async signIn(username: string, password: string): Promise<AuthSession> {
-    const syntheticEmail = `${username.toLowerCase().trim()}@erp.local`;
+  // --------------------------------------------------------------------------
+  // Realtime Subscriptions
+  // --------------------------------------------------------------------------
 
-    const { data: authData, error: authError } = await this.client.auth.signInWithPassword({
-      email: syntheticEmail,
-      password,
-    });
-
-    if (authError || !authData.user) {
-      throw new Error('اسم المستخدم أو كلمة المرور غير صحيحة، أو تعذر الاتصال بالخادم.');
-    }
-
-    // Load profile (roles and plants) from profiles table
-    const { data: profileData, error: profileError } = await this.client
-      .from('profiles')
-      .select('*')
-      .eq('id', authData.user.id)
-      .maybeSingle();
-
-    if (profileError || !profileData) {
-      throw new Error('لم يتم العثور على ملف تعريف المستخدم أو الصلاحيات على الخادم.');
-    }
-
-    const profile = profileData as ProfileRow;
-    const role: Role = {
-      id: `role-${profile.role_code.toLowerCase()}`,
-      code: profile.role_code,
-      name: profile.role_name || profile.role_code,
-      description: `الدور الوظيفي للمستخدم: ${profile.role_code}`,
-      permissionCodes: [],
-      isSystem: false,
-      isDeleted: false,
-    };
-
-    const user: User = {
-      id: profile.id,
-      username: profile.username || username,
-      fullName: profile.full_name || username,
-      email: `${profile.username || username}@erp.local`,
-      roleId: role.id,
-      roleCode: profile.role_code,
-      roleName: role.name,
-      companyCode: profile.company_code || '1000',
-      plantCode: profile.assigned_plants?.[0] || '1100',
-      isLocked: Boolean(profile.is_locked),
-      mustChangePassword: Boolean(profile.must_change_password),
-      passwordHash: '',
-      passwordSalt: '',
-      failedLoginAttempts: 0,
-      createdAt: authData.user.created_at || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      version: 1,
-      isDeleted: false,
-    };
-
-    const session: AuthSession = {
-      user,
-      role,
-      token: authData.session?.access_token || '',
-      expiresAt: (authData.session?.expires_at ? authData.session.expires_at * 1000 : Date.now() + 8 * 3600 * 1000),
-    };
-
-    // Set actor context with server profile
-    SessionContext.setActor({
-      userId: user.id,
-      username: user.username,
-      role,
-    });
-
-    useAuthStore.getState().setSession(session);
-
-    return session;
-  }
-
-  async signOut(): Promise<void> {
-    try {
-      await this.client.auth.signOut();
-    } catch {
-      // Ignore
-    }
-    useAuthStore.getState().logout();
-  }
-
-  async changePassword(userId: string, _currentPassword: string, newPassword: string): Promise<void> {
-    const { error: updateError } = await this.client.auth.updateUser({
-      password: newPassword,
-    });
-
-    if (updateError) {
-      throw new Error(`فشل تحديث كلمة المرور على الخادم: ${updateError.message}`);
-    }
-
-    // Clear must_change_password flag in profile
-    await this.client.from('profiles').update({ must_change_password: false }).eq('id', userId);
-  }
-
-  async restoreSession(): Promise<AuthSession | null> {
-    try {
-      const { data } = await this.client.auth.getSession();
-      if (!data.session?.user) return null;
-
-      const { data: profile } = await this.client
-        .from('profiles')
-        .select('*')
-        .eq('id', data.session.user.id)
-        .maybeSingle();
-
-      if (!profile) return null;
-
-      const p = profile as ProfileRow;
-      const role: Role = {
-        id: `role-${p.role_code.toLowerCase()}`,
-        code: p.role_code,
-        name: p.role_name || p.role_code,
-        description: `الدور: ${p.role_code}`,
-        permissionCodes: [],
-        isSystem: false,
-        isDeleted: false,
-      };
-
-      const user: User = {
-        id: p.id,
-        username: p.username,
-        fullName: p.full_name || p.username,
-        email: `${p.username}@erp.local`,
-        roleId: role.id,
-        roleCode: p.role_code,
-        roleName: role.name,
-        companyCode: p.company_code || '1000',
-        plantCode: p.assigned_plants?.[0] || '1100',
-        isLocked: Boolean(p.is_locked),
-        mustChangePassword: Boolean(p.must_change_password),
-        passwordHash: '',
-        passwordSalt: '',
-        failedLoginAttempts: 0,
-        createdAt: data.session.user.created_at || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: 1,
-        isDeleted: false,
-      };
-
-      const session: AuthSession = {
-        user,
-        role,
-        token: data.session.access_token,
-        expiresAt: data.session.expires_at ? data.session.expires_at * 1000 : Date.now() + 8 * 3600 * 1000,
-      };
-
-      SessionContext.setActor({
-        userId: user.id,
-        username: user.username,
-        role,
-      });
-
-      return session;
-    } catch {
-      return null;
-    }
-  }
-
-  // Realtime Subscriptions with 30-Second Polling Fallback
   subscribeFleet(
     tables: string[],
     onChange: RealtimeChangeCallback
@@ -623,7 +744,6 @@ export class SupabaseGateway implements IDataGateway {
       }, 30000);
     }
 
-    // Return strict subscription cleanup
     return () => {
       if (fallbackInterval) {
         clearInterval(fallbackInterval);

@@ -11,6 +11,7 @@ import { db } from '../../../core/db';
 import { FinanceService } from '../services/FinanceService';
 import { FinancialStatementsService, GrIrClearingItem } from '../services/FinancialStatementsService';
 import type { FiscalPeriod } from '../../../types/models';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   Calendar,
   Lock,
@@ -76,7 +77,7 @@ export const PeriodEndClosingPage: React.FC = () => {
   const togglePeriod = async (p: FiscalPeriod) => {
     const nextStatus = p.status === 'Open' ? 'Closed' : 'Open';
     try {
-      await FinanceService.setPeriodStatus(p.fiscalYear, p.period, nextStatus, 'usr-admin-1');
+      await FinanceService.setPeriodStatus(p.fiscalYear, p.period, nextStatus, currentActorId());
       toast({
         title:
           nextStatus === 'Closed'

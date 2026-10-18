@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { AccountsPayableService, PaymentProposalItem } from '../services/AccountsPayableService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { Send, DollarSign, Calendar, CheckSquare, Square, Building } from 'lucide-react';
 
 interface PaymentProposalModalProps {
@@ -76,7 +77,7 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
         items,
         bankAccount,
         paymentDate: todayStr,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
       });
 
       showToast(

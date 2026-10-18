@@ -18,8 +18,28 @@ export interface RepositoryQuery<T> {
   includeDeleted?: boolean;
 }
 
+export const VERSIONED_ENTITIES = [
+  'vehicles',
+  'drivers',
+  'trips',
+  'maintenanceOrders',
+  'vendorInvoices',
+  'journalEntries',
+  'assets',
+  'materials',
+  'vendors',
+  'purchaseOrders',
+  'contracts',
+  'budgets',
+  'costCenters',
+] as const;
+
+export type VersionedEntityName = (typeof VERSIONED_ENTITIES)[number];
+
 export interface UpdateOptions {
   expectedVersion?: number;
+  skipVersionCheck?: boolean;
+  reason?: string;
 }
 
 export interface IRepository<T extends { id: string; isDeleted?: boolean }> {

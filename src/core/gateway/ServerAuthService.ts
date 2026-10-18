@@ -137,13 +137,10 @@ export class ServerAuthService {
       throw new Error(`فشل تحديث كلمة المرور على الخادم: ${error.message}`);
     }
 
-    // Update must_change_password to false in profiles
-    const { data: session } = await client.auth.getSession();
-    if (session.session?.user?.id) {
-      await client
-        .from('profiles')
-        .update({ must_change_password: false, updated_at: new Date().toISOString() })
-        .eq('user_id', session.session.user.id);
+    // Call complete_password_change RPC (SECURITY DEFINER, never update profiles directly)
+    const { error: rpcError } = await client.rpc('complete_password_change');
+    if (rpcError) {
+      throw new Error(`فشل استكمال تحديث حالة كلمة المرور على الخادم: ${rpcError.message}`);
     }
   }
 

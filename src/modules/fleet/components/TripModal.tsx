@@ -8,6 +8,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { FleetService } from '../services/FleetService';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { Vehicle, Driver, Trip } from '../../../types/models';
 import {
   Truck,
@@ -231,7 +232,7 @@ export const TripModal: React.FC<TripModalProps> = ({
               fuelCost: Math.round(fuelConsumedLiters * 1.15),
               driverAllowanceCost: driverAllowance,
             },
-            'u-flt-mgr',
+            currentActorId(),
             tripToComplete.version
           ),
         localData

@@ -12,6 +12,7 @@ import { AuthService } from '../core/services/AuthService';
 import { useAuthStore } from '../core/auth/useAuthStore';
 import { dataGateway } from '../core/gateway/ServerGateway';
 import { isServerMode } from '../core/gateway/connectivity';
+import { ServerAuthService } from '../core/gateway/ServerAuthService';
 
 const changePasswordSchema = z
   .object({
@@ -71,7 +72,7 @@ export const ChangePasswordPage: React.FC = () => {
 
     try {
       if (isServerMode()) {
-        await dataGateway.instance.changePassword(user.id, data.currentPassword, data.newPassword);
+        await ServerAuthService.changePassword(data.newPassword);
         // In server mode, update local auth store user flag
         useAuthStore.setState((prev) => ({
           user: prev.user ? { ...prev.user, mustChangePassword: false } : null,

@@ -96,7 +96,12 @@ export const VendorDetailPage: React.FC = () => {
     if (!vendor || !id) return;
     try {
       setIsSaving(true);
-      await vendorRepository.update(id, editForm, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await vendorRepository.update(
+        id,
+        editForm,
+        { userId: user?.id, userName: user?.fullName || 'مدير النظام' },
+        { expectedVersion: vendor.version || 1 }
+      );
 
       showToast({
         title: 'تم تحديث ملف المورد',

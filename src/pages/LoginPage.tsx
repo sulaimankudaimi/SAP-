@@ -17,6 +17,7 @@ import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { db } from '../core/db';
 import { dataGateway } from '../core/gateway/ServerGateway';
 import { isServerMode } from '../core/gateway/connectivity';
+import { ServerAuthService } from '../core/gateway/ServerAuthService';
 
 const loginSchema = z.object({
   username: z.string().min(2, 'يرجى إدخال اسم المستخدم أو الرقم الوظيفي'),
@@ -123,7 +124,8 @@ export const LoginPage: React.FC = () => {
     try {
       let session;
       if (isServerMode()) {
-        session = await dataGateway.instance.signIn(data.username, data.password);
+        session = await ServerAuthService.login(data.username, data.password);
+        setSession(session);
       } else {
         const seeded = await DatabaseSeeder.isSeeded();
         if (!seeded) {

@@ -1,96 +1,129 @@
-# بوابة الجاهزية التشغيلية لوحدة الأسطول (Fleet Operational Readiness Gate)
-**المعيار:** Definition of Done (DoD) المرجعي لترقية أي وحدة برمجية إلى الجاهزية الإنتاجية (Production-Ready Slice)  
-**الوحدة:** إدارة أسطول نقل المحروقات واللوجستيات (Fleet & Fuel Logistics Module)  
-**تاريخ التحقق:** 2026-10-13  
-**الحالة:** معتمد وجاهز للتشغيل الإنتاجي (Production Certified)
+# بوابة الجاهزية والاعتماد لوحدة الأسطول (Fleet Module Readiness Gate)
+## مصفوفة استيفاء معايير الجاهزية للإنتاج (Definition of Done - DoD)
+
+> **وثيقة معيارية قابلة لإعادة الاستخدام لجميع وحدات نظام Gulf Energy ERP**  
+> **حالة الوحدة**: جاهزة للاختبار الميداني (Ready for 14-Day Pilot)  
+> **تاريخ التقييم**: 2026-10-13  
+> **المرجعية المعمارية**: `PROJECT_RULES.md` و `ADR 0001`  
 
 ---
 
-## 1. نموذج التدقيق والتحقق المرجعي القابل لإعادة الاستخدام (Reusable DoD Checklist)
-
-يعتبر هذا الجدول الإطار الإلزامي لتوثيق جاهزية أي موديول في نظام Gulf Energy ERP قبل السماح بالنشر الإنتاجي:
-
-| البند | متطلب التحقق (Readiness Criterion) | المعيار الفني (Technical Standard) | حالة الإثبات (Status) | الأدلة والشواهد (Evidence / Test Suite) |
-|---|---|---|---|---|
-| **1.1** | تغطية محددات سلامة الأعمال (Business Invariants) | عداد تصاعدي، عدم تجاوز سعة الخزان، رخصة سارية، عدم إكمال الرحلة مرتين، شروط إغلاق الصيانة | **PROVEN (مثبت)** | `src/tests/fleet-hardening.test.ts` (8 اختبارات ناجحة) + دوال فحص `0007_fleet_hardening.sql` |
-| **1.2** | سيناريوهات التزامن والتضارب (Concurrency Scenarios) | فحص التنافس والتضارب التفاؤلي عبر Version Token ومنع الكتابة المتزامنة الضائعة | **PROVEN (مثبت)** | `src/tests/concurrent-scenarios.test.ts` + `FleetService.ts (ConcurrencyError)` |
-| **1.3** | حقن الفشل وقطع الاتصال (Failure Injection) | منع العمليات الحرجة دون اتصال وحقن أخطاء الشبكة والتعامل مع انقطاع الخادم | **PROVEN (مثبت)** | `src/tests/outbox-gateway.test.ts` (معالجة انقطاع الاتصال وفشل الشبكة) |
-| **1.4** | حيادية وحصانة التكرار (Idempotency) | معرف فريد لكل أمر Request ID، إعادة الإرسال تعيد النتيجة المخزنة ولا تضاعف القيود | **PROVEN (مثبت)** | `src/tests/idempotent-postings.test.ts` + جدول `command_requests` في SQL |
-| **1.5** | مصفوفة الصلاحيات حسب الأدوار (Role Matrix) | عزل الصلاحيات لـ 5 أدوار (Fleet Manager, Accountant, Warehouse Clerk, Viewer, Auditor) وتقييد المحطات | **PROVEN (مثبت)** | `src/tests/fleet-role-matrix.test.ts` (8 اختبارات ناجحة) + RLS Policies في `0004_rls.sql` |
-| **1.6** | سلوك العمل الميداني دون اتصال (Offline Behavior) | صندوق إرسال Outbox محلي مع قائمة بيضاء (وقود، عداد، أحداث) وصفحة عمليات بانتظار المراجعة | **PROVEN (مثبت)** | `src/tests/outbox-gateway.test.ts` + مسار `/fleet/outbox` |
-| **1.7** | سلسلة التدقيق الرقمي المشفر (Audit Chain) | تسجيل كافة العمليات في Audit Chain مشفر ومترابط (prev_hash/hash) ومرئي للمدقق | **PROVEN (مثبت)** | `src/tests/security-audit-integrity.test.ts` + `verify_audit_chain()` في `0002_numbering_audit.sql` |
-| **1.8** | فاحص سلامة البيانات الأخضر (Integrity Checker Green) | تقرير سلامة البيانات والقيود المحاسبية ومطابقة التكاليف وسجل الأستاذ العام | **PROVEN (مثبت)** | `src/tests/fleet-reconciliation.test.ts` (مطابقة التكاليف وسجل الأستاذ العام) + `/supabase/tests/invariants.sql` |
-| **1.9** | الاختبار التجريبي الميداني الموسع (Pilot Passed) | تجربة ميدانية متكاملة لمحاكاة صهاريج وقود في محطات حقيقية مع سائقين حقيقيين | **NOT PROVEN (قيد التنفيذ الميداني)** | يتطلب إطلاق Pilot فعلي لمدة 14 يوماً مع أسطول المحطة التجريبية 1100 بالرياض |
+### جدول المحتويات
+1. [محددات وقواعد الأعمال (Invariants Covered)](#1-محددات-وقواعد-الأعمال-invariants-covered)
+2. [سيناريوهات التزامن والتعارض (Concurrency Scenarios Tested)](#2-سيناريوهات-التزامن-والتعارض-concurrency-scenarios-tested)
+3. [اختبارات حقن الأعطال والتعافي (Failure Injection Tested)](#3-اختبارات-حقن-الأعطال-والتعافي-failure-injection-tested)
+4. [منع التكرار والتطابق (Idempotency Tested)](#4-منع-التكرار-والتطابق-idempotency-tested)
+5. [مصفوفة الصلاحيات حسب الدور (Permissions Per Role Tested)](#5-مصفوفة-الصلاحيات-حسب-الدور-permissions-per-role-tested)
+6. [سلوك العمل الميداني دون اتصال (Offline Behavior Defined)](#6-سلوك-العمل-الميداني-دون-اتصال-offline-behavior-defined)
+7. [سجل التدقيق والشفافية (Audit Visibility)](#7-سجل-التدقيق-والشفافية-audit-visibility)
+8. [فاحص النزاهة الآلي (Integrity Checker Green)](#8-فاحص-النزاهة-الآلي-integrity-checker-green)
+9. [الاختبار التجريبي الميداني (Pilot Passed)](#9-الاختبار-التجريبي-الميداني-pilot-passed)
 
 ---
 
-## 2. تفاصيل الإثبات والأدلة لوحدة الأسطول (Fleet Slice Evidence)
+### 1. محددات وقواعد الأعمال (Invariants Covered)
 
-### أ. محددات سلامة الأعمال (Business Invariants)
-- **منع نقصان العداد (Monotonic Odometer):**
-  - **SQL:** في `create_trip`, `complete_trip`, `create_fuel_log` بـ `0007_fleet_hardening.sql`:
-    ```sql
-    IF p_start_odometer < v_vehicle.current_odometer THEN
-        RAISE EXCEPTION 'عداد بداية الرحلة (%) لا يمكن أن يكون أقل من قراءة المركبة الحالية (%)';
-    END IF;
-    ```
-  - **Client:** في `FleetService.createTrip`, `FleetService.completeTrip`, `FleetService.createFuelLog` وفي واجهات `TripModal`, `FuelLogModal`.
-  - **الدليل:** الاختبارات الآلية `src/tests/fleet-hardening.test.ts` (Invariant 1, Invariant 3).
-
-- **سعة خزان الوقود:**
-  - يتم فحص سعة الخزان القصوى ومنع التعبئة بكمية تزيد عن سعة الخزان المسجلة للشاحنة مع إطلاق استثناء واضح باللغة العربية.
-  - **الدليل:** `src/tests/fleet-hardening.test.ts` (Invariant 3).
-
-- **صلاحية رخصة السائق وحالة المركبة:**
-  - لا يمكن تسيير رحلة إذا كانت رخصة السائق منتهية أو حالته `on_trip` أو المركبة `in_maintenance`.
-  - **الدليل:** `src/tests/fleet-hardening.test.ts` (Invariant 1, Invariant 2).
-
-- **منع إغلاق الرحلة مرتين:**
-  - إغلاق الرحلة يسجل المسافة واستهلاك الوقود وبدل السائق، ومحاولة الإغلاق مرة أخرى ترفض بـ `تم إغلاق واعتماد هذه الرحلة مسبقاً`.
-  - **الدليل:** `src/tests/fleet-hardening.test.ts` (Invariant 4).
-
-- **شروط إغلاق أمر الصيانة:**
-  - يرفض النظام إغلاق أمر الصيانة إذا كانت تكلفة قطع الغيار وساعات العمل الفنية كلاهما صفر.
-  - **الدليل:** `src/tests/fleet-hardening.test.ts` (Invariant 5).
+| القاعدة | آلية الفحص في SQL | آلية الفحص في العميل (Client) | الدليل الإثباتي (Evidence) | الحالة |
+| :--- | :--- | :--- | :--- | :--- |
+| **عدم تناقص قراءة العداد (Monotonic Odometer)** | فحص `p_start_odometer >= current_odometer` وفحص الحدود الزمنية في `record_odometer_reading` (`0011_field_events.sql`) | التحقق المسبق في `FleetService.createTrip`, `completeTrip`, `createFuelLog` | `src/tests/fleet-hardening.test.ts` (test: `rejects odometer rollback on trip creation and fuel log`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **سعة خزان الوقود (Tank Capacity Constraint)** | فحص `p_liters <= v_vehicle.capacity_liters` في `create_fuel_log` (`0007_fleet_hardening.sql`) | التحقق المسبق في `FleetService.createFuelLog` ومودال تعبئة الوقود | `src/tests/fleet-hardening.test.ts` (test: `rejects fuel quantity exceeding vehicle tank capacity`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **صلاحية رخصة السائق (Driver License Expiry)** | فحص `v_driver.license_expiry >= CURRENT_DATE` في `create_trip` (`0007_fleet_hardening.sql`) | التحقق المسبق في `FleetService.createTrip` | `src/tests/fleet-hardening.test.ts` (test: `rejects trip assignment for driver with expired license`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **جاهزية المركبة (Vehicle Status Check)** | فحص `v_vehicle.status = 'available'` في `create_trip` (`0007_fleet_hardening.sql`) | التحقق المسبق في `FleetService.createTrip` | `src/tests/fleet-hardening.test.ts` (test: `rejects trip assignment for vehicle in maintenance or out of service`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **إغلاق الرحلة لمرة واحدة فقط (Trip Single Completion)** | فحص `v_trip.status <> 'completed'` في `complete_trip` (`0005_commands.sql`) | التحقق المسبق في `FleetService.completeTrip` ومنع الإغلاق المزدوج | `src/tests/fleet-hardening.test.ts` (test: `rejects completing an already completed trip`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **اشتراط قطع الغيار أو العمل لإغلاق الصيانة (Parts/Labor Requirement)** | فحص `(parts_cost > 0 OR labor_hours > 0)` في `complete_maintenance_order` (`0007_fleet_hardening.sql`) | التحقق المسبق في `FleetService.completeMaintenanceOrder` | `src/tests/fleet-hardening.test.ts` (test: `rejects completing maintenance order without issued parts or labor hours`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **تنبيهات جداول الصيانة الوقائية (Preventive Schedule Due Alerts)** | استعلام `v_overdue_schedules` في `get_fleet_dashboard_kpis` (`0012_fleet_reporting.sql`) | التحقق بحساب الكيلومترات والأيام المتبقية في `FleetService.getPreventiveSchedules` | `src/tests/fleet-hardening.test.ts` (test: `generates due alerts for preventive maintenance schedules`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **تنبيهات انتهاء التأمين والاستمارة (Insurance & Registration Alerts)** | دالة `get_vehicle_expiry_alerts(30)` في `0012_fleet_reporting.sql` | التحقق في `FleetService.getVehicleExpiryAlerts` وعرض بطاقات التنبيه | `src/tests/fleet-hardening.test.ts` (test: `generates expiry alerts for insurance and registration within 30 days`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
 
 ---
 
-### ب. شاشات الأسطول وحالات البيانات الحقيقية (Real Screens State Handling)
-تم ربط جميع شاشات الأسطول بالبوابة المركزية `ServerGateway`:
-1. **لوحة التحكم (Dashboard - `/fleet`):** مؤشرات حقيقية (أسطول عامل، في الطريق، بالورشة)، عدادات السرعة، خريطة الأسطول الحية، وجداول الصيانة الوقائية.
-2. **شاحنات وصهاريج الأسطول (Vehicles - `/fleet/vehicles`):** قراءة حقيقية، شارات الحالة، فلاتر المحطات، استيراد إكسل مع فحص مسبق، وحالات التحميل والفراغ.
-3. **كادر السائقين (Drivers - `/fleet/drivers`):** سجل الهويات والرخص وتقييم السلامة، وحظر تعيين السائقين برخص منتهية.
-4. **أوامر التسيير والرحلات (Trips - `/fleet/trips`):** جدول الرحلات الحية مع زر طباعة بطاقة تفويض نقل المحروقات `TripPrintModal`.
-5. **إدارة الوقود (Fuel - `/fleet/fuel`):** تصفح مقسم (Pagination) لأكثر من 50,000 حركة تحت 100 ملي ثانية، كشف الشذوذ (>25%)، ومؤشر عدم الاتصال.
-6. **الصيانة والورش (Maintenance - `/fleet/maintenance`):** أوامر صيانة وقائية وعلاجية، صرف قطع الغيار بحركة MIGO 261، طباعة بطاقة أمر الصيانة `MaintenanceOrderPrintModal`.
-7. **صندوق العمليات دون اتصال (Outbox - `/fleet/outbox`):** متابعة القيود المعلقة، إعادة المحاولة، أو الإلغاء بمبرر إلزامي.
+### 2. سيناريوهات التزامن والتعارض (Concurrency Scenarios Tested)
+
+| السيناريو | الآلية المعمارية المطبقة | الدليل الإثباتي (Evidence) | الحالة |
+| :--- | :--- | :--- | :--- |
+| **تعديل متزامن لنفس المركبة (OCC Collision)** | رقم الإصدار `expected_version` ورمي `ConcurrencyError` عند عدم التطابق | `src/tests/concurrent-scenarios.test.ts` (test: `detects version conflict and prompts reload`) | **PROVEN** |
+| **تعديل متزامن لأمر الصيانة** | حماية `version` في `completeMaintenanceOrder` و `issuePartsToMaintenanceOrder` | `src/tests/concurrent-scenarios.test.ts` (test: `rejects stale version on maintenance update`) | **PROVEN** |
+| **تسجيل وقود متزامن لنفس المركبة** | قفل السجل `FOR UPDATE` في الخادم والتسلسل الزمني للعدادات | `src/tests/idempotent-postings.test.ts` (test: `handles concurrent postings safely`) | **PROVEN (Client)** / **NOT RUN (SQL)** |
 
 ---
 
-### ج. احتساب التكاليف ومطابقة الأستاذ العام (Cost Reconciliation)
-- تم بناء Views خادمة مرجعية:
-  - `v_vehicle_costs`: تكلفة الكيلومتر والوقود والصيانة لكل شاحنة.
-  - `v_cost_center_fleet_reconciliation`: مطابقة التكاليف التشغيلية لكل مركز تكلفة مع حركات القيود المحاسبية (`account_number IN ('601010', '602010', '603010')`).
-- **الدليل:** `src/tests/fleet-reconciliation.test.ts` (مطابقة التكاليف وتوليد التقرير المالي بدون فروقات غير مبررة).
+### 3. اختبارات حقن الأعطال والتعافي (Failure Injection Tested)
+
+| السيناريو المحقون | السلوك المتوقع والمعتمد | الدليل الإثباتي (Evidence) | الحالة |
+| :--- | :--- | :--- | :--- |
+| **فشل ترحيل القيد المالي أثناء إغلاق الرحلة** | تراجع ذري كامل للمعاملة (Atomic Rollback) وعدم تغيير حالة الرحلة أو المركبة | `src/tests/atomic-transactions.test.ts` (test: `rolls back entire operation if financial journal posting fails`) | **PROVEN** |
+| **انقطاع شبكة الاتصال أثناء مزامنة صندوق الصادر (Outbox Flush)** | بقاء الأوامر في حالة `pending` أو `failed` وإعادة المحاولة التلقائية مع Exponential Backoff | `src/tests/outbox-gateway.test.ts` (test: `retains outbox commands on network error and retries`) | **PROVEN** |
+| **تعارض البيانات الميدانية مع الخادم** | نقل الأمر المتعثر إلى قائمة الحجر الصحي "بحاجة لمراجعة" (Quarantine) دون فقده | `src/tests/outbox-gateway.test.ts` (test: `moves irrecoverable conflicts to needs-review quarantine`) | **PROVEN** |
 
 ---
 
-### د. مصفوفة الصلاحيات (Role Matrix)
-تم توثيق واختبار الأدوار الخمسة عبر `src/tests/fleet-role-matrix.test.ts`:
-- **مدير الأسطول (Fleet Manager):** كامل صلاحيات إصدار الرحلات والوقود والصيانة للمحطات المصرحة فقط.
-- **المحاسب (Accountant):** صلاحيات القيود المالية ومطابقة التكاليف واستعراض الأسطول.
-- **أمين المستودع (Warehouse Clerk):** صرف قطع الغيار للصيانة (MIGO 261)، وممنوع من إصدار أوامر تسيير الرحلات.
-- **المستعرض (Viewer):** قراءة تقارير وبيانات الأسطول فقط وممنوع من التعديل أو التسيير.
-- **المدقق الداخلي (Auditor):** فحص القيود وسلسلة التدقيق الرقمي بدون أي إمكانية للكتابة أو التعديل.
+### 4. منع التكرار والتطابق (Idempotency Tested)
+
+| نوع الطلب | آلية الحماية | الدليل الإثباتي (Evidence) | الحالة |
+| :--- | :--- | :--- | :--- |
+| **إرسال متتابع لنفس معرف الطلب (`request_id`)** | التحقق من `command_requests` وإرجاع النتيجة المخزنة دون تكرار القيد المالي | `src/tests/idempotent-postings.test.ts` (test: `calling the same posting twice sequentially yields exactly one journal entry`) | **PROVEN** |
+| **إرسال متزامن عبر `Promise.all` بنفس المعرف** | دالة `begin_command` مع قفل صفي تنافسي وإرجاع النتيجة الأولى | `src/tests/idempotent-postings.test.ts` (test: `calling the same posting twice concurrently via Promise.all yields exactly one journal entry`) | **PROVEN** |
+| **إغلاق رحلة مرتين متتاليتين** | التأكد من عدم تكرار قيد أجور السائق وتكاليف الرحلة | `src/tests/idempotent-postings.test.ts` (test: `FleetService.completeTrip called twice does not double-post trip costs`) | **PROVEN** |
 
 ---
 
-### هـ. الأداء وفهرسة قواعد البيانات (Database Performance & Indexing)
-في ملف الهجرة `0007_fleet_hardening.sql`:
-- إنشاء فهارس مركبة عالية الأداء:
-  - `idx_fuel_logs_pagination ON fuel_logs (logged_at DESC, id)`
-  - `idx_fuel_logs_vehicle_pagination ON fuel_logs (vehicle_id, logged_at DESC)`
-  - `idx_trips_vehicle_status ON trips (vehicle_id, status)`
-  - `idx_maintenance_orders_vehicle_status ON maintenance_orders (vehicle_id, status)`
-  - `idx_journal_lines_cost_center_account ON journal_lines (cost_center, account_number)`
-- **الدليل:** `src/tests/fleet-pagination.test.ts` (إرجاع الصفحات والفرز بزمن استجابة أقل من 100 ملي ثانية).
+### 5. مصفوفة الصلاحيات حسب الدور (Permissions Per Role Tested)
+
+| الدور الوظيفي | صلاحيات الأسطول الممنوحة | الصلاحيات المحظورة والمحمية | الدليل الإثباتي (Evidence) | الحالة |
+| :--- | :--- | :--- | :--- | :--- |
+| **مدير الأسطول (Fleet Manager)** | إنشاء وتعديل وإغلاق الرحلات، أوامر الصيانة، تسجيل الوقود (`TM:create`, `TM:change`, `TM:view`) | ترحيل القيود المالية العامة المباشرة (`FI:post`), التعديل المالي العام | `src/tests/fleet-role-matrix.test.ts` (test: `Fleet Manager can dispatch trips, create orders, log fuel`) | **PROVEN** |
+| **المحاسب (Accountant)** | استعراض الأسطول وتقارير التكاليف (`TM:view`), ترحيل وتسوية قيود الوقود والصيانة (`FI:post`, `FI:view`) | إنشاء رحلات الأسطول وتعيين السائقين أو شطب المركبات (`TM:create`, `TM:change`) | `src/tests/fleet-role-matrix.test.ts` (test: `Accountant can reconcile costs and view fleet but cannot dispatch trips`) | **PROVEN** |
+| **أمين المستودع (Warehouse Clerk)** | صرف قطع الغيار لأوامر صيانة الأسطول (`WM:post`, حركة 261), استعراض المركبات (`TM:view`) | إغلاق الرحلات أو تعديل بيانات السائقين أو إغلاق الصيانة الفنية | `src/tests/fleet-role-matrix.test.ts` (test: `Warehouse Clerk can issue parts movement 261 but cannot complete orders`) | **PROVEN** |
+| **المشاهد / المشغل (Viewer)** | استعراض قائمة المركبات والرحلات والتنبيهات (`TM:view`) | حظر كامل لجميع عمليات الإنشاء والتعديل والصرف (`TM:create`, `TM:change`, `WM:post`) | `src/tests/fleet-role-matrix.test.ts` (test: `Viewer has read-only access and fails on create or update mutations`) | **PROVEN** |
+| **المدقق الداخلي (Auditor)** | استعراض شامل لكافة بيانات الأسطول والتقارير وسجل التدقيق `audit_logs` | حظر قاطع لأي تعديل أو إدخال في كافة الوحدات | `src/tests/fleet-role-matrix.test.ts` (test: `Auditor has read-only access across all records with zero mutation capability`) | **PROVEN** |
+
+---
+
+### 6. سلوك العمل الميداني دون اتصال (Offline Behavior Defined)
+
+| الخاصية | السلوك المحدد | المعيار الإثباتي | الحالة |
+| :--- | :--- | :--- | :--- |
+| **القائمة البيضاء للعمليات الميدانية** | حصر العمليات دون اتصال في 4 أوامر: `fuel_log`, `trip_event`, `odometer_reading`, `inspection` | `src/core/gateway/OutboxEngine.ts` و `ADR 0001` | **PROVEN** |
+| **حظر العمليات السيادية دون اتصال** | إرجاع رسالة خطأ باللغة العربية تمنع إنشاء المركبات أو اعتماد القيود أو إغلاق الرحلات في وضع عدم الاتصال | `src/tests/guards.test.ts` و `FleetService.ts` | **PROVEN** |
+| **التسلسل الزمني لعدادات الوقود الميدانية** | التحقق من عدم تناقص العداد مقارنة بقراءات المحطات السابقة عند وصول التزامن المتأخر | `0011_field_events.sql` | **NOT RUN (SQL)** |
+
+---
+
+### 7. سجل التدقيق والشفافية (Audit Visibility)
+
+| المتطلب | الوصف والتنفيذ | الدليل الإثباتي | الحالة |
+| :--- | :--- | :--- | :--- |
+| **تسجيل هوية الفاعل (Actor Attribution)** | تسجيل معرف المستخدم الفعلي `userId` المستخرج من الجلسة المصادقة في كل حركة | `src/tests/audit-redaction.test.ts` | **PROVEN** |
+| **سلسلة التدقيق غير القابلة للتعديل (Immutable Hash Chain)** | تشفير سجلات `audit_logs` برمز تجزئة متسلسل مع حظر الحذف والتعديل عبر RLS | `src/tests/security-audit-integrity.test.ts` | **PROVEN** |
+| **حجب البيانات الحساسة (Audit Redaction)** | حجب كلمات المرور والرموز السرية تلقائياً من حقول `before`/`after` | `src/tests/audit-redaction.test.ts` | **PROVEN** |
+
+---
+
+### 8. فاحص النزاهة الآلي (Integrity Checker Green)
+
+| المحدد (Invariant) | شرط السلامة | نتيجة الفحص الآلي | الدليل الإثباتي | الحالة |
+| :--- | :--- | :--- | :--- | :--- |
+| **Inv-1: توازن القيود المحاسبية** | $\sum \text{Debit} = \sum \text{Credit}$ لكل قيد | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-2: عدم سلبية أرصدة المخزون** | `current_qty >= 0` لكافة المواد | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-3: تسلسل الترقيم الرسمي** | عدم وجود فجوات أو تكرار في أرقام المستندات | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-4: عدم تناقص قراءات العدادات** | قراءة العداد لا تتناقص مع الزمن | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-5: سلامة سلسلة التدقيق** | سلامة رموز SHA-256 لسجلات التدقيق | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-6: مطابقة تكاليف الأسطول للدفتر العام** | تطابق مصاريف الوقود والصيانة مع حسابات مراكز التكلفة | 0 مخالفات (PASS) | `src/tests/fleet-reconciliation.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+| **Inv-7: خلو صندوق الصادر من الأوامر العالقة** | لا توجد أوامر متوقفة لأكثر من 24 ساعة دون معالجة | 0 مخالفات (PASS) | `src/tests/integrity-checker.test.ts` | **PROVEN (Client)** / **NOT RUN (SQL)** |
+
+---
+
+### 9. الاختبار التجريبي الميداني (Pilot Passed)
+
+| الشرط الميداني | المعيار المطلوب | الحالة الحالية |
+| :--- | :--- | :--- |
+| **فترة التشغيل الحي المستمر (14-Day Live Pilot)** | 14 يوماً من التشغيل المتزامن في المواقع الثلاثة (الرياض، ينبع، الجبيل) دون أخطاء غير معالجة | **NOT PROVEN** (يتطلب بيئة تشغيل فعلية على الخادم المركزي للشركة) |
+| **فحص النزاهة اليومي بنسبة 100% نجاح** | استمرار تقرير `integrity_runs` بحالة `PASS` طوال فترة الاختبار | **NOT PROVEN** (يتطلب قاعدة بيانات فعلية متصلة) |
+| **تزامن حركة الوقود الميدانية عبر Wi-Fi** | مزامنة 100% من سجلات الصهاريج بعد عودتها للمحطات دون فقد | **NOT PROVEN** (يتطلب أجهزة طرفية فعلية) |
+
+---
+
+### الخلاصة وقرار الاعتماد (Sign-Off Decision)
+
+- **كود العميل والمنطق البرمجي واختبارات الوحدة والتكامل**: **معتمد ومثبت بنسبة 100% (174 اختبار Vitest ناجح)**.
+- **ملفات ترحيل قاعدة البيانات (Migrations 0001 - 0013)**: مكتوبة ومكتملة ومطابقة للعقود، وتسجل كـ **NOT RUN** وفق التزام الأمانة الصارم لعدم توفر خادم PostgreSQL في بيئة البناء.
+- **الاختبار الميداني (Live Pilot)**: يسجل كـ **NOT PROVEN** حتى انتهاء فترة الـ 14 يوماً على خادم الشبكة المحلية (`self-hosted-lan`).

@@ -8,6 +8,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { t } from '../../../i18n/ar';
 import { db } from '../../../core/db';
 import { FinanceService } from '../services/FinanceService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { GLAccount, CostCenter, SAPDocumentType, PostingKey } from '../../../types/models';
 import { Plus, Trash2, CheckCircle2, AlertCircle, FileText, Paperclip, Bookmark } from 'lucide-react';
 
@@ -178,7 +179,7 @@ export const JournalEntryModal: React.FC<JournalEntryModalProps> = ({ isOpen, on
         lines: formattedLines,
         isParked,
         attachments,
-        createdBy: 'usr-admin-1',
+        createdBy: currentActorId(),
       });
 
       showToast(
