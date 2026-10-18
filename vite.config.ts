@@ -26,7 +26,7 @@ export const injectCspPlugin: Plugin = {
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: process.env.ELECTRON_BUILD === 'true' ? './' : '/',
     plugins: [react(), tailwindcss(), injectCspPlugin],
     resolve: {
       alias: {

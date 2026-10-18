@@ -19,7 +19,7 @@ export class DependencyGuard {
       case 'purchaseorders':
       case 'purchaseorder':
       case 'po':
-        return [db.purchaseOrders, db.goodsReceipts, db.vendorInvoices, db.contracts, db.auditLogs] as unknown as Table<unknown, string>[];
+        return [db.purchaseOrders, db.goodsReceipts, db.materialDocuments, db.vendorInvoices, db.contracts, db.auditLogs] as unknown as Table<unknown, string>[];
       case 'vendorinvoices':
       case 'vendorinvoice':
       case 'invoice':
