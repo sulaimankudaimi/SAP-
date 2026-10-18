@@ -159,6 +159,7 @@ export interface CostCenter {
   responsiblePerson: string;
   department?: string;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -170,6 +171,7 @@ export interface GLAccount {
   currency: string;
   balance?: number;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -194,6 +196,7 @@ export interface Material {
   weightKg?: number;
   barcode?: string;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -238,6 +241,7 @@ export interface Vendor {
   taxCertExpiryDate?: string;
   isoCertExpiryDate?: string;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -254,6 +258,7 @@ export interface Customer {
   contactPerson?: string;
   paymentTerms?: string;
   status?: 'active' | 'inactive' | 'flagged_for_deletion';
+  version?: number;
   isDeleted: boolean;
 }
 
@@ -539,6 +544,7 @@ export interface Vehicle {
   assignedDriverName?: string;
   plantCode?: string;
   assignedPlant?: string;
+  costCenter?: string;
   safetyInspectionExpiry?: string;
   maintenanceDueOdometer?: number;
   maintenanceDueDate?: string;
@@ -547,6 +553,8 @@ export interface Vehicle {
   lastMaintenanceDate?: string;
   nextMaintenanceOdometer?: number;
   version?: number;
+  createdAt?: string;
+  updatedAt?: string;
   isDeleted: boolean;
 }
 
@@ -564,9 +572,12 @@ export interface Driver {
   certifications?: string[];
   status: 'available' | 'on_trip' | 'vacation' | 'on_leave' | 'suspended';
   assignedPlant?: string;
+  plantCode?: string;
   totalTripsCompleted?: number;
   totalDistanceKm?: number;
   version?: number;
+  createdAt?: string;
+  updatedAt?: string;
   isDeleted: boolean;
 }
 
@@ -624,6 +635,7 @@ export interface FuelAnomalyAlert {
   vehicleId: string;
   vehiclePlate: string;
   fuelLogId: string;
+  driverId?: string;
   date: string;
   liters: number;
   recordedLPer100Km: number;
@@ -633,6 +645,11 @@ export interface FuelAnomalyAlert {
   reasonSummary: string;
   status: 'active' | 'investigated' | 'resolved';
   resolvedNotes?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
   isDeleted: boolean;
 }
 

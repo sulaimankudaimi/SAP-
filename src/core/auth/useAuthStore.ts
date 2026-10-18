@@ -1,7 +1,7 @@
 import { DiagnosticLogger } from '../services/DiagnosticLogger';
 import { create } from 'zustand';
 import type { User, Role, AuthObject } from '../../types/models';
-import type { AuthSession } from '../services/AuthService';
+import { AuthService, type AuthSession } from '../services/AuthService';
 import { RbacService } from '../services/RbacService';
 import { CryptoService } from '../services/crypto';
 import { userRepository, roleRepository } from '../repositories';
@@ -243,73 +243,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (!currentUser) return false;
 
-    // Reload fresh user from DB
-    const dbUser = await userRepository.getById(currentUser.id);
-    if (!dbUser || dbUser.isLocked || dbUser.isDeleted) {
-      get().logout();
-      return false;
-    }
-
-    const authContext = { userId: dbUser.id, userName: dbUser.username };
-
-    // Verify password against stored salt and hash
-    const isValid = await CryptoService.verifyPassword(
-      password,
-      dbUser.passwordSalt,
-      dbUser.passwordHash
-    );
-
-    if (!isValid) {
-      const attempts = (dbUser.failedLoginAttempts || 0) + 1;
-      const isNowLocked = attempts >= 5;
-      const lockedUntil = isNowLocked
-        ? new Date(Date.now() + 15 * 60000).toISOString()
-        : undefined;
-
-      await userRepository.update(
-        dbUser.id,
-        {
-          failedLoginAttempts: attempts,
-          isLocked: isNowLocked,
-          lockedUntil,
-        },
-        authContext
-      );
-
-      if (isNowLocked) {
-        await AuditService.log({
-          action: 'ACCOUNT_LOCKED',
-          entity: 'users',
-          entityId: dbUser.id,
-          userId: dbUser.id,
-          userName: dbUser.username,
-          after: { lockedUntil, reason: 'Max failed unlock attempts reached' },
-        });
+    const unlocked = await AuthService.unlock(currentUser.id, password);
+    if (!unlocked) {
+      const dbUser = await userRepository.getById(currentUser.id);
+      if (dbUser?.isLocked) {
         get().logout();
       }
       return false;
     }
 
-    // Reset failed attempts on success
-    await userRepository.update(
-      dbUser.id,
-      {
-        failedLoginAttempts: 0,
-        isLocked: false,
-      },
-      authContext
-    );
-
-    const role = get().role || (await roleRepository.getById(dbUser.roleId));
-    if (role) {
-      SessionContext.setActor({
-        userId: dbUser.id,
-        username: dbUser.username,
-        role,
+    const freshUser = await userRepository.getById(currentUser.id);
+    if (freshUser) {
+      set({
+        user: freshUser,
+        isAutoLocked: false,
+        lastActivity: Date.now(),
       });
+      const role = get().role || (await roleRepository.getById(freshUser.roleId));
+      if (role) {
+        SessionContext.setActor({
+          userId: freshUser.id,
+          username: freshUser.username,
+          role,
+        });
+      }
+    } else {
+      set({ isAutoLocked: false, lastActivity: Date.now() });
     }
 
-    set({ isAutoLocked: false, lastActivity: Date.now() });
     return true;
   },
 

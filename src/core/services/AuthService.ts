@@ -79,6 +79,76 @@ export class AuthService {
   }
 
   /**
+   * Cryptographic verification with iteration resolution for accounts that may lack passwordIterations.
+   *
+   * Timing Documentation & Residual Difference:
+   * Accounts created by earlier versions without a passwordIterations field execute PBKDF2 with
+   * 100,000 iterations first, and if that fails, 600,000 iterations. This creates an accepted,
+   * residual timing difference for accounts without the field. However, these accounts disappear
+   * immediately after their first successful authentication, because on success the field is explicitly
+   * persisted and the account is transparently upgraded to 600,000 iterations with a fresh cryptographic salt.
+   */
+  static async verifyWithIterationResolution(
+    password: string,
+    user: User
+  ): Promise<{
+    isValid: boolean;
+    matchedIterations: number;
+    wasUndefined: boolean;
+  }> {
+    if (user.passwordIterations !== undefined) {
+      const isValid = await CryptoService.verifyPassword(
+        password,
+        user.passwordSalt,
+        user.passwordHash,
+        user.passwordIterations
+      );
+      return {
+        isValid,
+        matchedIterations: isValid ? user.passwordIterations : 0,
+        wasUndefined: false,
+      };
+    }
+
+    // Account lacks passwordIterations: try 100,000 first
+    const is100kValid = await CryptoService.verifyPassword(
+      password,
+      user.passwordSalt,
+      user.passwordHash,
+      CryptoService.LEGACY_ITERATIONS
+    );
+    if (is100kValid) {
+      return {
+        isValid: true,
+        matchedIterations: CryptoService.LEGACY_ITERATIONS,
+        wasUndefined: true,
+      };
+    }
+
+    // Try 600,000 for accounts hashed with 600k but missing the explicit field
+    const is600kValid = await CryptoService.verifyPassword(
+      password,
+      user.passwordSalt,
+      user.passwordHash,
+      CryptoService.CURRENT_ITERATIONS
+    );
+    if (is600kValid) {
+      return {
+        isValid: true,
+        matchedIterations: CryptoService.CURRENT_ITERATIONS,
+        wasUndefined: true,
+      };
+    }
+
+    // Wrong password for such an account fails after both tries
+    return {
+      isValid: false,
+      matchedIterations: 0,
+      wasUndefined: true,
+    };
+  }
+
+  /**
    * Authenticates user against salted PBKDF2 hash with automatic lockout protection.
    * Issues HMAC-SHA256 signed token.
    * Upgrades legacy fixed salts transparently upon successful login.
@@ -139,21 +209,10 @@ export class AuthService {
       }
     }
 
-    // Timing documentation: Accounts that were created prior to the 600,000 iteration upgrade
-    // execute PBKDF2 with 100,000 iterations until they log in or change their password.
-    // This creates an accepted, transient ~5x timing difference compared to unknown usernames
-    // or upgraded accounts (which run 600,000 iterations). Once migrated or authenticated,
-    // they are automatically upgraded to 600,000 iterations, equalizing timing.
-    const userIterations = user.passwordIterations ?? CryptoService.CURRENT_ITERATIONS;
     await applyFailureThrottle(cleanUsername);
-    const isValid = await CryptoService.verifyPassword(
-      password,
-      user.passwordSalt,
-      user.passwordHash,
-      userIterations
-    );
+    const resolution = await this.verifyWithIterationResolution(password, user);
 
-    if (!isValid) {
+    if (!resolution.isValid) {
       recordFailureInThrottle(cleanUsername);
       const attempts = (user.failedLoginAttempts || 0) + 1;
       const isNowLocked = attempts >= this.MAX_FAILED_ATTEMPTS;
@@ -208,14 +267,15 @@ export class AuthService {
     // Clear throttle record on valid credentials
     clearThrottle(cleanUsername);
 
-    // Check if user has a legacy fixed salt or iterations < 600,000 that needs transparent upgrade
+    // Check if user has a legacy fixed salt or iterations < 600,000 or missing passwordIterations that needs transparent upgrade
     const isLegacySalt = (this.LEGACY_SALTS as readonly string[]).includes(user.passwordSalt);
-    const isLegacyIterations = userIterations < CryptoService.CURRENT_ITERATIONS;
-    const needsUpgrade = isLegacySalt || isLegacyIterations;
+    const isLegacyIterations = resolution.matchedIterations < CryptoService.CURRENT_ITERATIONS;
+    const wasUndefined = resolution.wasUndefined;
+    const needsUpgrade = isLegacySalt || isLegacyIterations || wasUndefined;
 
     let finalSalt = user.passwordSalt;
     let finalHash = user.passwordHash;
-    let finalIterations = userIterations;
+    let finalIterations = resolution.matchedIterations;
 
     if (needsUpgrade) {
       finalSalt = CryptoService.generateSalt();
@@ -253,8 +313,8 @@ export class AuthService {
             userName: user.username,
             after: {
               lastLoginAt: now,
-              saltUpgraded: isLegacySalt,
-              iterationsUpgraded: isLegacyIterations,
+              saltUpgraded: isLegacySalt || (needsUpgrade && finalSalt !== user.passwordSalt),
+              iterationsUpgraded: isLegacyIterations || wasUndefined,
             },
           });
 
@@ -271,7 +331,7 @@ export class AuthService {
             });
           }
 
-          if (isLegacyIterations) {
+          if (isLegacyIterations || wasUndefined) {
             await AuditService.log({
               action: 'UPDATE',
               entity: 'users',
@@ -279,7 +339,9 @@ export class AuthService {
               userId: user.id,
               userName: user.username,
               after: {
-                reason: 'Cryptographic PBKDF2 Iteration Upgrade to 600,000',
+                reason: wasUndefined
+                  ? 'Resolved missing passwordIterations and upgraded to 600,000'
+                  : 'Cryptographic PBKDF2 Iteration Upgrade to 600,000',
               },
             });
           }
@@ -315,6 +377,96 @@ export class AuthService {
   }
 
   /**
+   * Unlocks an inactive or locked screen session by verifying credentials.
+   * Uses verifyWithIterationResolution and upgrades legacy/missing iteration accounts.
+   */
+  static async unlock(userId: string, password: string): Promise<boolean> {
+    const dbUser = await userRepository.getById(userId);
+    if (!dbUser || dbUser.isLocked || dbUser.isDeleted) {
+      return false;
+    }
+
+    const resolution = await this.verifyWithIterationResolution(password, dbUser);
+    const authContext = { userId: dbUser.id, userName: dbUser.username };
+
+    if (!resolution.isValid) {
+      const attempts = (dbUser.failedLoginAttempts || 0) + 1;
+      const isNowLocked = attempts >= this.MAX_FAILED_ATTEMPTS;
+      const lockedUntil = isNowLocked
+        ? new Date(Date.now() + this.LOCKOUT_MINUTES * 60000).toISOString()
+        : undefined;
+
+      await userRepository.update(
+        dbUser.id,
+        {
+          failedLoginAttempts: attempts,
+          isLocked: isNowLocked,
+          lockedUntil,
+          updatedAt: new Date().toISOString(),
+        },
+        authContext
+      );
+
+      if (isNowLocked) {
+        await AuditService.log({
+          action: 'ACCOUNT_LOCKED',
+          entity: 'users',
+          entityId: dbUser.id,
+          userId: dbUser.id,
+          userName: dbUser.username,
+          after: { lockedUntil, reason: 'Max failed unlock attempts reached' },
+        });
+      }
+      return false;
+    }
+
+    // Success: check if upgrade needed
+    const isLegacySalt = (this.LEGACY_SALTS as readonly string[]).includes(dbUser.passwordSalt);
+    const isLegacyIterations = resolution.matchedIterations < CryptoService.CURRENT_ITERATIONS;
+    const needsUpgrade = isLegacySalt || isLegacyIterations || resolution.wasUndefined;
+
+    let finalSalt = dbUser.passwordSalt;
+    let finalHash = dbUser.passwordHash;
+    let finalIterations = resolution.matchedIterations;
+
+    if (needsUpgrade) {
+      finalSalt = CryptoService.generateSalt();
+      finalIterations = CryptoService.CURRENT_ITERATIONS;
+      finalHash = await CryptoService.hashPassword(password, finalSalt, finalIterations);
+    }
+
+    const now = new Date().toISOString();
+    await userRepository.update(
+      dbUser.id,
+      {
+        passwordSalt: finalSalt,
+        passwordHash: finalHash,
+        passwordIterations: finalIterations,
+        failedLoginAttempts: 0,
+        isLocked: false,
+        lockedUntil: undefined,
+        updatedAt: now,
+      },
+      authContext
+    );
+
+    await AuditService.log({
+      action: 'ACCOUNT_UNLOCKED',
+      entity: 'users',
+      entityId: dbUser.id,
+      userId: dbUser.id,
+      userName: dbUser.username,
+      after: {
+        reason: 'User successfully authenticated to unlock session',
+        saltUpgraded: isLegacySalt || (needsUpgrade && finalSalt !== dbUser.passwordSalt),
+        iterationsUpgraded: isLegacyIterations || resolution.wasUndefined,
+      },
+    });
+
+    return true;
+  }
+
+  /**
    * Updates user password and resets mustChangePassword flag.
    * Requires and verifies current password.
    * Enforces 10+ chars, upper, lower, digit, symbol.
@@ -331,15 +483,9 @@ export class AuthService {
       throw new Error('المستخدم غير موجود.');
     }
 
-    // 1. Verify current password in single pass
-    const currentIterations = existingUser.passwordIterations ?? CryptoService.CURRENT_ITERATIONS;
-    const isCurrentValid = await CryptoService.verifyPassword(
-      currentPlainPassword,
-      existingUser.passwordSalt,
-      existingUser.passwordHash,
-      currentIterations
-    );
-    if (!isCurrentValid) {
+    // 1. Verify current password with iteration resolution
+    const resolution = await this.verifyWithIterationResolution(currentPlainPassword, existingUser);
+    if (!resolution.isValid) {
       throw new Error('كلمة المرور الحالية غير صحيحة.');
     }
 

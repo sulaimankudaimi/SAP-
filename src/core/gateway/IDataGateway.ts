@@ -49,6 +49,7 @@ export interface CreateFuelLogCommand {
   currentOdometer: number;
   odometer?: number;
   stationLocation?: string;
+  date?: string;
   occurredAt?: string;
   userId?: string;
   requestId?: string;
@@ -72,6 +73,7 @@ export interface CompleteMaintenanceOrderCommand {
   orderId: string;
   actualLaborHours?: number;
   actualLaborCost?: number;
+  downtimeHours?: number;
   notes?: string;
   completionDate: string;
   userId?: string;
@@ -156,6 +158,7 @@ export interface FuelLogFilters {
   driverId?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
   page?: number;
   pageSize?: number;
 }
@@ -216,7 +219,12 @@ export interface IDataGateway {
   updateDriver?(id: string, updates: Partial<Driver>, expectedVersion?: number, requestId?: string): Promise<Driver>;
   setDriverActive?(id: string, isActive: boolean, expectedVersion?: number, requestId?: string): Promise<Driver>;
   createMaintenanceOrder?(order: Partial<MaintenanceOrder>): Promise<MaintenanceOrder>;
-  resolveFuelAnomalyAlert?(id: string, notes: string): Promise<void>;
+  resolveFuelAnomalyAlert?(
+    id: string,
+    notes?: string,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<void>;
 
   // Fleet Query Methods
   getVehicles(filters?: VehicleFilters): Promise<Vehicle[]>;
