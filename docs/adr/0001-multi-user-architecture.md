@@ -186,3 +186,11 @@ To ensure absolute operational safety and minimize organizational risk, the mult
   5. **F5 (Privilege Leakage & Authorization Fail-Closed)**: Revoked execute on public schema from `PUBLIC` and `anon`; tightened `has_permission` to fail closed if `must_change_password = true` or `p_plant` is NULL with restricted scopes; added `complete_password_change` RPC in `0009_idempotency_security.sql`.
   6. **F6 (Role Drift Prevention)**: Built `scripts/generate-roles-sql.ts` to deterministically synchronize `SYSTEM_ROLES` to `0013_roles_sync.sql`, safeguarded by `roles-sync.test.ts`.
   7. **F7 (Optional pg_cron Resilience)**: Wrapped `0008_integrity_runs_scheduled.sql` in a safe `DO` block with exception fallback when `pg_cron` is uninstalled.
+
+- **Date**: 2026-10-18
+- **Context**: Post-review server-side gap rectifications addressing defects S1-S5 in migration `0014_client_contract_fixes.sql`:
+  1. **S1 & S2 (Fuel Anomaly Alerts Lifecycle & Column Normalization)**: Upgraded `fuel_anomaly_alerts` with lifecycle tracking columns (`resolved_at`, `resolved_by`, `updated_at`, `version`) and added deprecation comments on camelCase legacy columns. Implemented server-authoritative command `resolve_fuel_anomaly` with `begin_command` idempotency, vehicle plant permission enforcement, OCC version bumping, and audit logging.
+  2. **S3 (Realtime Publication Enrollment)**: Added an idempotent `DO` block enrolling all core fleet tables (`vehicles`, `drivers`, `trips`, `fuel_logs`, `maintenance_orders`, `preventive_schedules`, `fuel_anomaly_alerts`) into `supabase_realtime` publication.
+  3. **S4 (Static Migration & Contract Linting)**: Implemented automated static verification test `migrations-lint.test.ts` enforcing contiguous migration numbering, zero PostgREST function overloads, explicit authenticated grants for all client-invoked RPCs, table/view presence for all `.from()` calls, universal RLS enforcement, and complete isolation of elevated roles.
+  4. **S5 (Immutability Policy on Operational Documents)**: Enforced architectural invariant that operational documents and ledgers (`trips`, `fuel_logs`, `maintenance_orders`) never possess `is_deleted` flags and are strictly immutable; added official database comments mandating status-based filtering and cancellation workflows.
+
