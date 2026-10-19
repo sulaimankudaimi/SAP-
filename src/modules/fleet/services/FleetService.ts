@@ -18,7 +18,10 @@ import type {
   MaintenanceOrder,
   MaintenancePartItem,
   PreventiveSchedule,
+  FleetSummaryKPIs,
 } from '../../../types/models';
+
+export type { FleetSummaryKPIs };
 
 export interface VehicleCostReport {
   vehicleId: string;
@@ -879,16 +882,16 @@ export class FleetService {
           id: `anom-${Date.now()}`,
           vehicleId: vehicle.id,
           vehiclePlate: vehicle.plateNumber,
+          fuelLogId: '',
           driverId: driver.id,
-          driverName: driver.name,
-          logDate: input.date,
-          fuelQuantityLiters: input.quantityLiters,
-          distanceSinceLastFuelKm: distance,
-          calculatedConsumptionLPer100Km,
-          baselineConsumptionLPer100Km: baselineRate,
-          deviationPct,
+          date: input.date,
+          liters: input.quantityLiters,
+          recordedLPer100Km: calculatedConsumptionLPer100Km,
+          averageLPer100Km: baselineRate,
+          deviationPercentage: deviationPct,
+          severity: deviationPct > 50 ? 'critical' : 'warning',
+          reasonSummary: `انحراف في معدل استهلاك الوقود يتجاوز الحد المسموح بنسبة (${deviationPct}%) مقارنة بالمعدل المعياري`,
           status: 'active',
-          alertReason: `انحراف في معدل استهلاك الوقود يتجاوز الحد المسموح بنسبة (${deviationPct}%) مقارنة بالمعدل المعياري`,
           createdAt: new Date().toISOString(),
           isDeleted: false,
         };
@@ -923,7 +926,7 @@ export class FleetService {
         costPerLiter: input.costPerLiter,
         totalCost,
         odometer: input.odometer,
-        calculatedConsumptionLPer100Km,
+        calculatedConsumptionPer100Km: calculatedConsumptionLPer100Km,
         stationName: input.stationName,
         status: 'approved',
         createdBy: actorId,
@@ -935,6 +938,7 @@ export class FleetService {
       await db.fuelLogs.add(fuelLog);
 
       if (anomalyAlert) {
+        anomalyAlert.fuelLogId = fuelLog.id;
         await db.fuelAnomalyAlerts.add(anomalyAlert);
       }
 

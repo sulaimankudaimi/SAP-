@@ -5,6 +5,7 @@ import type {
   Driver,
   FuelLog,
   MaintenanceOrder,
+  MaintenancePartItem,
   PreventiveSchedule,
   FuelAnomalyAlert,
   ExpiryAlert,
@@ -56,17 +57,23 @@ export class LocalDexieGateway implements IDataGateway {
   }
 
   async createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog> {
+    const liters = cmd.liters ?? cmd.quantityLiters ?? 0;
+    const costPerLiter = cmd.costPerLiter ?? (liters > 0 && cmd.cost ? cmd.cost / liters : 1.15);
+    const odometer = cmd.odometer ?? cmd.currentOdometer ?? 0;
+    const date = cmd.date ?? cmd.occurredAt ?? new Date().toISOString().split('T')[0];
+    const stationName = cmd.stationName ?? cmd.stationLocation ?? cmd.vendorName ?? 'محطة المحروقات';
+    const fuelType = (cmd.fuelType as 'Diesel' | 'Gasoline91' | 'Gasoline95') || 'Diesel';
+
     const res = await FleetService.createFuelLog(
       {
         vehicleId: cmd.vehicleId,
-        driverId: cmd.driverId,
-        liters: cmd.liters,
-        cost: cmd.cost,
-        fuelType: cmd.fuelType,
-        vendorName: cmd.vendorName,
-        invoiceNumber: cmd.invoiceNumber,
-        currentOdometer: cmd.currentOdometer,
-        stationLocation: cmd.stationLocation,
+        driverId: cmd.driverId || 'DRV-UNKNOWN',
+        date,
+        fuelType,
+        quantityLiters: liters,
+        costPerLiter,
+        odometer,
+        stationName,
       },
       cmd.userId
     );
@@ -76,9 +83,20 @@ export class LocalDexieGateway implements IDataGateway {
   async issuePartsToMaintenanceOrder(
     cmd: IssuePartsCommand
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
+    const parts: MaintenancePartItem[] = (cmd.items || []).map((item, index) => ({
+      lineItem: index + 1,
+      materialCode: item.materialCode,
+      materialName: item.materialCode,
+      quantity: item.quantity,
+      unit: 'EA',
+      unitPrice: 0,
+      totalCost: 0,
+      storageLocation: item.storageLocationCode || 'SL01',
+    }));
     return await FleetService.issuePartsToMaintenanceOrder(
       cmd.orderId,
-      cmd.items,
+      parts,
+      cmd.items?.[0]?.plantCode || '1100',
       cmd.userId
     );
   }
@@ -87,9 +105,9 @@ export class LocalDexieGateway implements IDataGateway {
     return await FleetService.completeMaintenanceOrder(
       cmd.orderId,
       {
-        actualLaborHours: cmd.actualLaborHours,
-        actualLaborCost: cmd.actualLaborCost,
-        notes: cmd.notes,
+        laborHours: cmd.actualLaborHours ?? 0,
+        laborRatePerHour: cmd.actualLaborCost && cmd.actualLaborHours ? cmd.actualLaborCost / cmd.actualLaborHours : undefined,
+        downtimeHours: cmd.downtimeHours ?? 0,
         completionDate: cmd.completionDate,
       },
       cmd.userId
@@ -97,25 +115,27 @@ export class LocalDexieGateway implements IDataGateway {
   }
 
   async postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }> {
-    const je = await FinanceService.createJournalEntry(
-      {
-        headerText: cmd.headerText,
-        companyCode: cmd.companyCode,
-        documentType: (cmd.documentType as import('../../types/models').DocumentType) || 'SA',
-        documentDate: cmd.documentDate,
-        postingDate: cmd.postingDate,
-        reference: cmd.reference,
-        lines: cmd.lines.map((l) => ({
-          accountNumber: l.accountNumber,
-          accountName: l.accountName,
-          debit: l.debit,
-          credit: l.credit,
-          costCenter: l.costCenter,
-          lineText: l.lineText,
-        })),
-      },
-      cmd.userId
-    );
+    const postDate = cmd.postingDate || new Date().toISOString().split('T')[0];
+    const dateObj = new Date(postDate);
+    const je = await FinanceService.createJournalEntry({
+      headerText: cmd.headerText,
+      companyCode: cmd.companyCode || '1000',
+      fiscalYear: cmd.fiscalYear || dateObj.getFullYear().toString(),
+      period: cmd.period || dateObj.getMonth() + 1,
+      documentType: 'SA',
+      documentDate: cmd.documentDate || postDate,
+      postingDate: postDate,
+      reference: cmd.reference,
+      createdBy: cmd.userId || 'system',
+      lines: cmd.lines.map((l) => ({
+        accountNumber: l.accountNumber,
+        accountName: l.accountName,
+        debit: l.debit,
+        credit: l.credit,
+        costCenter: l.costCenter,
+        lineText: l.lineText,
+      })),
+    });
     return { docNumber: je.docNumber, jeId: je.id };
   }
 
@@ -138,7 +158,7 @@ export class LocalDexieGateway implements IDataGateway {
 
   // Master Data Commands
   async createVehicle(vehicle: Partial<Vehicle>): Promise<Vehicle> {
-    return await FleetService.createVehicle(vehicle);
+    return await FleetService.createVehicle(vehicle as Omit<Vehicle, 'id' | 'isDeleted'>);
   }
 
   async updateVehicle(id: string, updates: Partial<Vehicle>, expectedVersion?: number): Promise<Vehicle> {
@@ -150,7 +170,7 @@ export class LocalDexieGateway implements IDataGateway {
   }
 
   async createDriver(driver: Partial<Driver>): Promise<Driver> {
-    return await FleetService.createDriver(driver);
+    return await FleetService.createDriver(driver as Omit<Driver, 'id' | 'isDeleted'>);
   }
 
   async updateDriver(id: string, updates: Partial<Driver>, expectedVersion?: number): Promise<Driver> {
@@ -226,11 +246,12 @@ export class LocalDexieGateway implements IDataGateway {
       }
       if (filtersOrVehicleId.search) {
         const s = filtersOrVehicleId.search.toLowerCase();
-        collection = collection.filter(
-          (f) =>
+        collection = collection.filter((f) =>
+          Boolean(
             (f.vehiclePlate && f.vehiclePlate.toLowerCase().includes(s)) ||
-            (f.stationName && f.stationName.toLowerCase().includes(s)) ||
-            (f.driverName && f.driverName.toLowerCase().includes(s))
+              (f.stationName && f.stationName.toLowerCase().includes(s)) ||
+              (f.driverName && f.driverName.toLowerCase().includes(s))
+          )
         );
       }
     }
@@ -278,7 +299,7 @@ export class LocalDexieGateway implements IDataGateway {
   }
 
   async getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]> {
-    let collection = db.preventiveSchedules.filter((s) => s.isActive);
+    let collection = db.preventiveSchedules.filter((s) => !s.isDeleted);
     if (vehicleId) {
       collection = collection.filter((s) => s.vehicleId === vehicleId);
     }
@@ -310,12 +331,12 @@ export class LocalDexieGateway implements IDataGateway {
       const fuel = await db.fuelLogs
         .filter((f) => !f.isDeleted && vehicleIds.includes(f.vehicleId))
         .toArray();
-      const totalFuel = fuel.reduce((acc, f) => acc + (f.cost || 0), 0);
+      const totalFuel = fuel.reduce((acc, f) => acc + (f.totalCost || 0), 0);
 
       const orders = await db.maintenanceOrders
         .filter((m) => !m.isDeleted && vehicleIds.includes(m.vehicleId) && m.status === 'completed')
         .toArray();
-      const totalMaintenance = orders.reduce((acc, o) => acc + (o.totalCost || 0), 0);
+      const totalMaintenance = orders.reduce((acc, o) => acc + (o.actualCost || 0), 0);
 
       const trips = await db.trips
         .filter((t) => !t.isDeleted && vehicleIds.includes(t.vehicleId) && t.status === 'completed')

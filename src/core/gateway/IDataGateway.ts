@@ -41,14 +41,17 @@ export interface CompleteTripCommand {
 export interface CreateFuelLogCommand {
   vehicleId: string;
   driverId?: string;
-  liters: number;
-  cost: number;
+  liters?: number;
+  quantityLiters?: number;
+  cost?: number;
+  costPerLiter?: number;
   fuelType: string;
-  vendorName: string;
+  vendorName?: string;
   invoiceNumber?: string;
-  currentOdometer: number;
+  currentOdometer?: number;
   odometer?: number;
   stationLocation?: string;
+  stationName?: string;
   date?: string;
   occurredAt?: string;
   userId?: string;

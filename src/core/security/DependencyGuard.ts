@@ -411,13 +411,16 @@ export class DependencyGuard {
         const contract = await db.contracts.get(id);
         if (!contract || contract.isDeleted) return { canDelete: true, blockingReferences: [] };
 
-        const pos = await db.purchaseOrders.where('contractNumber').equals(contract.contractNumber).filter((p) => !p.isDeleted).count();
+        const contractNum = (contract.contractNumber as string | undefined) || contract.docNumber || '';
+        const pos = contractNum
+          ? await db.purchaseOrders.where('contractNumber').equals(contractNum).filter((p) => !p.isDeleted).count()
+          : 0;
         if (pos > 0) blockingReferences.push(`أوامر شراء مرتبطة بالعقد: ${pos}`);
 
         if (blockingReferences.length > 0) {
           return {
             canDelete: false,
-            reason: `لا يمكن حذف العقد [${contract.contractNumber}] لوجود أوامر شراء مسجلة:\n${blockingReferences.join('، ')}`,
+            reason: `لا يمكن حذف العقد [${contractNum}] لوجود أوامر شراء مسجلة:\n${blockingReferences.join('، ')}`,
             blockingReferences,
           };
         }

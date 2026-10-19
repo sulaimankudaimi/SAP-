@@ -63,11 +63,9 @@ export const fuelLogPayloadSchema = z
 export const tripEventPayloadSchema = z.object({
   tripId: z.string().min(1, 'معرف الرحلة مطلوب'),
   vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
-  eventType: z.enum(['departed', 'arrived', 'delayed', 'incident'], {
-    errorMap: () => ({ message: 'نوع الحدث التشغيلي غير مدعوم' }),
-  }),
+  eventType: z.enum(['departed', 'arrived', 'delayed', 'incident'] as [string, ...string[]]),
   occurredAt: z.string().min(1, 'وقت وقوع الحدث مطلوب'),
-  payload: z.record(z.unknown()).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const odometerReadingPayloadSchema = z.object({
@@ -80,11 +78,9 @@ export const odometerReadingPayloadSchema = z.object({
 export const inspectionPayloadSchema = z.object({
   vehicleId: z.string().min(1, 'معرف المركبة مطلوب'),
   inspectedAt: z.string().min(1, 'تاريخ وتوقيت الفحص مطلوب'),
-  result: z.enum(['pass', 'fail', 'warning'], {
-    errorMap: () => ({ message: 'نتيجة الفحص غير صالحة' }),
-  }),
+  result: z.enum(['pass', 'fail', 'warning'] as [string, ...string[]]),
   notes: z.string().optional(),
-  checklist: z.record(z.unknown()).optional(),
+  checklist: z.record(z.string(), z.unknown()).optional(),
 });
 
 export function validatePayload(
@@ -343,17 +339,17 @@ export class OutboxEngine {
     switch (cmd.type) {
       case 'fuel_log': {
         await gateway.createFuelLog({
-          vehicleId: payload.vehicleId,
-          driverId: payload.driverId,
-          liters: payload.liters,
-          cost: payload.cost,
-          fuelType: payload.fuelType,
-          vendorName: payload.vendorName || payload.stationLocation || 'محطة المحروقات',
-          invoiceNumber: payload.invoiceNumber as string | undefined,
-          currentOdometer: payload.currentOdometer as number,
-          odometer: payload.currentOdometer as number,
-          stationLocation: payload.stationLocation as string | undefined,
-          occurredAt: payload.occurredAt || cmd.createdAt,
+          vehicleId: String(payload.vehicleId),
+          driverId: payload.driverId ? String(payload.driverId) : undefined,
+          liters: Number(payload.liters || 0),
+          cost: Number(payload.cost || 0),
+          fuelType: String(payload.fuelType || 'Diesel'),
+          vendorName: String(payload.vendorName || payload.stationLocation || 'محطة المحروقات'),
+          invoiceNumber: payload.invoiceNumber ? String(payload.invoiceNumber) : undefined,
+          currentOdometer: Number(payload.currentOdometer || 0),
+          odometer: Number(payload.currentOdometer || 0),
+          stationLocation: payload.stationLocation ? String(payload.stationLocation) : undefined,
+          occurredAt: String(payload.occurredAt || cmd.createdAt),
           requestId: cmd.id, // Reuses exact request_id for idempotency
         });
         break;
@@ -362,11 +358,11 @@ export class OutboxEngine {
       case 'trip_event': {
         await gateway.recordTripEvent({
           requestId: cmd.id,
-          tripId: payload.tripId,
-          vehicleId: payload.vehicleId,
-          eventType: payload.eventType,
-          occurredAt: payload.occurredAt || cmd.createdAt,
-          payload: payload.payload || {},
+          tripId: String(payload.tripId),
+          vehicleId: String(payload.vehicleId),
+          eventType: payload.eventType as 'arrived' | 'delayed' | 'departed' | 'incident',
+          occurredAt: String(payload.occurredAt || cmd.createdAt),
+          payload: (payload.payload as Record<string, unknown>) || {},
         });
         break;
       }
@@ -374,10 +370,10 @@ export class OutboxEngine {
       case 'odometer_reading': {
         await gateway.recordOdometerReading({
           requestId: cmd.id,
-          vehicleId: payload.vehicleId,
-          readingKm: payload.readingKm,
-          capturedAt: payload.capturedAt || cmd.createdAt,
-          source: payload.source || 'driver_check_in',
+          vehicleId: String(payload.vehicleId),
+          readingKm: Number(payload.readingKm || 0),
+          capturedAt: String(payload.capturedAt || cmd.createdAt),
+          source: String(payload.source || 'driver_check_in'),
         });
         break;
       }
@@ -385,11 +381,11 @@ export class OutboxEngine {
       case 'inspection': {
         await gateway.recordInspection({
           requestId: cmd.id,
-          vehicleId: payload.vehicleId,
-          inspectedAt: payload.inspectedAt || cmd.createdAt,
-          result: payload.result,
-          notes: payload.notes,
-          checklist: payload.checklist || {},
+          vehicleId: String(payload.vehicleId),
+          inspectedAt: String(payload.inspectedAt || cmd.createdAt),
+          result: payload.result as 'fail' | 'pass' | 'warning',
+          notes: payload.notes ? String(payload.notes) : undefined,
+          checklist: (payload.checklist as Record<string, unknown>) || {},
         });
         break;
       }

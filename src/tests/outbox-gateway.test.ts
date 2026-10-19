@@ -77,7 +77,7 @@ describe('ServerGateway, Offline Outbox, and Multi-User Guard Suite', () => {
       createFuelLog: vi.fn().mockImplementation(async (cmd: CreateFuelLogCommand) => {
         executionLog.push({
           vehicleId: cmd.vehicleId,
-          logSeq: cmd.odometer,
+          logSeq: cmd.odometer ?? cmd.currentOdometer ?? 0,
         });
         return { id: cmd.requestId || 'mock-id' } as unknown as import('../types/models').FuelLog;
       }),

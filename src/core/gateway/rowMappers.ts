@@ -247,7 +247,9 @@ export function mapTripRow(row: Record<string, unknown>): Trip {
     createdAt: coerceIsoDate(row.created_at ?? row.createdAt),
     createdBy: coerceString(row.created_by ?? row.createdBy),
     updatedAt: coerceIsoDate(row.updated_at ?? row.updatedAt),
+    updatedBy: coerceString(row.updated_by ?? row.updatedBy, 'system'),
     version: coerceNumber(row.version, 1),
+    isDeleted: false,
   };
 }
 
@@ -363,7 +365,9 @@ export function mapMaintenanceOrderRow(row: Record<string, unknown>): Maintenanc
     createdAt: coerceIsoDate(row.created_at ?? row.createdAt),
     createdBy: coerceString(row.created_by ?? row.createdBy),
     updatedAt: coerceIsoDate(row.updated_at ?? row.updatedAt),
+    updatedBy: coerceString(row.updated_by ?? row.updatedBy, 'system'),
     version: coerceNumber(row.version, 1),
+    isDeleted: false,
   };
 }
 
