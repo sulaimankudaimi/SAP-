@@ -8,6 +8,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   ArrowUpRight,
   ArrowRightLeft,
@@ -181,7 +182,7 @@ export const GoodsIssueModal: React.FC<GoodsIssueModalProps> = ({
             scrapReason: movementType === '551' ? scrapReason : undefined,
           },
         ],
-        userId: user?.id || 'u-wh-clerk',
+        userId: user?.id || currentActorId(),
         userName: user?.fullName || 'أمين المستودع',
       });
 

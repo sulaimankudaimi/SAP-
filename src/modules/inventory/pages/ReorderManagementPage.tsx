@@ -7,8 +7,8 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
-import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { GoodsIssueModal } from '../components/GoodsIssueModal';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import {
@@ -90,7 +90,7 @@ export const ReorderManagementPage: React.FC = () => {
     try {
       const pr = await InventoryService.convertAlertToPurchaseRequisition(
         alertId,
-        user?.id || 'u-wh-clerk',
+        user?.id || currentActorId(),
         user?.fullName || 'أمين المستودع'
       );
       success(
@@ -125,7 +125,7 @@ export const ReorderManagementPage: React.FC = () => {
         startingPrice: auctionStartingPrice,
         reservePrice: auctionReservePrice,
         condition: auctionCondition,
-        userId: user?.id || 'u-wh-clerk',
+        userId: user?.id || currentActorId(),
       });
 
       success('تم طرح الصنف في المزاد بنجاح', `رقم المرجع: ${auc.auctionReference}`);

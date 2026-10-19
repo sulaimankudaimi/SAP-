@@ -5,8 +5,8 @@ import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
 import { ReportCatalogService } from '../services/ReportCatalogService';
 import { ExportService } from '../services/ExportService';
-import { useToast } from '../../../components/ui/Toast';
 import type { ReportDefinition } from '../../../types/models';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   FileSpreadsheet,
   Printer,
@@ -141,7 +141,7 @@ export const ReportRunnerView: React.FC<ReportRunnerViewProps> = ({
         data: sortedRows,
         totals,
         notes: snapshotNotes,
-        userId: 'usr-admin-1',
+        userId: currentActorId(),
       });
       toast({ title: 'تم حفظ اللقطة الدورية للتقرير بنجاح في قاعدة البيانات', type: 'success' });
       setIsSnapshotModalOpen(false);

@@ -43,6 +43,8 @@ import type {
   PreventiveSchedule,
   Setting,
 } from '../types/models';
+
+export const SEED_ACTOR_ID = 'seed-system-actor';
 import type { StatusVariant } from '../types';
 import { FinanceService } from '../modules/finance/services/FinanceService';
 

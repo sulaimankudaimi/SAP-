@@ -9,6 +9,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   FileText,
   Boxes,
@@ -188,7 +189,7 @@ export const GoodsReceiptModal: React.FC<GoodsReceiptModalProps> = ({
           serialNumber: it.serialNumber,
           qualityInspection: it.qualityInspection,
         })),
-        userId: user?.id || 'u-wh-clerk',
+        userId: user?.id || currentActorId(),
         userName: user?.fullName || 'أمين المستودع',
       });
 

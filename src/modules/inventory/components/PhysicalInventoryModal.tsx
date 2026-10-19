@@ -9,6 +9,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -80,7 +81,7 @@ export const PhysicalInventoryModal: React.FC<PhysicalInventoryModalProps> = ({
         storageLocation,
         freezeMovements,
         abcClassFilter,
-        userId: user?.id || 'u-wh-clerk',
+        userId: user?.id || currentActorId(),
       });
 
       setWorkingDoc(doc);
@@ -112,7 +113,7 @@ export const PhysicalInventoryModal: React.FC<PhysicalInventoryModalProps> = ({
       const updated = await InventoryService.savePhysicalInventoryCounts(
         workingDoc.id,
         payload,
-        user?.id || 'u-wh-clerk'
+        user?.id || currentActorId()
       );
 
       setWorkingDoc(updated);
@@ -133,7 +134,7 @@ export const PhysicalInventoryModal: React.FC<PhysicalInventoryModalProps> = ({
     try {
       const res = await InventoryService.postPhysicalInventoryDifferences(
         workingDoc.id,
-        user?.id || 'u-wh-clerk',
+        user?.id || currentActorId(),
         user?.fullName || 'أمين المستودع'
       );
 

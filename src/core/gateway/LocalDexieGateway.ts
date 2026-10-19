@@ -255,7 +255,9 @@ export class LocalDexieGateway implements IDataGateway {
         );
       }
     }
-    return await collection.reverse().sortBy('date');
+    const items = await collection.toArray();
+    items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return items;
   }
 
   async getPaginatedFuelLogs(filters: FuelLogFilters): Promise<PaginatedResult<FuelLog>> {

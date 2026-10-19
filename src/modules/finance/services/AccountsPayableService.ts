@@ -466,9 +466,10 @@ export class AccountsPayableService {
   static async cancelInvoice(
     invoiceId: string,
     reason: string,
-    userId: string = 'admin',
+    userId?: string,
     expectedVersion?: number
   ): Promise<{ invoice: VendorInvoice; reversalDocNumber: string }> {
+    const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'FI', activity: 'reverse' });
     if (!reason || reason.trim().length === 0) {
       throw new Error('سبب الإلغاء والعكس إلزامي.');

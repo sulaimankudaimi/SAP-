@@ -7,6 +7,7 @@ import { db } from '../../../core/db';
 import { ThreeWayMatchService, MatchResult } from '../services/ThreeWayMatchService';
 import type { VendorInvoice, PurchaseOrder, GoodsReceipt } from '../../../types/models';
 import { CheckCircle2, AlertTriangle, Unlock, ArrowRightLeft, FileCheck, Layers } from 'lucide-react';
+import { currentActorId } from '../../../core/security/SessionContext';
 
 interface ThreeWayMatchModalProps {
   invoice: VendorInvoice | null;
@@ -62,7 +63,7 @@ export const ThreeWayMatchModal: React.FC<ThreeWayMatchModalProps> = ({
 
     setIsReleasing(true);
     try {
-      await ThreeWayMatchService.releaseBlockedInvoice(invoice.id, releaseReason, 'usr-cfo-1');
+      await ThreeWayMatchService.releaseBlockedInvoice(invoice.id, releaseReason, currentActorId());
       showToast('تم فك حظر الفاتورة بنجاح وأصبحت معتمدة للصرف في مقترحات السداد.', 'success');
       setShowReleaseBox(false);
       if (onReleased) onReleased();

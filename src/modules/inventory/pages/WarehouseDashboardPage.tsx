@@ -14,8 +14,8 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { DonutChart } from '../../../components/ui/DonutChart';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
-import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import {
   Warehouse,
   Boxes,
@@ -199,7 +199,7 @@ export const WarehouseDashboardPage: React.FC = () => {
     try {
       const pr = await InventoryService.convertAlertToPurchaseRequisition(
         alertId,
-        user?.id || 'u-wh-clerk',
+        user?.id || currentActorId(),
         user?.fullName || 'أمين المستودع'
       );
       success('تم إنشاء طلب الشراء بنجاح', `رقم مستند طلب الشراء: ${pr.docNumber}`);

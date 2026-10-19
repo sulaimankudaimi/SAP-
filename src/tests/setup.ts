@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, vi } from 'vitest';
 import { db } from '../core/db';
 import { SessionContext } from '../core/security/SessionContext';
+import { _resetThrottleMapForTesting } from '../core/services/AuthService';
 
 // In-memory localStorage/sessionStorage stub
 const createStorageStub = () => {
@@ -39,6 +40,7 @@ if (typeof window !== 'undefined') {
 }
 
 beforeEach(async () => {
+  _resetThrottleMapForTesting();
   SessionContext.clearActor();
   try {
     if (typeof localStorage !== 'undefined') {
