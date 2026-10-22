@@ -230,7 +230,7 @@ export const READ_SPECS = {
     // Filter by status vocabulary; NO is_resolved column exists
     filters: [
       ['is_deleted', 'eq', false],
-      ['status', 'eq', 'active'],
+      ['status', 'in', ['active', 'investigated']],
     ],
     order: [['date', 'desc']],
   },

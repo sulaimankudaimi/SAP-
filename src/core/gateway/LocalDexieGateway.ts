@@ -34,6 +34,8 @@ import type {
 } from './IDataGateway';
 import { FleetService } from '../../modules/fleet/services/FleetService';
 import { FinanceService } from '../../modules/finance/services/FinanceService';
+import { ConcurrencyError } from '../errors';
+import { SessionContext } from '../security/SessionContext';
 
 export class LocalDexieGateway implements IDataGateway {
   readonly mode = 'local' as const;
@@ -179,6 +181,29 @@ export class LocalDexieGateway implements IDataGateway {
 
   async setDriverActive(id: string, isActive: boolean, expectedVersion?: number): Promise<Driver> {
     return await FleetService.setDriverActive(id, isActive, undefined, expectedVersion);
+  }
+
+  async resolveFuelAnomalyAlert(
+    id: string,
+    notes?: string,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<void> {
+    const alert = await db.fuelAnomalyAlerts.get(id);
+    if (!alert) {
+      throw new Error('تنبيه الوقود غير موجود');
+    }
+    if (expectedVersion !== undefined && alert.version !== undefined && alert.version !== expectedVersion) {
+      throw new ConcurrencyError('تعارض في التعديل المتزامن للتنبيه');
+    }
+    const actorId = SessionContext.currentActorId();
+    await db.fuelAnomalyAlerts.update(id, {
+      status: 'resolved',
+      resolvedBy: actorId,
+      resolvedAt: new Date().toISOString(),
+      resolvedNotes: notes || 'تمت التسوية',
+      version: (alert.version || 1) + 1,
+    });
   }
 
   // Query Methods (Backed by Local Dexie Tables)

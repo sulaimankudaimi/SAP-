@@ -76,13 +76,18 @@ export const FuelManagementPage: React.FC = () => {
     loadData(1);
   }, [pageSize, searchQuery]);
 
-  const handleResolveAlert = async (alertId: string) => {
+  const handleResolveAlert = async (alert: FuelAnomalyAlert) => {
     try {
-      await FleetService.resolveFuelAnomalyAlert(alertId, 'تم التحقق من تقرير السائق والورشة واعتماد الاستهلاك');
+      await FleetService.resolveFuelAnomalyAlert(
+        alert.id,
+        'تم التحقق من تقرير السائق والورشة واعتماد الاستهلاك',
+        undefined,
+        alert.version
+      );
       success('تم بنجاح', 'تمت تسوية تنبيه الشذوذ في الوقود');
       loadData(currentPage);
     } catch (err) {
-      error('خطأ', 'تعذر تسوية التنبيه');
+      error('خطأ', err instanceof Error ? err.message : 'تعذر تسوية التنبيه');
     }
   };
 
@@ -402,7 +407,7 @@ export const FuelManagementPage: React.FC = () => {
                           size="sm"
                           variant="secondary"
                           icon={<CheckCircle2 className="w-3.5 h-3.5 text-[#0FA37F]" />}
-                          onClick={() => handleResolveAlert(a.id)}
+                          onClick={() => handleResolveAlert(a)}
                         >
                           اعتماد وتسوية
                         </Button>

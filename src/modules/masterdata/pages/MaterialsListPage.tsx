@@ -19,6 +19,7 @@ import {
 import { db } from '../../../core/db';
 import { materialRepository, materialGroupRepository, unitRepository } from '../../../core/repositories';
 import { MasterDataService } from '../services/MasterDataService';
+import { currentActorId } from '../../../core/security/SessionContext';
 import type { Material, MaterialGroup, UnitOfMeasure } from '../../../types/models';
 import { DataTable } from '../../../components/ui/DataTable';
 import { Button } from '../../../components/ui/Button';
@@ -155,7 +156,7 @@ export const MaterialsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await materialRepository.create(newMaterial, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await materialRepository.create(newMaterial, user?.id || currentActorId(), user?.fullName || 'مدير النظام');
 
       showToast({
         title: 'تم إنشاء الصنف بنجاح',
@@ -214,9 +215,7 @@ export const MaterialsListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           'materials',
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تعطيل الصنف بنجاح',
@@ -224,7 +223,7 @@ export const MaterialsListPage: React.FC = () => {
           type: 'info',
         });
       } else {
-        await materialRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await materialRepository.delete(deleteTarget.id, user?.id || currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم حذف الصنف',
           message: `تمت إزالة الصنف [${deleteTarget.materialCode}] من قاعدة البيانات.`,

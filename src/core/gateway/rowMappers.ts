@@ -492,6 +492,109 @@ export function mapCostCenterReconciliationRow(row: Record<string, unknown>): Co
 }
 
 // ----------------------------------------------------------------------------
+// 9. Server Auth Mappers (profiles, roles, role_permissions)
+// ----------------------------------------------------------------------------
+
+export interface ServerProfile {
+  userId: string;
+  username: string;
+  fullName: string;
+  roleCode: string;
+  plantCodes?: string[];
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const PROFILE_FIELD_MAP = {
+  userId: { kind: 'column', column: 'user_id' },
+  username: { kind: 'column', column: 'username' },
+  fullName: { kind: 'column', column: 'full_name' },
+  roleCode: { kind: 'column', column: 'role_code' },
+  plantCodes: { kind: 'column', column: 'plant_codes' },
+  isActive: { kind: 'column', column: 'is_active' },
+  mustChangePassword: { kind: 'column', column: 'must_change_password' },
+  createdAt: { kind: 'column', column: 'created_at' },
+  updatedAt: { kind: 'column', column: 'updated_at' },
+} as const satisfies EntityFieldMapping<ServerProfile>;
+
+export function mapProfileRow(row: Record<string, unknown>): ServerProfile {
+  return {
+    userId: coerceString(row.user_id ?? row.userId),
+    username: coerceString(row.username),
+    fullName: coerceString(row.full_name ?? row.fullName),
+    roleCode: coerceString(row.role_code ?? row.roleCode),
+    plantCodes: Array.isArray(row.plant_codes) ? (row.plant_codes as string[]) : undefined,
+    isActive: coerceBoolean(row.is_active ?? row.isActive, true),
+    mustChangePassword: coerceBoolean(row.must_change_password ?? row.mustChangePassword, false),
+    createdAt: coerceIsoDate(row.created_at ?? row.createdAt),
+    updatedAt: coerceIsoDate(row.updated_at ?? row.updatedAt),
+  };
+}
+
+export interface ServerRole {
+  code: string;
+  name: string;
+  description: string;
+  isSystem: boolean;
+  createdAt: string;
+}
+
+export const ROLE_FIELD_MAP = {
+  code: { kind: 'column', column: 'code' },
+  name: { kind: 'column', column: 'name' },
+  description: { kind: 'column', column: 'description' },
+  isSystem: { kind: 'column', column: 'is_system' },
+  createdAt: { kind: 'column', column: 'created_at' },
+} as const satisfies EntityFieldMapping<ServerRole>;
+
+export function mapRoleRow(row: Record<string, unknown>): ServerRole {
+  return {
+    code: coerceString(row.code),
+    name: coerceString(row.name),
+    description: coerceString(row.description),
+    isSystem: coerceBoolean(row.is_system ?? row.isSystem, false),
+    createdAt: coerceIsoDate(row.created_at ?? row.createdAt),
+  };
+}
+
+export interface ServerRolePermission {
+  id: string;
+  roleCode: string;
+  module: string;
+  activity: string;
+  plantLimit?: string;
+  costCenterLimit?: string;
+  amountLimit?: number;
+  createdAt: string;
+}
+
+export const ROLE_PERMISSION_FIELD_MAP = {
+  id: { kind: 'column', column: 'id' },
+  roleCode: { kind: 'column', column: 'role_code' },
+  module: { kind: 'column', column: 'module' },
+  activity: { kind: 'column', column: 'activity' },
+  plantLimit: { kind: 'column', column: 'plant_limit' },
+  costCenterLimit: { kind: 'column', column: 'cost_center_limit' },
+  amountLimit: { kind: 'column', column: 'amount_limit' },
+  createdAt: { kind: 'column', column: 'created_at' },
+} as const satisfies EntityFieldMapping<ServerRolePermission>;
+
+export function mapRolePermissionRow(row: Record<string, unknown>): ServerRolePermission {
+  return {
+    id: coerceString(row.id),
+    roleCode: coerceString(row.role_code ?? row.roleCode),
+    module: coerceString(row.module),
+    activity: coerceString(row.activity),
+    plantLimit: row.plant_limit ? coerceString(row.plant_limit) : undefined,
+    costCenterLimit: row.cost_center_limit ? coerceString(row.cost_center_limit) : undefined,
+    amountLimit: row.amount_limit !== undefined && row.amount_limit !== null ? coerceNumber(row.amount_limit) : undefined,
+    createdAt: coerceIsoDate(row.created_at ?? row.createdAt),
+  };
+}
+
+// ----------------------------------------------------------------------------
 // Universal Entity Dispatch Mappers
 // ----------------------------------------------------------------------------
 
@@ -504,6 +607,9 @@ export interface EntityMap {
   preventiveSchedules: PreventiveSchedule;
   fuelAnomalyAlerts: FuelAnomalyAlert;
   v_cost_center_fleet_reconciliation: CostCenterReconciliation;
+  profiles: ServerProfile;
+  roles: ServerRole;
+  role_permissions: ServerRolePermission;
 }
 
 export function mapRow<K extends keyof EntityMap>(entity: K, row: Record<string, unknown>): EntityMap[K] {
@@ -524,6 +630,12 @@ export function mapRow<K extends keyof EntityMap>(entity: K, row: Record<string,
       return mapFuelAnomalyAlertRow(row) as EntityMap[K];
     case 'v_cost_center_fleet_reconciliation':
       return mapCostCenterReconciliationRow(row) as EntityMap[K];
+    case 'profiles':
+      return mapProfileRow(row) as EntityMap[K];
+    case 'roles':
+      return mapRoleRow(row) as EntityMap[K];
+    case 'role_permissions':
+      return mapRolePermissionRow(row) as EntityMap[K];
     default:
       throw new Error(`تعذر تحويل بيانات الكيان: لا يوجد مخطط مخصص لـ [${String(entity)}]`);
   }

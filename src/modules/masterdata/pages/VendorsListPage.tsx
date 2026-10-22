@@ -30,6 +30,7 @@ import { Select } from '../../../components/ui/Select';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber, formatDate } from '../../../core/utils';
 import { ImportCsvModal, TargetFieldDef } from '../components/ImportCsvModal';
 import { t } from '../../../i18n/ar';
@@ -162,7 +163,7 @@ export const VendorsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await vendorRepository.create(newVendor, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await vendorRepository.create(newVendor, currentActorId(), user?.fullName || 'مدير النظام');
 
       showToast({
         title: 'تم تسجيل المورد بنجاح',
@@ -221,9 +222,7 @@ export const VendorsListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           'vendors',
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تعطيل المورد بنجاح',
@@ -231,7 +230,7 @@ export const VendorsListPage: React.FC = () => {
           type: 'info',
         });
       } else {
-        await vendorRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await vendorRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم حذف المورد',
           message: `تمت إزالة المورد [${deleteTarget.vendorCode}] من قاعدة البيانات.`,

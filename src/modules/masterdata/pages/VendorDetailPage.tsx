@@ -39,6 +39,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatCurrency, formatNumber, formatDate } from '../../../core/utils';
 import { AttachmentManager } from '../components/AttachmentManager';
 import { AuditHistoryTab } from '../components/AuditHistoryTab';
@@ -99,7 +100,7 @@ export const VendorDetailPage: React.FC = () => {
       await vendorRepository.update(
         id,
         editForm,
-        { userId: user?.id, userName: user?.fullName || 'مدير النظام' },
+        { userId: currentActorId(), userName: user?.fullName || 'مدير النظام' },
         { expectedVersion: vendor.version || 1 }
       );
 
@@ -129,9 +130,7 @@ export const VendorDetailPage: React.FC = () => {
       await MasterDataService.toggleStatus(
         'vendors',
         vendor.id,
-        newStatus,
-        user?.id || 'admin',
-        user?.fullName || 'مدير النظام'
+        newStatus
       );
       showToast({
         title: newStatus === 'active' ? 'تم تنشيط المورد' : 'تم تعطيل المورد',

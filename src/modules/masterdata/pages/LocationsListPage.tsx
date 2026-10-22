@@ -27,6 +27,7 @@ import { Select } from '../../../components/ui/Select';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
 
@@ -112,7 +113,7 @@ export const LocationsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await plantRepository.create(newPlant, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await plantRepository.create(newPlant, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء المحطة بنجاح',
         message: `تم تسجيل المحطة [${newPlant.name}] في الهيكل التنظيمي للمنشأة.`,
@@ -163,7 +164,7 @@ export const LocationsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await storageLocationRepository.create(newSloc, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await storageLocationRepository.create(newSloc, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء المستودع بنجاح',
         message: `تم تسجيل مستودع التخزين [${newSloc.name}] تحت المحطة [${newSloc.plantCode}].`,
@@ -203,9 +204,7 @@ export const LocationsListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           deleteTarget.entity,
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تعطيل الموقع',
@@ -214,7 +213,7 @@ export const LocationsListPage: React.FC = () => {
         });
       } else {
         const repo = deleteTarget.entity === 'plants' ? plantRepository : storageLocationRepository;
-        await repo.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await repo.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم الحذف بنجاح',
           message: `تم حذف السجل [${deleteTarget.code}].`,

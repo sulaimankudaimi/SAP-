@@ -12,7 +12,8 @@ import {
   attachmentRepository,
 } from '../../../core/repositories';
 import { AuditService } from '../../../core/services/AuditService';
-import { requirePermission } from '../../../core/security/SessionContext';
+import { requirePermission, SessionContext } from '../../../core/security/SessionContext';
+import type { IRepository } from '../../../core/repositories/IRepository';
 import type {
   Material,
   Vendor,
@@ -243,13 +244,13 @@ export class MasterDataService {
 
   /**
    * Toggles active / inactive or sets SAP Deletion Flag (LOEKZ).
+   * Reads record, passes { expectedVersion: before.version }, takes actor from SessionContext,
+   * and lets repository perform atomic audit logging without double-logging.
    */
   static async toggleStatus(
     entity: 'materials' | 'vendors' | 'customers' | 'plants' | 'storageLocations' | 'costCenters' | 'glAccounts',
     id: string,
-    newStatus: 'active' | 'inactive' | 'flagged_for_deletion',
-    userId: string,
-    userName: string
+    newStatus: 'active' | 'inactive' | 'flagged_for_deletion'
   ): Promise<void> {
     requirePermission({ module: 'MD', activity: 'change' });
     const repoMap = {
@@ -262,21 +263,28 @@ export class MasterDataService {
       glAccounts: glAccountRepository,
     };
 
-    const repo = repoMap[entity];
+    const repo = repoMap[entity] as unknown as IRepository<{ status?: string; version?: number }>;
     const before = await repo.getById(id);
     if (!before) throw new Error('السجل المطلوب غير موجود');
 
-    await repo.update(id, { status: newStatus }, userId, userName);
+    const actorId = SessionContext.currentActorId();
+    await repo.update(
+      id,
+      { status: newStatus },
+      {
+        expectedVersion: before.version,
+        userId: actorId,
+        reason: `Change status to ${newStatus}`,
+      }
+    );
+  }
 
-    await AuditService.log({
-      userId,
-      userName,
-      action: 'STATUS_CHANGE',
-      entity: entity,
-      entityId: id,
-      before: { status: before.status },
-      after: { status: newStatus },
-    });
+  static async changeStatus(
+    entity: 'materials' | 'vendors' | 'customers' | 'plants' | 'storageLocations' | 'costCenters' | 'glAccounts',
+    id: string,
+    newStatus: 'active' | 'inactive' | 'flagged_for_deletion'
+  ): Promise<void> {
+    return this.toggleStatus(entity, id, newStatus);
   }
 
   /**

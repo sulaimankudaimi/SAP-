@@ -975,7 +975,9 @@ export class FleetService {
   static async resolveFuelAnomalyAlert(
     alertId: string,
     notes: string,
-    userId?: string
+    userId?: string,
+    expectedVersion?: number,
+    requestId?: string
   ): Promise<void> {
     const actorId = userId || SessionContext.currentActorId();
     requirePermission({ module: 'TM', activity: 'change' });
@@ -985,7 +987,12 @@ export class FleetService {
         throw new Error(OFFLINE_BLOCKED_ARABIC_EXPLANATION);
       }
       if (dataGateway.instance.resolveFuelAnomalyAlert) {
-        return await dataGateway.instance.resolveFuelAnomalyAlert(alertId, notes);
+        return await dataGateway.instance.resolveFuelAnomalyAlert(
+          alertId,
+          notes,
+          expectedVersion,
+          requestId
+        );
       }
       throw new ServerCommandUnavailableError('resolveFuelAnomalyAlert');
     }
@@ -993,11 +1000,16 @@ export class FleetService {
     const alert = await db.fuelAnomalyAlerts.get(alertId);
     if (!alert) throw new Error('تنبيه الوقود غير موجود');
 
+    if (expectedVersion !== undefined && alert.version !== undefined && alert.version !== expectedVersion) {
+      throw new ConcurrencyError('تعارض في التعديل المتزامن للتنبيه');
+    }
+
     await db.fuelAnomalyAlerts.update(alertId, {
       status: 'resolved',
       resolvedBy: actorId,
       resolvedAt: new Date().toISOString(),
       resolvedNotes: notes,
+      version: (alert.version || 1) + 1,
     });
 
     await AuditService.log({

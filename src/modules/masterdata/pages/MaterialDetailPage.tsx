@@ -37,6 +37,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber, formatCurrency, formatDate } from '../../../core/utils';
 import { generateCode128Svg } from '../../../core/utils/barcode';
 import { BarcodeModal } from '../components/BarcodeModal';
@@ -114,7 +115,7 @@ export const MaterialDetailPage: React.FC = () => {
       await materialRepository.update(
         id,
         editForm,
-        { userId: user?.id, userName: user?.fullName || 'مدير النظام' },
+        { userId: currentActorId(), userName: user?.fullName || 'مدير النظام' },
         { expectedVersion: material.version || 1 }
       );
 
@@ -144,9 +145,7 @@ export const MaterialDetailPage: React.FC = () => {
       await MasterDataService.toggleStatus(
         'materials',
         material.id,
-        newStatus,
-        user?.id || 'admin',
-        user?.fullName || 'مدير النظام'
+        newStatus
       );
       showToast({
         title: newStatus === 'active' ? 'تم تنشيط الصنف' : 'تم تعطيل الصنف',

@@ -41,6 +41,18 @@ import {
   GenericServerError,
 } from '../errors';
 import { DiagnosticLogger } from '../services/DiagnosticLogger';
+import { READ_SPECS, type ReadSpec } from './readSpecs';
+import {
+  mapRow,
+  mapRows,
+  mapFleetDashboardKpis,
+  mapVehicleCostReport,
+  mapVehicleExpiryAlerts,
+  mapResolveFuelAnomalyResult,
+  type ServerProfile,
+  type ServerRole,
+  type ServerRolePermission,
+} from './rowMappers';
 
 export class SupabaseGateway implements IDataGateway {
   readonly mode = 'server' as const;
@@ -94,6 +106,44 @@ export class SupabaseGateway implements IDataGateway {
 
   getSupabaseClient(): SupabaseClient {
     return this.client;
+  }
+
+  /**
+   * Applies the select columns, static filters, and ordering from a declarative ReadSpec.
+   */
+  private applySpec(
+    query: ReturnType<SupabaseClient['from']>,
+    spec: ReadSpec,
+    options?: {
+      count?: 'exact' | 'planned' | 'estimated';
+      applyFilters?: (
+        builder: ReturnType<ReturnType<SupabaseClient['from']>['select']>
+      ) => ReturnType<ReturnType<SupabaseClient['from']>['select']>;
+    }
+  ): ReturnType<ReturnType<SupabaseClient['from']>['select']> {
+    let q = query.select(
+      spec.columns.join(', '),
+      options?.count ? { count: options.count } : undefined
+    );
+    for (const [column, op, value] of spec.filters) {
+      if (op === 'eq') q = q.eq(column, value);
+      else if (op === 'neq') q = q.neq(column, value);
+      else if (op === 'gt') q = q.gt(column, value);
+      else if (op === 'gte') q = q.gte(column, value);
+      else if (op === 'lt') q = q.lt(column, value);
+      else if (op === 'lte') q = q.lte(column, value);
+      else if (op === 'in') q = q.in(column, value as unknown[]);
+    }
+    if (options?.applyFilters) {
+      q = options.applyFilters(q);
+    }
+    let res = q;
+    if (spec.order) {
+      for (const [column, direction] of spec.order) {
+        res = res.order(column, { ascending: direction === 'asc' });
+      }
+    }
+    return res;
   }
 
   /**
@@ -171,6 +221,7 @@ export class SupabaseGateway implements IDataGateway {
 
   async createTrip(cmd: CreateTripCommand): Promise<Trip> {
     const { data, error } = await this.client.rpc('create_trip', {
+      p_request_id: cmd.requestId,
       p_vehicle_id: cmd.vehicleId,
       p_driver_id: cmd.driverId,
       p_origin_plant: cmd.originPlant,
@@ -180,34 +231,33 @@ export class SupabaseGateway implements IDataGateway {
       p_scheduled_departure: cmd.scheduledDeparture,
       p_scheduled_arrival: cmd.scheduledArrival,
       p_start_odometer: cmd.startOdometer,
-      p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_expected_version: cmd.expectedVersion ?? null,
     });
 
     if (error) {
       this.handleRpcError(error, 'Trip', cmd.vehicleId, cmd.expectedVersion);
     }
 
-    return data as Trip;
+    return mapRow('trips', (data || {}) as Record<string, unknown>);
   }
 
   async completeTrip(cmd: CompleteTripCommand): Promise<Trip> {
     const { data, error } = await this.client.rpc('complete_trip', {
+      p_request_id: cmd.requestId,
       p_trip_id: cmd.tripId,
       p_end_odometer: cmd.endOdometer,
-      p_fuel_liters_consumed: cmd.fuelLitersConsumed,
-      p_fuel_cost: cmd.fuelCost,
-      p_driver_allowance_cost: cmd.driverAllowanceCost,
-      p_actual_arrival: cmd.actualArrival,
-      p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_actual_arrival: cmd.actualArrival || new Date().toISOString(),
+      p_fuel_liters_consumed: cmd.fuelLitersConsumed ?? 0,
+      p_fuel_cost: cmd.fuelCost ?? 0,
+      p_driver_allowance_cost: cmd.driverAllowanceCost ?? 0,
+      p_expected_version: cmd.expectedVersion ?? null,
     });
 
     if (error) {
       this.handleRpcError(error, 'Trip', cmd.tripId, cmd.expectedVersion);
     }
 
-    return data as Trip;
+    return mapRow('trips', (data || {}) as Record<string, unknown>);
   }
 
   async createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog> {
@@ -217,63 +267,72 @@ export class SupabaseGateway implements IDataGateway {
       p_vehicle_id: cmd.vehicleId,
       p_driver_id: cmd.driverId || null,
       p_fuel_type: cmd.fuelType,
-      p_odometer: cmd.currentOdometer,
-      p_quantity_liters: cmd.liters,
-      p_cost_per_liter: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : 0,
-      p_station_name: cmd.vendorName || cmd.stationLocation || 'محطة المحروقات',
-      p_date: occurredAt.substring(0, 10),
+      p_odometer: cmd.currentOdometer ?? cmd.odometer ?? 0,
+      p_quantity_liters: cmd.liters ?? cmd.quantityLiters ?? 0,
+      p_cost_per_liter: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : (cmd.costPerLiter ?? 0),
+      p_station_name: cmd.vendorName || cmd.stationLocation || cmd.stationName || 'محطة المحروقات',
+      p_date: cmd.date || occurredAt.substring(0, 10),
       p_expected_version: cmd.expectedVersion ?? null,
       p_occurred_at: occurredAt,
-      p_liters: cmd.liters,
-      p_unit_price: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : 0,
+      p_liters: cmd.liters ?? cmd.quantityLiters ?? 0,
+      p_unit_price: cmd.cost && cmd.liters ? cmd.cost / cmd.liters : (cmd.costPerLiter ?? 0),
       p_invoice_number: cmd.invoiceNumber || null,
+      p_plant_code: null,
     });
 
     if (error) {
       this.handleRpcError(error, 'FuelLog', cmd.vehicleId, cmd.expectedVersion);
     }
 
-    return data as FuelLog;
+    return mapRow('fuelLogs', (data || {}) as Record<string, unknown>);
   }
 
   async issuePartsToMaintenanceOrder(
     cmd: IssuePartsCommand
   ): Promise<{ order: MaintenanceOrder; materialDocNumber: string }> {
     const { data, error } = await this.client.rpc('issue_parts_to_maintenance_order', {
+      p_request_id: cmd.requestId,
       p_order_id: cmd.orderId,
       p_plant_code: cmd.items?.[0]?.plantCode || '1100',
       p_parts: cmd.items,
-      p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_expected_version: cmd.expectedVersion ?? null,
     });
 
     if (error) {
       this.handleRpcError(error, 'MaintenanceOrder', cmd.orderId, cmd.expectedVersion);
     }
 
-    return data as { order: MaintenanceOrder; materialDocNumber: string };
+    const res = (data || {}) as Record<string, unknown>;
+    return {
+      order: mapRow('maintenanceOrders', (res.order || {}) as Record<string, unknown>),
+      materialDocNumber: String(res.materialDocNumber || ''),
+    };
   }
 
   async completeMaintenanceOrder(cmd: CompleteMaintenanceOrderCommand): Promise<MaintenanceOrder> {
     const { data, error } = await this.client.rpc('complete_maintenance_order', {
-      p_order_id: cmd.orderId,
-      p_labor_hours: cmd.actualLaborHours,
-      p_labor_rate_per_hour: cmd.actualLaborCost && cmd.actualLaborHours ? cmd.actualLaborCost / cmd.actualLaborHours : 0,
-      p_downtime_hours: 0,
-      p_completion_date: cmd.completionDate,
       p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_order_id: cmd.orderId,
+      p_labor_hours: cmd.actualLaborHours ?? 0,
+      p_labor_rate_per_hour:
+        cmd.actualLaborCost && cmd.actualLaborHours
+          ? cmd.actualLaborCost / cmd.actualLaborHours
+          : 120,
+      p_downtime_hours: cmd.downtimeHours ?? 0,
+      p_completion_date: cmd.completionDate ? cmd.completionDate.substring(0, 10) : new Date().toISOString().substring(0, 10),
+      p_expected_version: cmd.expectedVersion ?? null,
     });
 
     if (error) {
       this.handleRpcError(error, 'MaintenanceOrder', cmd.orderId, cmd.expectedVersion);
     }
 
-    return data as MaintenanceOrder;
+    return mapRow('maintenanceOrders', (data || {}) as Record<string, unknown>);
   }
 
   async postJournal(cmd: PostJournalCommand): Promise<{ docNumber: string; jeId: string }> {
     const { data, error } = await this.client.rpc('post_journal', {
+      p_request_id: cmd.requestId,
       p_source_type: cmd.sourceType,
       p_source_id: cmd.sourceId,
       p_company_code: cmd.companyCode,
@@ -283,17 +342,21 @@ export class SupabaseGateway implements IDataGateway {
       p_document_date: cmd.documentDate,
       p_document_type: cmd.documentType,
       p_header_text: cmd.headerText,
-      p_reference: cmd.reference,
+      p_reference: cmd.reference || null,
       p_lines: cmd.lines,
-      p_request_id: cmd.requestId,
-      p_expected_version: cmd.expectedVersion,
+      p_expected_version: cmd.expectedVersion ?? null,
+      p_event: 'POST',
     });
 
     if (error) {
       this.handleRpcError(error, 'JournalEntry', cmd.sourceId, cmd.expectedVersion);
     }
 
-    return data as { docNumber: string; jeId: string };
+    const res = (data || {}) as Record<string, unknown>;
+    return {
+      docNumber: String(res.docNumber || ''),
+      jeId: String(res.jeId || ''),
+    };
   }
 
   // --------------------------------------------------------------------------
@@ -314,7 +377,12 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'TripEvent', cmd.tripId);
     }
 
-    return data as { requestId: string; tripId: string; eventType: string };
+    const res = (data || {}) as Record<string, unknown>;
+    return {
+      requestId: String(res.requestId || ''),
+      tripId: String(res.tripId || ''),
+      eventType: String(res.eventType || ''),
+    };
   }
 
   async recordOdometerReading(cmd: RecordOdometerReadingCommand): Promise<{ requestId: string; vehicleId: string; readingKm: number }> {
@@ -330,7 +398,12 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'OdometerReading', cmd.vehicleId);
     }
 
-    return data as { requestId: string; vehicleId: string; readingKm: number };
+    const res = (data || {}) as Record<string, unknown>;
+    return {
+      requestId: String(res.requestId || ''),
+      vehicleId: String(res.vehicleId || ''),
+      readingKm: Number(res.readingKm || 0),
+    };
   }
 
   async recordInspection(cmd: RecordInspectionCommand): Promise<{ requestId: string; vehicleId: string; result: string }> {
@@ -347,7 +420,12 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'VehicleInspection', cmd.vehicleId);
     }
 
-    return data as { requestId: string; vehicleId: string; result: string };
+    const res = (data || {}) as Record<string, unknown>;
+    return {
+      requestId: String(res.requestId || ''),
+      vehicleId: String(res.vehicleId || ''),
+      result: String(res.result || ''),
+    };
   }
 
   // --------------------------------------------------------------------------
@@ -378,7 +456,7 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Vehicle', vehicle.plateNumber || 'new');
     }
 
-    return data as Vehicle;
+    return mapRow('vehicles', (data || {}) as Record<string, unknown>);
   }
 
   async updateVehicle(
@@ -409,7 +487,7 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Vehicle', id, expectedVersion);
     }
 
-    return data as Vehicle;
+    return mapRow('vehicles', (data || {}) as Record<string, unknown>);
   }
 
   async setVehicleActive(
@@ -430,7 +508,7 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Vehicle', id, expectedVersion);
     }
 
-    return data as Vehicle;
+    return mapRow('vehicles', (data || {}) as Record<string, unknown>);
   }
 
   async createDriver(driver: Partial<Driver>, requestId?: string): Promise<Driver> {
@@ -452,7 +530,7 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Driver', driver.name || 'new');
     }
 
-    return data as Driver;
+    return mapRow('drivers', (data || {}) as Record<string, unknown>);
   }
 
   async updateDriver(
@@ -480,7 +558,7 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Driver', id, expectedVersion);
     }
 
-    return data as Driver;
+    return mapRow('drivers', (data || {}) as Record<string, unknown>);
   }
 
   async setDriverActive(
@@ -501,26 +579,30 @@ export class SupabaseGateway implements IDataGateway {
       this.handleRpcError(error, 'Driver', id, expectedVersion);
     }
 
-    return data as Driver;
+    return mapRow('drivers', (data || {}) as Record<string, unknown>);
   }
 
   async createMaintenanceOrder(order: Partial<MaintenanceOrder>): Promise<MaintenanceOrder> {
-    const { data, error } = await this.client.from('maintenance_orders').insert({
-      vehicle_id: order.vehicleId,
-      order_type: order.orderType,
-      priority: order.priority || 'medium',
-      plant_code: order.plantCode || '1100',
-      description: order.description,
-      scheduled_date: order.scheduledDate || new Date().toISOString(),
-      status: 'pending',
-      version: 1,
-    }).select().single();
+    const { data, error } = await this.client
+      .from('maintenance_orders')
+      .insert({
+        vehicle_id: order.vehicleId,
+        order_type: order.orderType,
+        priority: order.priority || 'medium',
+        plant_code: order.plantCode || '1100',
+        description: order.description,
+        start_date: order.startDate || new Date().toISOString().substring(0, 10),
+        status: 'pending',
+        version: 1,
+      })
+      .select()
+      .single();
 
     if (error) {
       this.handleRpcError(error, 'MaintenanceOrder', order.vehicleId || 'new');
     }
 
-    return data as MaintenanceOrder;
+    return mapRow('maintenanceOrders', (data || {}) as Record<string, unknown>);
   }
 
   // --------------------------------------------------------------------------
@@ -528,72 +610,101 @@ export class SupabaseGateway implements IDataGateway {
   // --------------------------------------------------------------------------
 
   async getVehicles(filters?: VehicleFilters): Promise<Vehicle[]> {
-    let query = this.client.from('vehicles').select('*').eq('is_deleted', false);
-    if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.vehicleType) query = query.eq('type', filters.vehicleType);
-    if (filters?.assignedPlant) query = query.eq('plant_code', filters.assignedPlant);
+    const query = this.applySpec(this.client.from(READ_SPECS.vehicles.table), READ_SPECS.vehicles, {
+      applyFilters: (q) => {
+        let modified = q;
+        if (filters?.status) modified = modified.eq('status', filters.status);
+        if (filters?.vehicleType) modified = modified.eq('type', filters.vehicleType);
+        if (filters?.assignedPlant) modified = modified.eq('plant_code', filters.assignedPlant);
+        return modified;
+      },
+    });
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as Vehicle[];
+    return mapRows('vehicles', (data || []) as Record<string, unknown>[]);
   }
 
   async getVehicleById(id: string): Promise<Vehicle | null> {
-    const { data, error } = await this.client.from('vehicles').select('*').eq('id', id).maybeSingle();
+    const query = this.applySpec(this.client.from(READ_SPECS.vehicles.table), READ_SPECS.vehicles, {
+      applyFilters: (q) => q.eq('id', id),
+    });
+    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(error.message);
-    return data as Vehicle | null;
+    return data ? mapRow('vehicles', data as Record<string, unknown>) : null;
   }
 
   async getDrivers(filters?: DriverFilters): Promise<Driver[]> {
-    let query = this.client.from('drivers').select('*').eq('is_deleted', false);
-    if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.assignedPlant) query = query.eq('plant_code', filters.assignedPlant);
+    const query = this.applySpec(this.client.from(READ_SPECS.drivers.table), READ_SPECS.drivers, {
+      applyFilters: (q) => {
+        let modified = q;
+        if (filters?.status) modified = modified.eq('status', filters.status);
+        if (filters?.assignedPlant) modified = modified.eq('plant_code', filters.assignedPlant);
+        return modified;
+      },
+    });
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as Driver[];
+    return mapRows('drivers', (data || []) as Record<string, unknown>[]);
   }
 
   async getDriverById(id: string): Promise<Driver | null> {
-    const { data, error } = await this.client.from('drivers').select('*').eq('id', id).maybeSingle();
+    const query = this.applySpec(this.client.from(READ_SPECS.drivers.table), READ_SPECS.drivers, {
+      applyFilters: (q) => q.eq('id', id),
+    });
+    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(error.message);
-    return data as Driver | null;
+    return data ? mapRow('drivers', data as Record<string, unknown>) : null;
   }
 
   async getTrips(filters?: TripFilters): Promise<Trip[]> {
-    let query = this.client.from('trips').select('*').eq('is_deleted', false);
-    if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
-    if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
-    if (filters?.originPlant) query = query.eq('origin_plant', filters.originPlant);
-    if (filters?.startDate) query = query.gte('scheduled_departure', filters.startDate);
-    if (filters?.endDate) query = query.lte('scheduled_departure', filters.endDate);
+    const query = this.applySpec(this.client.from(READ_SPECS.trips.table), READ_SPECS.trips, {
+      applyFilters: (q) => {
+        let modified = q;
+        if (filters?.status) modified = modified.eq('status', filters.status);
+        if (filters?.vehicleId) modified = modified.eq('vehicle_id', filters.vehicleId);
+        if (filters?.driverId) modified = modified.eq('driver_id', filters.driverId);
+        if (filters?.originPlant) modified = modified.eq('origin_plant', filters.originPlant);
+        if (filters?.startDate) modified = modified.gte('scheduled_departure', filters.startDate);
+        if (filters?.endDate) modified = modified.lte('scheduled_departure', filters.endDate);
+        return modified;
+      },
+    });
 
-    const { data, error } = await query.order('scheduled_departure', { ascending: false });
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as Trip[];
+    return mapRows('trips', (data || []) as Record<string, unknown>[]);
   }
 
   async getTripById(id: string): Promise<Trip | null> {
-    const { data, error } = await this.client.from('trips').select('*').eq('id', id).maybeSingle();
+    const query = this.applySpec(this.client.from(READ_SPECS.trips.table), READ_SPECS.trips, {
+      applyFilters: (q) => q.eq('id', id),
+    });
+    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(error.message);
-    return data as Trip | null;
+    return data ? mapRow('trips', data as Record<string, unknown>) : null;
   }
 
   async getFuelLogs(filtersOrVehicleId?: string | FuelLogFilters): Promise<FuelLog[]> {
-    let query = this.client.from('fuel_logs').select('*').eq('is_deleted', false);
-    if (typeof filtersOrVehicleId === 'string') {
-      query = query.eq('vehicle_id', filtersOrVehicleId);
-    } else if (filtersOrVehicleId) {
-      if (filtersOrVehicleId.vehicleId) query = query.eq('vehicle_id', filtersOrVehicleId.vehicleId);
-      if (filtersOrVehicleId.driverId) query = query.eq('driver_id', filtersOrVehicleId.driverId);
-      if (filtersOrVehicleId.startDate) query = query.gte('date', filtersOrVehicleId.startDate);
-      if (filtersOrVehicleId.endDate) query = query.lte('date', filtersOrVehicleId.endDate);
-    }
+    const query = this.applySpec(this.client.from(READ_SPECS.fuelLogs.table), READ_SPECS.fuelLogs, {
+      applyFilters: (q) => {
+        let modified = q;
+        if (typeof filtersOrVehicleId === 'string') {
+          modified = modified.eq('vehicle_id', filtersOrVehicleId);
+        } else if (filtersOrVehicleId) {
+          if (filtersOrVehicleId.vehicleId) modified = modified.eq('vehicle_id', filtersOrVehicleId.vehicleId);
+          if (filtersOrVehicleId.driverId) modified = modified.eq('driver_id', filtersOrVehicleId.driverId);
+          if (filtersOrVehicleId.startDate) modified = modified.gte('date', filtersOrVehicleId.startDate);
+          if (filtersOrVehicleId.endDate) modified = modified.lte('date', filtersOrVehicleId.endDate);
+        }
+        return modified;
+      },
+    });
 
-    const { data, error } = await query.order('odometer', { ascending: false });
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as FuelLog[];
+    return mapRows('fuelLogs', (data || []) as Record<string, unknown>[]);
   }
 
   async getPaginatedFuelLogs(filters: FuelLogFilters): Promise<PaginatedResult<FuelLog>> {
@@ -602,18 +713,24 @@ export class SupabaseGateway implements IDataGateway {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let query = this.client.from('fuel_logs').select('*', { count: 'exact' }).eq('is_deleted', false);
-    if (filters.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
-    if (filters.driverId) query = query.eq('driver_id', filters.driverId);
-    if (filters.startDate) query = query.gte('date', filters.startDate);
-    if (filters.endDate) query = query.lte('date', filters.endDate);
+    const query = this.applySpec(this.client.from(READ_SPECS.fuelLogs.table), READ_SPECS.fuelLogs, {
+      count: 'exact',
+      applyFilters: (q) => {
+        let modified = q;
+        if (filters.vehicleId) modified = modified.eq('vehicle_id', filters.vehicleId);
+        if (filters.driverId) modified = modified.eq('driver_id', filters.driverId);
+        if (filters.startDate) modified = modified.gte('date', filters.startDate);
+        if (filters.endDate) modified = modified.lte('date', filters.endDate);
+        return modified;
+      },
+    });
 
-    const { data, count, error } = await query.order('odometer', { ascending: false }).range(from, to);
+    const { data, count, error } = await query.range(from, to);
     if (error) throw new Error(error.message);
 
     const totalCount = count || 0;
     return {
-      data: (data || []) as FuelLog[],
+      data: mapRows('fuelLogs', (data || []) as Record<string, unknown>[]),
       totalCount,
       page,
       pageSize,
@@ -622,70 +739,120 @@ export class SupabaseGateway implements IDataGateway {
   }
 
   async getMaintenanceOrders(filtersOrVehicleId?: string | MaintenanceFilters): Promise<MaintenanceOrder[]> {
-    let query = this.client.from('maintenance_orders').select('*').eq('is_deleted', false);
-    if (typeof filtersOrVehicleId === 'string') {
-      query = query.eq('vehicle_id', filtersOrVehicleId);
-    } else if (filtersOrVehicleId) {
-      if (filtersOrVehicleId.vehicleId) query = query.eq('vehicle_id', filtersOrVehicleId.vehicleId);
-      if (filtersOrVehicleId.status) query = query.eq('status', filtersOrVehicleId.status);
-      if (filtersOrVehicleId.orderType) query = query.eq('order_type', filtersOrVehicleId.orderType);
-    }
+    const query = this.applySpec(this.client.from(READ_SPECS.maintenanceOrders.table), READ_SPECS.maintenanceOrders, {
+      applyFilters: (q) => {
+        let modified = q;
+        if (typeof filtersOrVehicleId === 'string') {
+          modified = modified.eq('vehicle_id', filtersOrVehicleId);
+        } else if (filtersOrVehicleId) {
+          if (filtersOrVehicleId.vehicleId) modified = modified.eq('vehicle_id', filtersOrVehicleId.vehicleId);
+          if (filtersOrVehicleId.status) modified = modified.eq('status', filtersOrVehicleId.status);
+          if (filtersOrVehicleId.orderType) modified = modified.eq('order_type', filtersOrVehicleId.orderType);
+        }
+        return modified;
+      },
+    });
 
-    const { data, error } = await query.order('scheduled_date', { ascending: false });
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as MaintenanceOrder[];
+    return mapRows('maintenanceOrders', (data || []) as Record<string, unknown>[]);
   }
 
   async getMaintenanceOrderById(id: string): Promise<MaintenanceOrder | null> {
-    const { data, error } = await this.client.from('maintenance_orders').select('*').eq('id', id).maybeSingle();
+    const query = this.applySpec(this.client.from(READ_SPECS.maintenanceOrders.table), READ_SPECS.maintenanceOrders, {
+      applyFilters: (q) => q.eq('id', id),
+    });
+    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(error.message);
-    return data as MaintenanceOrder | null;
+    return data ? mapRow('maintenanceOrders', data as Record<string, unknown>) : null;
   }
 
   async getPreventiveSchedules(vehicleId?: string): Promise<PreventiveSchedule[]> {
-    let query = this.client.from('preventive_schedules').select('*').eq('is_active', true);
-    if (vehicleId) query = query.eq('vehicle_id', vehicleId);
+    const query = this.applySpec(this.client.from(READ_SPECS.preventiveSchedules.table), READ_SPECS.preventiveSchedules, {
+      applyFilters: (q) => {
+        if (vehicleId) return q.eq('vehicle_id', vehicleId);
+        return q;
+      },
+    });
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as PreventiveSchedule[];
+    return mapRows('preventiveSchedules', (data || []) as Record<string, unknown>[]);
   }
 
   async getFuelAnomalyAlerts(): Promise<FuelAnomalyAlert[]> {
-    const { data, error } = await this.client.from('fuel_anomaly_alerts').select('*').eq('is_resolved', false);
+    const query = this.applySpec(this.client.from(READ_SPECS.fuelAnomalyAlerts.table), READ_SPECS.fuelAnomalyAlerts);
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data as FuelAnomalyAlert[];
+    return mapRows('fuelAnomalyAlerts', (data || []) as Record<string, unknown>[]);
   }
 
-  async resolveFuelAnomalyAlert(id: string, notes: string): Promise<void> {
-    const { error } = await this.client
-      .from('fuel_anomaly_alerts')
-      .update({ is_resolved: true, resolution_notes: notes, resolved_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) throw new Error(error.message);
+  async resolveFuelAnomalyAlert(
+    id: string,
+    notes?: string,
+    expectedVersion?: number,
+    requestId?: string
+  ): Promise<void> {
+    const reqId =
+      requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
+    const { data, error } = await this.client.rpc('resolve_fuel_anomaly', {
+      p_request_id: reqId,
+      p_alert_id: id,
+      p_notes: notes || null,
+      p_expected_version: expectedVersion ?? null,
+    });
+    if (error) {
+      this.handleRpcError(error, 'FuelAnomalyAlert', id, expectedVersion);
+    }
+    mapResolveFuelAnomalyResult((data || {}) as Record<string, unknown>);
   }
 
   async getVehicleExpiryAlerts(): Promise<ExpiryAlert[]> {
-    const { data, error } = await this.client.rpc('get_vehicle_expiry_alerts', { p_days_ahead: 30 });
+    const { data, error } = await this.client.rpc('get_vehicle_expiry_alerts', { p_days: 30 });
     if (error) throw new Error(error.message);
-    return (data || []) as ExpiryAlert[];
+    return mapVehicleExpiryAlerts((data || []) as unknown[]);
   }
 
   async getVehicleCostReport(vehicleId: string): Promise<VehicleCostReport> {
     const { data, error } = await this.client.rpc('get_vehicle_cost_report', { p_vehicle_id: vehicleId });
     if (error) throw new Error(error.message);
-    return data as VehicleCostReport;
+    return mapVehicleCostReport((data || {}) as Record<string, unknown>);
   }
 
   async getCostCenterFleetReconciliation(): Promise<CostCenterReconciliation[]> {
-    const { data, error } = await this.client.from('v_cost_center_fleet_reconciliation').select('*');
+    const query = this.applySpec(
+      this.client.from(READ_SPECS.v_cost_center_fleet_reconciliation.table),
+      READ_SPECS.v_cost_center_fleet_reconciliation
+    );
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data || []) as CostCenterReconciliation[];
+    return mapRows('v_cost_center_fleet_reconciliation', (data || []) as Record<string, unknown>[]);
   }
 
   async getFleetDashboardKPIs(): Promise<FleetSummaryKPIs> {
     const { data, error } = await this.client.rpc('get_fleet_dashboard_kpis');
     if (error) throw new Error(error.message);
-    return data as FleetSummaryKPIs;
+    return mapFleetDashboardKpis((data || {}) as Record<string, unknown>);
+  }
+
+  async getProfiles(): Promise<ServerProfile[]> {
+    const query = this.applySpec(this.client.from(READ_SPECS.profiles.table), READ_SPECS.profiles);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return mapRows('profiles', (data || []) as Record<string, unknown>[]);
+  }
+
+  async getRoles(): Promise<ServerRole[]> {
+    const query = this.applySpec(this.client.from(READ_SPECS.roles.table), READ_SPECS.roles);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return mapRows('roles', (data || []) as Record<string, unknown>[]);
+  }
+
+  async getRolePermissions(): Promise<ServerRolePermission[]> {
+    const query = this.applySpec(this.client.from(READ_SPECS.role_permissions.table), READ_SPECS.role_permissions);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return mapRows('role_permissions', (data || []) as Record<string, unknown>[]);
   }
 
   // --------------------------------------------------------------------------

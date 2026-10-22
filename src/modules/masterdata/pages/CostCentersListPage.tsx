@@ -24,6 +24,7 @@ import { Input } from '../../../components/ui/Input';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
 
@@ -96,7 +97,7 @@ export const CostCentersListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await costCenterRepository.create(newCC, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await costCenterRepository.create(newCC, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء مركز التكلفة',
         message: `تم تسجيل مركز التكلفة [${newCC.name}] بنجاح.`,
@@ -136,9 +137,7 @@ export const CostCentersListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           'costCenters',
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تعطيل مركز التكلفة',
@@ -146,7 +145,7 @@ export const CostCentersListPage: React.FC = () => {
           type: 'info',
         });
       } else {
-        await costCenterRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await costCenterRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم الحذف بنجاح',
           message: `تم حذف مركز التكلفة [${deleteTarget.code}].`,
