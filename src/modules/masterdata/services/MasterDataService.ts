@@ -263,7 +263,7 @@ export class MasterDataService {
       glAccounts: glAccountRepository,
     };
 
-    const repo = repoMap[entity] as unknown as IRepository<{ status?: string; version?: number }>;
+    const repo = repoMap[entity] as unknown as IRepository<{ id: string; status?: string; version?: number; isDeleted?: boolean }>;
     const before = await repo.getById(id);
     if (!before) throw new Error('السجل المطلوب غير موجود');
 

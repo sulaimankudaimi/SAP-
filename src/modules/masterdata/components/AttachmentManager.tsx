@@ -19,6 +19,7 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatDate } from '../../../core/utils';
 
 export interface AttachmentManagerProps {
@@ -83,7 +84,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({ entityType
               dataUrl,
               uploadedBy: user?.fullName || 'النظام',
             },
-            user?.id || 'admin',
+            currentActorId(),
             user?.fullName || 'مدير النظام'
           );
 
@@ -119,7 +120,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({ entityType
   const confirmDelete = async () => {
     if (!deleteTargetId) return;
     try {
-      await MasterDataService.deleteAttachment(deleteTargetId, user?.id || 'admin', user?.fullName || 'مدير');
+      await MasterDataService.deleteAttachment(deleteTargetId, currentActorId(), user?.fullName || 'مدير');
       showToast({
         title: 'تم حذف المرفق',
         message: 'تمت إزالة المرفق وتسجيل ذلك في سجل التدقيق.',

@@ -2,7 +2,7 @@ import { db } from '../../../core/db';
 import { AutomaticPostingEngine } from './AutomaticPostingEngine';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
-import { requirePermission } from '../../../core/security/SessionContext';
+import { requirePermission, SessionContext } from '../../../core/security/SessionContext';
 import { DependencyGuard } from '../../../core/security/DependencyGuard';
 import { ConcurrencyError } from '../../../core/errors';
 import type { VendorInvoice, Payment, Vendor } from '../../../types/models';
@@ -512,7 +512,7 @@ export class AccountsPayableService {
           sourceType: 'VENDOR_INVOICE',
           sourceId: invoice.id,
           reason,
-          userId,
+          userId: actorId,
         });
         reversalDocNumber = revResult.reversalDocNumber;
       }
@@ -524,7 +524,7 @@ export class AccountsPayableService {
         status: 'cancelled',
         paymentStatus: 'Cancelled' as unknown as 'Unpaid',
         releaseReason: `ملغاة: ${reason}`,
-        updatedBy: userId,
+        updatedBy: actorId,
         updatedAt: now,
         version: invoice.version + 1,
       };
@@ -532,7 +532,7 @@ export class AccountsPayableService {
       await db.vendorInvoices.put(updated);
 
       await AuditService.log({
-        userId,
+        userId: actorId,
         action: 'STATUS_CHANGE',
         entity: 'VendorInvoice',
         entityId: invoice.id,

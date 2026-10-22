@@ -303,3 +303,65 @@ npm run db:down
    - *فشل محتمل*: عدم تطابق أسماء المعاملات (`p_*`) أو غياب أحد الحقول المقروءة في نماذج TypeScript للعميل.
    - *التفسير*: حدوث انزلاق في أسماء المعاملات بين كود العميل في `SupabaseGateway.ts` وتعريفات الدوال في ملفات الترحيل.
 
+---
+
+### 7. استكشاف أخطاء عقود القراءة وإصلاحها (Troubleshooting Contract Errors - READ_SPECS)
+
+تعتمد البنية المعمارية للنظام على مواصفات قراءة تصريحية معلنة مركزياً في الملف:
+`/src/core/gateway/readSpecs.ts`
+جنباً إلى جنب مع محولات الصفوف المطابقة في:
+`/src/core/gateway/rowMappers.ts`
+
+تضمن هذه المواصفات عدم حدوث أي انزلاق بين أعمدة الجداول في خادم PostgreSQL ونماذج TypeScript في الواجهة الأمامية، وتمنع استخدام التحويلات الصريحة غير الآمنة (`data as Vehicle[]`) نهائياً.
+
+#### أ) القواعد المعمارية الصارمة لعقود القراءة (Invariants)
+
+1. **حظر تصفية الحذف على مستندات العمليات التشغيلية (No `is_deleted` on Operational Documents)**:
+   - جداول المستندات وسجلات الأستاذ (`trips`, `fuel_logs`, `maintenance_orders`, `journal_entries`, `stock_ledger`) **غير قابلة للحذف نهائياً (Immutable)**.
+   - لا تحتوي هذه الجداول على عمود `is_deleted` في قاعدة البيانات.
+   - أي استعلام يضيف تصفية `is_deleted = false` على هذه الجداول سيفشل برمجياً في PostgREST وقاعدة البيانات (`column "is_deleted" does not exist`).
+   - التصفية الصحيحة للمستندات تكون دائماً وفق حالات العمل التشغيلية المعرفة في عمود `status` (مثل `draft`, `in_progress`, `completed`, `cancelled`).
+
+2. **مطابقة أعمدة الصيانة الوقائية (`preventive_schedules`)**:
+   - لا يوجد عمود باسم `is_active` في جدول الجداول الوقائية.
+   - التصفية المعتمدة لحالات الجداول تكون عبر عمود الحالة `status = 'Active'` وفق محدد التحقق المقيد في SQL (`CHECK (status IN ('Active', 'Inactive', 'Suspended'))`).
+
+3. **تسوية ومراقبة تنبيهات استهلاك الوقود (`fuel_anomaly_alerts`)**:
+   - لا يوجد عمود باسم `is_resolved` في جدول التنبيهات.
+   - تصفية التنبيهات المفتوحة تكون بمطابقة الحالات النظامية: `status IN ('active', 'investigated')`.
+   - **يحظر قطعياً تعديل جدول التنبيهات مباشرة لتغيير الحالة**: سياسة RLS تمنع التعديل المباشر. تتم تسوية التنبيه حصرياً عبر أمر الخادم المعتمد:
+     ```sql
+     public.resolve_fuel_anomaly(
+         p_request_id uuid,
+         p_alert_id uuid,
+         p_notes text DEFAULT NULL,
+         p_expected_version integer DEFAULT NULL
+     )
+     ```
+   - يتطلب هذا الاستدعاء تمرير معرّف طلب فريد `requestId` ورقم الإصدار المتوقع `expectedVersion` للتحقق التفاؤلي من التزامن (OCC).
+
+4. **تطابق أسماء معاملات دوال الخادم (RPC Parameter Naming)**:
+   - يتم تمرير اسم المعامل `p_days` صراحة إلى دالة `get_vehicle_expiry_alerts` (وليس `p_days_ahead`).
+   - يتم تمرير `p_vehicle_id` إلى دالة `get_vehicle_cost_report`.
+   - كافة معاملات الأوامر تتبع بادئة `p_` المتطابقة بنسبة 100% مع تواقيع `CREATE OR REPLACE FUNCTION` في ملفات الترحيل.
+
+#### ب) تشخيص وحل أخطاء العقود عبر حزمة الاختبارات
+
+يوفر النظام اختبارين محددين لكشف أي خطأ أو تباين في العقود بصورة فورية دون الحاجة لتشغيل قاعدة البيانات:
+
+1. **فحص تواقيع الاستدعاءات (`src/tests/rpc-signatures.test.ts`)**:
+   - يقوم هذا الاختبار بتحليل ملفات الترحيل الـ 14 مباشرة عبر نظام الملفات (`fs`)، واستخراج أسماء المعاملات من نص SQL، ومطابقتها مقابل استدعاءات `SupabaseGateway`.
+   - عند ظهور خطأ: راجع التقرير الذي يوضح اسم الدالة والمعامل المفقود أو الزائد، وقم بتعديل كائن المعاملات في `SupabaseGateway.ts`.
+
+2. **فحص حراس العقود الثابتة (`src/tests/guards.test.ts`)**:
+   - يفحص هذا الاختبار استيراد `readSpecs` و `rowMappers` في `SupabaseGateway`، ويمنع وجود أي `data as ModelName`، ويتأكد أن كافة بنود `READ_SPECS` مستخدمة فعلياً.
+   - في حال تعديل أي استعلام قراءة، تأكد من المرور عبر الدالة المساعدة الموحدة:
+     ```typescript
+     const query = this.applySpec(this.client.from(READ_SPECS.entity.table), READ_SPECS.entity, { ... });
+     const { data, error } = await query;
+     return mapRows('entity', data);
+     ```
+
+3. **اختبار عقود القراءة في بيئة قاعدة البيانات (`src/tests-db/contract-reads.test.ts`)**:
+   - عند تشغيل اختبارات الخادم (`npm run test:db`)، يترجم هذا الاختبار كل مواصفة قراءة في `READ_SPECS` إلى جملة SQL صريحة وينفذها تحت RLS لكل دور مصرح له، ثم يمرر النتيجة عبر نفس محول الصفوف للتحقق من تطابق الأنواع البدائية بدقة (Primitive Types Validation).
+

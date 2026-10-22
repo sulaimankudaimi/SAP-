@@ -24,6 +24,7 @@ import { Select } from '../../../components/ui/Select';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber, formatCurrency } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
 
@@ -96,7 +97,7 @@ export const GLAccountsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await glAccountRepository.create(newAccount, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await glAccountRepository.create(newAccount, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء الحساب بالأستاذ العام',
         message: `تم إضافة الحساب [${newAccount.accountNumber} - ${newAccount.name}] إلى شجرة الحسابات.`,
@@ -136,9 +137,7 @@ export const GLAccountsListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           'glAccounts',
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تجميد الحساب',
@@ -146,7 +145,7 @@ export const GLAccountsListPage: React.FC = () => {
           type: 'info',
         });
       } else {
-        await glAccountRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await glAccountRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم حذف الحساب',
           message: `تمت إزالة الحساب [${deleteTarget.accountNumber}].`,

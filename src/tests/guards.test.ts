@@ -639,6 +639,168 @@ describe('Static Security & Architecture Guards', () => {
       expect(missingSections).toHaveLength(0);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Guard 10: Prohibition of Hardcoded IDs and user fallback string literals
+  // ---------------------------------------------------------------------------
+  describe('10. Prohibition of Hardcoded Actor IDs and String Literal Fallbacks', () => {
+    // Written allowlist with justification
+    // Empty: all hardcoded IDs in production source code have been replaced with SessionContext.currentActorId()
+    const ALLOW_LIST: { file: string; pattern: string; justification: string }[] = [];
+
+    it('fails if any production code outside src/seed and tests contains hardcoded user IDs or user?.id || string literals', () => {
+      const idPattern = /['"](usr|u)-[a-z]+(-[a-z]+)*-?[0-9]+['"]/;
+      const fallbackPattern = /user\?\.id\s*\|\|\s*['"][^'"]+['"]/;
+      const violations: { file: string; line: number; rule: string; content: string }[] = [];
+
+      for (const filePath of allSrcFiles) {
+        const normalized = filePath.replace(/\\/g, '/');
+        // Exclude tests and seed directory
+        if (
+          normalized.includes('/tests/') ||
+          normalized.includes('/tests-db/') ||
+          normalized.endsWith('.test.ts') ||
+          normalized.endsWith('.test.tsx') ||
+          normalized.includes('/src/seed/')
+        ) {
+          continue;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const lines = content.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          // Check for hardcoded user ID patterns
+          if (idPattern.test(line)) {
+            const relPath = path.relative(SRC_DIR, filePath);
+            const isAllowed = ALLOW_LIST.some((a) => a.file === relPath && line.includes(a.pattern));
+            if (!isAllowed) {
+              violations.push({
+                file: relPath,
+                line: i + 1,
+                rule: 'Hardcoded user/actor ID',
+                content: line.trim(),
+              });
+            }
+          }
+
+          // Check for user?.id || '...' fallback literals
+          if (fallbackPattern.test(line)) {
+            const relPath = path.relative(SRC_DIR, filePath);
+            const isAllowed = ALLOW_LIST.some((a) => a.file === relPath && line.includes(a.pattern));
+            if (!isAllowed) {
+              violations.push({
+                file: relPath,
+                line: i + 1,
+                rule: 'user?.id || string literal fallback',
+                content: line.trim(),
+              });
+            }
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        const report = violations.map((v) => `${v.file}:${v.line} [${v.rule}] -> ${v.content}`).join('\n');
+        expect.fail(`Detected forbidden hardcoded user IDs or string literal user fallbacks in production code:\n${report}`);
+      }
+
+      expect(violations).toHaveLength(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard 11: SupabaseGateway ReadSpecs and RowMappers Integrity
+  // ---------------------------------------------------------------------------
+  describe('11. SupabaseGateway ReadSpecs & RowMappers Contract Guard', () => {
+    const gatewayPath = path.resolve(SRC_DIR, 'core', 'gateway', 'SupabaseGateway.ts');
+    const readSpecsPath = path.resolve(SRC_DIR, 'core', 'gateway', 'readSpecs.ts');
+
+    it('fails when SupabaseGateway has no import of rowMappers or readSpecs', () => {
+      const content = fs.readFileSync(gatewayPath, 'utf-8');
+      expect(content).toMatch(/import\s+[\s\S]*?\bREAD_SPECS\b[\s\S]*?from\s+['"]\.\/readSpecs['"]/);
+      expect(content).toMatch(/import\s+[\s\S]*?\b(mapRow|mapRows)\b[\s\S]*?from\s+['"]\.\/rowMappers['"]/);
+    });
+
+    it('fails when SupabaseGateway contains data as followed by a model type name', () => {
+      const content = fs.readFileSync(gatewayPath, 'utf-8');
+      const rawCastPattern = /\bdata\s+as\s+(Vehicle|Trip|Driver|FuelLog|MaintenanceOrder|PreventiveSchedule|FuelAnomalyAlert|ExpiryAlert|CostCenterReconciliation)\b/;
+      const match = rawCastPattern.exec(content);
+      expect(
+        match,
+        `SupabaseGateway must not contain raw row casts like "data as ${match?.[1]}". Found at index ${match?.index}`
+      ).toBeNull();
+    });
+
+    it('fails when readSpecs.ts has an entry never used by SupabaseGateway', async () => {
+      const gatewayContent = fs.readFileSync(gatewayPath, 'utf-8');
+      const { READ_SPECS } = await import('../core/gateway/readSpecs');
+
+      const unusedSpecs: string[] = [];
+      for (const specKey of Object.keys(READ_SPECS)) {
+        const pattern = new RegExp(`READ_SPECS\\.${specKey}\\b`);
+        if (!pattern.test(gatewayContent)) {
+          unusedSpecs.push(specKey);
+        }
+      }
+
+      expect(
+        unusedSpecs,
+        `Every entry in READ_SPECS must be referenced by SupabaseGateway. Unused specs: ${unusedSpecs.join(', ')}`
+      ).toHaveLength(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Guard 12: Versioned Repository Updates Must Enforce Optimistic Concurrency
+  // ---------------------------------------------------------------------------
+  describe('12. Versioned Repository Optimistic Concurrency Guard', () => {
+    it('fails when any .update( on a versioned repository lacks expectedVersion or skipVersionCheck', () => {
+      // Repositories known to be versioned (materials, vendors, customers, costCenters, etc.)
+      const versionedRepoRegex = /\b(materialRepository|vendorRepository|customerRepository|costCenterRepository|plantRepository|storageLocationRepository|repo)\.update\s*\(/;
+
+      const violations: { file: string; line: number; content: string }[] = [];
+
+      for (const filePath of allSrcFiles) {
+        if (filePath.endsWith('guards.test.ts') || filePath.endsWith('.test.ts') || filePath.endsWith('.test.tsx')) {
+          continue;
+        }
+
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const lines = content.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (versionedRepoRegex.test(line)) {
+            // Read next 15 lines of the call to check for expectedVersion or skipVersionCheck
+            const callSlice = lines.slice(i, i + 15).join('\n');
+            const hasExpectedVersion = /\bexpectedVersion\b/.test(callSlice);
+            const hasSkipVersionCheck = /\bskipVersionCheck\b/.test(callSlice);
+
+            if (!hasExpectedVersion && !hasSkipVersionCheck) {
+              violations.push({
+                file: path.relative(SRC_DIR, filePath),
+                line: i + 1,
+                content: line.trim(),
+              });
+            }
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        const report = violations.map((v) => `${v.file}:${v.line} -> ${v.content}`).join('\n');
+        expect.fail(
+          `Detected .update( call on versioned repository lacking expectedVersion or skipVersionCheck:\n${report}`
+        );
+      }
+
+      expect(violations).toHaveLength(0);
+    });
+  });
 });
+
 
 

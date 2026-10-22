@@ -22,6 +22,7 @@ import { Input } from '../../../components/ui/Input';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
 
@@ -102,7 +103,7 @@ export const UnitsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await unitRepository.create(newUnit, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await unitRepository.create(newUnit, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء وحدة القياس',
         message: `تم إضافة الوحدة [${newUnit.name}] لدليل القياس المعياري.`,
@@ -145,7 +146,7 @@ export const UnitsListPage: React.FC = () => {
           type: 'error',
         });
       } else {
-        await unitRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await unitRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم الحذف',
           message: `تم حذف الوحدة [${deleteTarget.code}].`,

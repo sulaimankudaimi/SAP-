@@ -17,6 +17,7 @@ import { Select } from '../../../components/ui/Select';
 import { MasterDataService } from '../services/MasterDataService';
 import { ImportExportService, type ValidationResult } from '../../../core/utils/importExport';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { useToast } from '../../../components/ui/Toast';
 import { exportToCsv } from '../../../core/utils';
 
@@ -139,7 +140,7 @@ export const ImportCsvModal: React.FC<ImportCsvModalProps> = ({
       const count = await MasterDataService.commitBulkImport(
         entityType,
         validationResult.validRows as { id: string }[],
-        user?.id || 'admin',
+        currentActorId(),
         user?.fullName || 'مدير النظام'
       );
 

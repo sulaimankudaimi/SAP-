@@ -23,6 +23,7 @@ import { Textarea } from '../../../components/ui/Textarea';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
 
@@ -104,7 +105,7 @@ export const MaterialGroupsListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await materialGroupRepository.create(newGroup, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await materialGroupRepository.create(newGroup, currentActorId(), user?.fullName || 'مدير النظام');
       showToast({
         title: 'تم إنشاء مجموعة المواد',
         message: `تم إضافة المجموعة [${newGroup.name}] إلى تصنيفات المواد.`,
@@ -147,7 +148,7 @@ export const MaterialGroupsListPage: React.FC = () => {
           type: 'error',
         });
       } else {
-        await materialGroupRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await materialGroupRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم الحذف',
           message: `تم حذف المجموعة [${deleteTarget.code}].`,

@@ -54,6 +54,23 @@ import {
   type ServerRolePermission,
 } from './rowMappers';
 
+export interface PostgrestQueryLike {
+  eq(column: string, value: unknown): this;
+  neq(column: string, value: unknown): this;
+  gt(column: string, value: unknown): this;
+  gte(column: string, value: unknown): this;
+  lt(column: string, value: unknown): this;
+  lte(column: string, value: unknown): this;
+  in(column: string, values: unknown[]): this;
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this;
+  range(from: number, to: number): this;
+  maybeSingle(): PromiseLike<{ data: Record<string, unknown> | null; error: { message: string } | null }>;
+  then<TResult1 = { data: Record<string, unknown>[] | null; error: { message: string } | null; count?: number | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: Record<string, unknown>[] | null; error: { message: string } | null; count?: number | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ): PromiseLike<TResult1 | TResult2>;
+}
+
 export class SupabaseGateway implements IDataGateway {
   readonly mode = 'server' as const;
   private client: SupabaseClient;
@@ -112,19 +129,19 @@ export class SupabaseGateway implements IDataGateway {
    * Applies the select columns, static filters, and ordering from a declarative ReadSpec.
    */
   private applySpec(
-    query: ReturnType<SupabaseClient['from']>,
+    query: { select: (columns?: string, options?: { count?: 'exact' | 'planned' | 'estimated' }) => unknown },
     spec: ReadSpec,
     options?: {
       count?: 'exact' | 'planned' | 'estimated';
       applyFilters?: (
-        builder: ReturnType<ReturnType<SupabaseClient['from']>['select']>
-      ) => ReturnType<ReturnType<SupabaseClient['from']>['select']>;
+        builder: PostgrestQueryLike
+      ) => PostgrestQueryLike;
     }
-  ): ReturnType<ReturnType<SupabaseClient['from']>['select']> {
+  ): PostgrestQueryLike {
     let q = query.select(
       spec.columns.join(', '),
       options?.count ? { count: options.count } : undefined
-    );
+    ) as unknown as PostgrestQueryLike;
     for (const [column, op, value] of spec.filters) {
       if (op === 'eq') q = q.eq(column, value);
       else if (op === 'neq') q = q.neq(column, value);

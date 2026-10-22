@@ -28,6 +28,7 @@ import { Input } from '../../../components/ui/Input';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
+import { currentActorId } from '../../../core/security/SessionContext';
 import { formatCurrency, formatNumber } from '../../../core/utils';
 import { ImportCsvModal, TargetFieldDef } from '../components/ImportCsvModal';
 import { t } from '../../../i18n/ar';
@@ -112,7 +113,7 @@ export const CustomersListPage: React.FC = () => {
         isDeleted: false,
       };
 
-      await customerRepository.create(newCustomer, user?.id || 'admin', user?.fullName || 'مدير النظام');
+      await customerRepository.create(newCustomer, currentActorId(), user?.fullName || 'مدير النظام');
 
       showToast({
         title: 'تم تسجيل العميل بنجاح',
@@ -164,9 +165,7 @@ export const CustomersListPage: React.FC = () => {
         await MasterDataService.toggleStatus(
           'customers',
           deleteTarget.id,
-          'inactive',
-          user?.id || 'admin',
-          user?.fullName || 'مدير النظام'
+          'inactive'
         );
         showToast({
           title: 'تم تعطيل حساب العميل',
@@ -174,7 +173,7 @@ export const CustomersListPage: React.FC = () => {
           type: 'info',
         });
       } else {
-        await customerRepository.delete(deleteTarget.id, user?.id || 'admin', user?.fullName || 'مدير النظام');
+        await customerRepository.delete(deleteTarget.id, currentActorId(), user?.fullName || 'مدير النظام');
         showToast({
           title: 'تم حذف العميل',
           message: `تمت إزالة العميل [${deleteTarget.customerCode}] من النظام.`,

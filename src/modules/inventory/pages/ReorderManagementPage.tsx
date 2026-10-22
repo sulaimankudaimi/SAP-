@@ -7,6 +7,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
+import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { GoodsIssueModal } from '../components/GoodsIssueModal';

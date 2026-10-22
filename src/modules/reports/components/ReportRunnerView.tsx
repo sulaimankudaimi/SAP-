@@ -7,6 +7,7 @@ import { ReportCatalogService } from '../services/ReportCatalogService';
 import { ExportService } from '../services/ExportService';
 import type { ReportDefinition } from '../../../types/models';
 import { currentActorId } from '../../../core/security/SessionContext';
+import { useToast } from '../../../components/ui/Toast';
 import {
   FileSpreadsheet,
   Printer,

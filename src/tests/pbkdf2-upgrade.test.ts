@@ -202,7 +202,7 @@ describe('PBKDF2 600,000 Iterations & Transparent Upgrade', () => {
     expect(validAt600k).toBe(true);
 
     const audit = await db.auditLogs.where('entityId').equals('u-nofield-100k').toArray();
-    expect(audit.some((a) => a.after?.reason?.includes('Resolved missing passwordIterations'))).toBe(true);
+    expect(audit.some((a) => String((a.after as Record<string, unknown>)?.reason || '').includes('Resolved missing passwordIterations'))).toBe(true);
   });
 
   it('600000-hash user without field logs in and gets the field', async () => {
