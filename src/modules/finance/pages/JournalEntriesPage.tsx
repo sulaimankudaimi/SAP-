@@ -10,6 +10,7 @@ import { t } from '../../../i18n/ar';
 import { FinanceService } from '../services/FinanceService';
 import { JournalEntryModal } from '../components/JournalEntryModal';
 import { JournalDetailModal } from '../components/JournalDetailModal';
+import { formatMoney } from '../../../core/utils/format';
 import type { JournalEntry } from '../../../types/models';
 import {
   FileText,
@@ -112,7 +113,7 @@ export const JournalEntriesPage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="إجمالي حركات القيود المعروضة"
-          value={`${totalDebitSum.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={formatMoney(totalDebitSum)}
           subtitle="مجموع العمليات المدينة والدائنة"
           icon={<BookOpen className="w-5 h-5 text-emerald-600" />}
         />
@@ -248,10 +249,10 @@ export const JournalEntriesPage: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{je.reference || '—'}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800">
-                      {je.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                      {formatMoney(je.totalDebit)}
                     </td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-800">
-                      {je.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                      {formatMoney(je.totalCredit)}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       {je.isReversed ? (

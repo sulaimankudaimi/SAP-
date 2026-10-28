@@ -9,6 +9,7 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useToast } from '../../../components/ui/Toast';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { MaintenanceOrder, PreventiveSchedule } from '../../../types/models';
 import {
   Wrench,
@@ -168,7 +169,7 @@ export const FleetMaintenancePage: React.FC = () => {
 
         <StatCard
           label="إجمالي تكاليف الصيانة الفعلية"
-          value={`${totalMaintenanceCost.toLocaleString()} ر.س`}
+          value={formatMoney(totalMaintenanceCost)}
           subtitle="قطع غيار (حركة 261) + عمالة"
           icon={<DollarSign className="w-5 h-5 text-[#0FA37F]" />}
         />
@@ -273,10 +274,10 @@ export const FleetMaintenancePage: React.FC = () => {
                         {o.downtimeHours ? `${o.downtimeHours} ساعة` : '—'}
                       </td>
                       <td className="p-3 text-end font-mono text-[#64748B]">
-                        {o.partsCost.toLocaleString()} ر.س
+                        {formatMoney(o.partsCost)}
                       </td>
                       <td className="p-3 text-end font-mono font-bold text-[#0FA37F]">
-                        {o.actualCost.toLocaleString()} ر.س
+                        {formatMoney(o.actualCost)}
                       </td>
                       <td className="p-3 text-center">
                         {getStatusBadge(o.status)}
@@ -343,13 +344,13 @@ export const FleetMaintenancePage: React.FC = () => {
                     <td className="p-3 font-mono font-bold text-[#0F172A]">{s.vehiclePlate}</td>
                     <td className="p-3 font-bold text-[#0F172A]">{s.serviceName}</td>
                     <td className="p-3 text-center font-mono font-bold text-[#2563EB]">
-                      كل {s.intervalKm.toLocaleString()} كم
+                      كل {formatNumber(s.intervalKm)} كم
                     </td>
                     <td className="p-3 text-center font-mono text-[#64748B]">
-                      {s.lastDoneOdometer.toLocaleString()} كم ({s.lastDoneDate})
+                      {formatNumber(s.lastDoneOdometer)} كم ({s.lastDoneDate})
                     </td>
                     <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                      {s.nextDueOdometer.toLocaleString()} كم
+                      {formatNumber(s.nextDueOdometer)} كم
                     </td>
                     <td className="p-3 text-center font-mono text-[#64748B]">{s.nextDueDate}</td>
                     <td className="p-3 text-center">

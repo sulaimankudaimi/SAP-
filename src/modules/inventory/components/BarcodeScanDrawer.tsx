@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { ResolvedBarcode } from '../hooks/useBarcodeScanner';
 import type { Material, StorageLocation, PurchaseOrder, MaterialDocument } from '../../../types/models';
+import { formatMoney } from '../../../core/utils/format';
 
 interface BarcodeScanDrawerProps {
   isOpen: boolean;
@@ -168,10 +169,7 @@ export const BarcodeScanDrawer: React.FC<BarcodeScanDrawerProps> = ({
                 <div className="flex justify-between">
                   <span className="text-[#64748B]">السعر المعياري (MAP):</span>
                   <span className="font-bold text-[#0FA37F]">
-                    {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(
-                      (scanned.item as Material).standardPrice
-                    )}{' '}
-                    ر.س
+                    {formatMoney((scanned.item as Material).standardPrice)}
                   </span>
                 </div>
               </div>

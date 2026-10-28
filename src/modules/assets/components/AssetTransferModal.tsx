@@ -10,6 +10,7 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Asset, AssetTransfer } from '../../../types/models';
 import { ArrowRightLeft, Building2, User, MapPin } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 interface AssetTransferModalProps {
   isOpen: boolean;
@@ -108,11 +109,10 @@ export const AssetTransferModal: React.FC<AssetTransferModalProps> = ({
               <Select
                 value={toPlant}
                 onChange={(e) => setToPlant(e.target.value)}
-                options={[
-                  { value: '1100', label: '1100 - محطة الرياض المركزية' },
-                  { value: '1200', label: '1200 - محطة ومستودعات جدة' },
-                  { value: '1300', label: '1300 - مستودع الدمام اللوجستي' },
-                ]}
+                options={LOCALE.plants.map((p) => ({
+                  value: p.code,
+                  label: `${p.code} - ${p.nameAr}`,
+                }))}
               />
             </div>
 
@@ -140,7 +140,7 @@ export const AssetTransferModal: React.FC<AssetTransferModalProps> = ({
             <Input
               value={toCustodian}
               onChange={(e) => setToCustodian(e.target.value)}
-              placeholder="مثال: م. خالد الغامدي"
+              placeholder={`مثال: م. ${LOCALE.namePools.firstNames[3]} ${LOCALE.namePools.lastNames[3]}`}
               required
             />
           </div>

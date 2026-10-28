@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
 import { useToast } from '../ui/Toast';
 import { db } from '../../core/db';
+import { formatMoney } from '../../core/utils/format';
 import type { Material, Vendor, CostCenter, Plant, GLAccount } from '../../types/models';
 import { DiagnosticLogger } from '../../core/services/DiagnosticLogger';
 import { Search, Copy, Check, Package, Users, Building, MapPin, BookOpen } from 'lucide-react';
@@ -204,7 +205,7 @@ export const ValueHelpModal: React.FC<ValueHelpModalProps> = ({
                     </div>
                     <p className="text-xs text-[#0F172A] font-semibold">{m.name}</p>
                     <p className="text-[11px] text-[#64748B]">
-                      الوحدة: {m.baseUnit} | السعر المعياري: {m.standardPrice?.toLocaleString()} ر.س
+                      الوحدة: {m.baseUnit} | السعر المعياري: {formatMoney(m.standardPrice || 0)}
                     </p>
                   </div>
                   <button

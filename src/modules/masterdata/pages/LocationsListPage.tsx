@@ -30,6 +30,7 @@ import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const LocationsListPage: React.FC = () => {
   const { showToast } = useToast();
@@ -51,7 +52,7 @@ export const LocationsListPage: React.FC = () => {
     code: '',
     name: '',
     companyCode: '1000',
-    city: 'الرياض',
+    city: LOCALE.hqCity as string,
     manager: '',
   });
   const [slocForm, setSlocForm] = useState({
@@ -121,7 +122,7 @@ export const LocationsListPage: React.FC = () => {
       });
 
       setIsPlantModalOpen(false);
-      setPlantForm({ code: '', name: '', companyCode: '1000', city: 'الرياض', manager: '' });
+      setPlantForm({ code: '', name: '', companyCode: '1000', city: LOCALE.hqCity, manager: '' });
       setFormErrors({});
       await loadData();
     } catch (err) {
@@ -409,7 +410,7 @@ export const LocationsListPage: React.FC = () => {
           columns={plantColumns}
           isLoading={loading}
           searchPlaceholder="بحث في المحطات..."
-          exportFileName="المحطات_الرئيسية_طاقة_الخليج"
+          exportFileName="المحطات_الرئيسية_الشام_للطاقة"
         />
       ) : (
         <DataTable
@@ -417,7 +418,7 @@ export const LocationsListPage: React.FC = () => {
           columns={slocColumns}
           isLoading={loading}
           searchPlaceholder="بحث في مستودعات التخزين والخزانات..."
-          exportFileName="مستودعات_التخزين_طاقة_الخليج"
+          exportFileName="مستودعات_التخزين_الشام_للطاقة"
         />
       )}
 
@@ -438,7 +439,7 @@ export const LocationsListPage: React.FC = () => {
           />
           <Input
             label="اسم المحطة بالكامل *"
-            placeholder="مثال: محطة توزيع ينبع اللوجستية"
+            placeholder="مثال: محطة توزيع حمص اللوجستية"
             value={plantForm.name}
             onChange={(e) => setPlantForm({ ...plantForm, name: e.target.value })}
             error={formErrors.name}

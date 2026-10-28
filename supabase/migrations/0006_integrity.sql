@@ -96,7 +96,7 @@ BEGIN
     )
     SELECT
         CASE WHEN diff > 0.001 THEN 1 ELSE 0 END,
-        CASE WHEN diff > 0.001 THEN ARRAY['ميزان المراجعة غير متوازن بفارق ' || diff::text || ' ر.س'] ELSE '{}'::text[] END
+        CASE WHEN diff > 0.001 THEN ARRAY['ميزان المراجعة غير متوازن بفارق ' || diff::text || ' ل.س'] ELSE '{}'::text[] END
     INTO v_violations_count, v_sample_ids
     FROM gl_balance_check;
 

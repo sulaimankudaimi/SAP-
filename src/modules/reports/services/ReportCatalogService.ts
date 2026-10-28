@@ -1,4 +1,5 @@
 import { db } from '../../../core/db';
+import { LOCALE } from '../../../config/locale';
 import type {
   ReportDefinition,
   ReportCategory,
@@ -31,7 +32,15 @@ export class ReportCatalogService {
           { key: 'deliveryDate', header: 'تاريخ التسليم المتوقع', type: 'date', sortable: true },
         ],
         filters: [
-          { key: 'plantCode', label: 'المحطة / المنشأة', type: 'select', options: [{ label: 'الكل', value: '' }, { label: 'PL-101 (الرياض)', value: 'PL-101' }, { label: 'PL-102 (جدة)', value: 'PL-102' }, { label: 'PL-103 (الدمام)', value: 'PL-103' }, { label: 'PL-104 (ينبع)', value: 'PL-104' }] },
+          {
+            key: 'plantCode',
+            label: 'المحطة / المنشأة',
+            type: 'select',
+            options: [
+              { label: 'الكل', value: '' },
+              ...LOCALE.plants.map((pl) => ({ label: `${pl.code} (${pl.city})`, value: pl.code })),
+            ],
+          },
           { key: 'status', label: 'حالة الأمر', type: 'select', options: [{ label: 'الكل', value: '' }, { label: 'معتمد (Approved)', value: 'approved' }, { label: 'مكتمل (Completed)', value: 'completed' }, { label: 'قيد الاعتماد (Pending)', value: 'in_approval' }] },
           { key: 'searchTerm', label: 'بحث بالمورد أو الرقم', type: 'text' },
         ],

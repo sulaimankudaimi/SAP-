@@ -29,7 +29,7 @@ TECH STACK (fixed, do not deviate)
 LANGUAGE & LAYOUT
 - All UI text in Arabic; <html dir="rtl" lang="ar">. Use logical CSS properties (ms-/me-/ps-/pe-, start/end), never left/right.
 - Centralize all strings in /src/i18n/ar.ts (key → Arabic) and use a t() helper. Code, identifiers, comments in English.
-- Charts, tables, forms, and dropdowns must all be RTL-correct. Currency default: SAR (ريال), configurable.
+- Charts, tables, forms, and dropdowns must all be RTL-correct. Currency default: SYP (ل.س), configurable.
 
 DESIGN SYSTEM (strict)
 - Reference style: clean modern Arabic SaaS dashboards (white cards on very light blue-gray background).

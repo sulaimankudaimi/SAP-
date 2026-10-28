@@ -4,6 +4,8 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Printer, Navigation, Truck, User, Calendar, MapPin, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { PrintTemplateService } from '../../admin/services/PrintTemplateService';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import type { Trip, PrintTemplate } from '../../../types/models';
 
 interface TripPrintModalProps {
@@ -66,14 +68,14 @@ export const TripPrintModal: React.FC<TripPrintModalProps> = ({
           <div className="flex items-start justify-between border-b-2 border-slate-800 pb-5">
             <div>
               <h1 className="text-lg font-bold text-[#0B2545]">
-                {template?.companyNameArabic || 'شركة الخليج للطاقة والخدمات البترولية'}
+                {template?.companyNameArabic || LOCALE.brand.nameAr}
               </h1>
               <h2 className="text-xs font-semibold text-slate-500 font-sans tracking-wide">
-                {template?.companyNameEnglish || 'Gulf Energy & Petroleum Services Co.'}
+                {template?.companyNameEnglish || LOCALE.brand.nameEn}
               </h2>
               <div className="mt-2 text-[10px] text-slate-600 space-y-0.5">
-                <div>الرقم الضريبي: <span className="font-mono font-bold">{template?.taxNumber || '300192834700003'}</span></div>
-                <div>السجل التجاري: <span className="font-mono font-bold">{template?.commercialRecord || '1010892744'}</span></div>
+                <div>الرقم الضريبي: <span className="font-mono font-bold">{template?.taxNumber || 'SY-TAX-100293'}</span></div>
+                <div>السجل التجاري: <span className="font-mono font-bold">{template?.commercialRecord || 'DAM-CR-88412'}</span></div>
                 <div className="text-slate-500">{template?.headerText}</div>
               </div>
             </div>
@@ -131,14 +133,14 @@ export const TripPrintModal: React.FC<TripPrintModalProps> = ({
                 <tr>
                   <td className="p-2.5 font-bold text-[#0B2545]">{trip.cargoType}</td>
                   <td className="p-2.5 text-center font-mono font-bold">
-                    {trip.cargoVolumeLiters ? trip.cargoVolumeLiters.toLocaleString() : '—'}
+                    {trip.cargoVolumeLiters ? formatNumber(trip.cargoVolumeLiters) : '—'}
                   </td>
-                  <td className="p-2.5 text-center font-mono">{trip.startOdometer?.toLocaleString()}</td>
+                  <td className="p-2.5 text-center font-mono">{formatNumber(trip.startOdometer ?? 0)}</td>
                   <td className="p-2.5 text-center font-mono">
-                    {trip.endOdometer ? trip.endOdometer.toLocaleString() : 'قيد السير'}
+                    {trip.endOdometer ? formatNumber(trip.endOdometer) : 'قيد السير'}
                   </td>
                   <td className="p-2.5 text-center font-mono font-bold text-[#0FA37F]">
-                    {trip.distanceKm ? `${trip.distanceKm.toLocaleString()} كم` : '—'}
+                    {trip.distanceKm ? `${formatNumber(trip.distanceKm)} كم` : '—'}
                   </td>
                   <td className="p-2.5 text-end font-semibold">
                     {trip.status === 'completed' ? 'مكتملة ومُرحّلة' : 'في الطريق'}
@@ -183,19 +185,19 @@ export const TripPrintModal: React.FC<TripPrintModalProps> = ({
                 <div className="flex justify-between">
                   <span className="text-slate-500">تكلفة وقود الرحلة:</span>
                   <span className="font-mono font-semibold">
-                    {trip.fuelCost ? `${trip.fuelCost.toLocaleString()} ر.س` : '0.00 ر.س'}
+                    {formatMoney(trip.fuelCost ?? 0)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">بدل السائق (SAR/Km):</span>
+                  <span className="text-slate-500">بدل السائق ({LOCALE.currency.code}/Km):</span>
                   <span className="font-mono font-semibold">
-                    {trip.driverAllowanceCost ? `${trip.driverAllowanceCost.toLocaleString()} ر.س` : '0.00 ر.س'}
+                    {formatMoney(trip.driverAllowanceCost ?? 0)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-300 font-bold text-xs text-[#0FA37F]">
                   <span>إجمالي تكلفة الرحلة:</span>
                   <span className="font-mono">
-                    {trip.totalTripCost ? `${trip.totalTripCost.toLocaleString()} ر.س` : '0.00 ر.س'}
+                    {formatMoney(trip.totalTripCost ?? 0)}
                   </span>
                 </div>
               </div>
@@ -239,7 +241,7 @@ export const TripPrintModal: React.FC<TripPrintModalProps> = ({
 
           {/* Footer */}
           <div className="text-center text-[9px] text-slate-500 pt-3 border-t border-slate-200">
-            {template?.footerText || 'تخضع الشحنة لمعايير السلامة المهنية وتنظيمات الهيئة العامة للنقل وأرامكو السعودية.'}
+            {template?.footerText || 'تخضع الشحنة لمعايير السلامة المهنية وتنظيمات النقل المعتمدة.'}
           </div>
         </div>
       </div>

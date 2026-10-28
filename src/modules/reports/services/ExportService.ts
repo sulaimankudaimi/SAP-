@@ -1,4 +1,5 @@
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import { formatDateTime } from '../../../core/utils/format';
 import * as XLSX from 'xlsx';
 import type { ReportColumn } from '../../../types/models';
 
@@ -47,7 +48,7 @@ export class ExportService {
     // Combine into sheet data
     const wsData = [
       [title], // Row 1: Title
-      [`تاريخ التصدير: ${new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn')}`], // Row 2: Metadata
+      [`تاريخ التصدير: ${formatDateTime(new Date())}`], // Row 2: Metadata
       [], // Empty row
       headerRow, // Row 4: Column Headers
       ...dataRows, // Data

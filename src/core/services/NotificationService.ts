@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { formatMoney } from '../utils/format';
 import type { Notification } from '../../types/models';
 
 export class NotificationService {
@@ -173,7 +174,7 @@ export class NotificationService {
           id: `notif-apr-${apr.id}-${Date.now()}`,
           userId: currentStep?.roleCode || 'ALL',
           title: `طلب اعتماد بانتظارك: ${apr.documentNumber}`,
-          message: `يتطلب المستند ${apr.documentType} رقم [${apr.documentNumber}] بقيمة ${apr.amount.toLocaleString()} ${apr.currency} موافقتك كـ [${currentStep?.roleName}].`,
+          message: `يتطلب المستند ${apr.documentType} رقم [${apr.documentNumber}] بقيمة ${formatMoney(apr.amount, apr.currency)} موافقتك كـ [${currentStep?.roleName}].`,
           type: 'approval',
           isRead: false,
           link: '/approvals',

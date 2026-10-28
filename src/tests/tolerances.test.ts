@@ -104,7 +104,7 @@ describe('TolerancePolicyService & 3-Way Match Tolerances', () => {
   });
 
   it('evaluates invoice matching according to configured company tolerance policy', async () => {
-    // Configure strict tolerances for company 1000: 2% price, 2% quantity, 0 SAR absolute
+    // Configure strict tolerances for company 1000: 2% price, 2% quantity, 0 SYP absolute
     await TolerancePolicyService.set(
       {
         pricePercent: 2.0,
@@ -120,13 +120,13 @@ describe('TolerancePolicyService & 3-Way Match Tolerances', () => {
       version: 1,
       status: 'approved',
       vendorCode: 'V-100',
-      vendorName: 'Saudi Equipment',
+      vendorName: 'مؤسسة الشام للمعدات الصناعية',
       companyCode: '1000',
       plantCode: '1100',
       orderDate: '2026-01-01',
       deliveryDate: '2026-01-10',
       totalAmount: 10000,
-      currency: 'SAR',
+      currency: 'SYP',
       paymentTerms: 'Net 30',
       items: [
         {

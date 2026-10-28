@@ -168,7 +168,7 @@ BEGIN
         PERFORM cron.unschedule('nightly-integrity-check')
         WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'nightly-integrity-check');
 
-        -- Schedule to run every night at 02:00 AM UTC (05:00 AM Riyadh Time)
+        -- Schedule to run every night at 02:00 AM UTC (05:00 AM Damascus Time)
         PERFORM cron.schedule(
             'nightly-integrity-check',
             '0 2 * * *',

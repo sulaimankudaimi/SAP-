@@ -44,6 +44,14 @@ import { formatCurrency, formatNumber, formatDate } from '../../../core/utils';
 import { AttachmentManager } from '../components/AttachmentManager';
 import { AuditHistoryTab } from '../components/AuditHistoryTab';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
+import {
+  validateCommercialRegister,
+  validateTaxNumber,
+  validateSyrianPhone,
+  validateBankAccount,
+  FIELD_LABELS,
+} from '../../../core/utils/validators';
 
 export const VendorDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -95,6 +103,34 @@ export const VendorDetailPage: React.FC = () => {
 
   const handleSaveEdit = async () => {
     if (!vendor || !id) return;
+    if (editForm.commercialRecord !== undefined) {
+      const crCheck = validateCommercialRegister(editForm.commercialRecord);
+      if (!crCheck.valid) {
+        showToast({ title: 'خطأ في السجل التجاري', message: crCheck.error || '', type: 'error' });
+        return;
+      }
+    }
+    if (editForm.taxNumber !== undefined) {
+      const taxCheck = validateTaxNumber(editForm.taxNumber);
+      if (!taxCheck.valid) {
+        showToast({ title: 'خطأ في الرقم الضريبي', message: taxCheck.error || '', type: 'error' });
+        return;
+      }
+    }
+    if (editForm.phone) {
+      const phoneCheck = validateSyrianPhone(editForm.phone);
+      if (!phoneCheck.valid) {
+        showToast({ title: 'خطأ في رقم الهاتف', message: phoneCheck.error || '', type: 'error' });
+        return;
+      }
+    }
+    if (editForm.bankIban) {
+      const bankCheck = validateBankAccount(editForm.bankIban);
+      if (!bankCheck.valid) {
+        showToast({ title: 'خطأ في الحساب البنكي', message: bankCheck.error || '', type: 'error' });
+        return;
+      }
+    }
     try {
       setIsSaving(true);
       await vendorRepository.update(
@@ -223,7 +259,7 @@ export const VendorDetailPage: React.FC = () => {
               السجل التجاري أو الاعتماد النظامي للمورد ينتهي بتاريخ:{' '}
               <strong>{vendor.crExpiryDate ? formatDate(vendor.crExpiryDate, 'yyyy-MM-dd') : '—'}</strong>
               {isCrExpired ? ' (انتهت الصلاحية رسمياً)' : ` (متبقي ${daysUntilCrExpiry} يوماً فقط)`}.
-              يرجى طلب تحديث شهادة السجل التجاري وشهادة الزكاة والدخل لتجنب حظر الترسية.
+              يرجى طلب تحديث شهادة السجل التجاري والشهادة الضريبية لتجنب حظر الترسية.
             </p>
           </div>
         </div>
@@ -293,7 +329,7 @@ export const VendorDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="إجمالي المشتريات المعتمدة"
-          value={formatCurrency(totalSpent, 'SAR')}
+          value={formatCurrency(totalSpent)}
           icon={<ShoppingCart className="w-6 h-6 text-primary" />}
         />
         <StatCard
@@ -331,12 +367,12 @@ export const VendorDetailPage: React.FC = () => {
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               />
               <Input
-                label="رقم السجل التجاري *"
+                label={`${FIELD_LABELS.commercialRegister} *`}
                 value={editForm.commercialRecord || ''}
                 onChange={(e) => setEditForm({ ...editForm, commercialRecord: e.target.value })}
               />
               <Input
-                label="الرقم الضريبي *"
+                label={`${FIELD_LABELS.taxNumber} *`}
                 value={editForm.taxNumber || ''}
                 onChange={(e) => setEditForm({ ...editForm, taxNumber: e.target.value })}
               />
@@ -363,11 +399,11 @@ export const VendorDetailPage: React.FC = () => {
                 <span className="text-sm font-bold text-navy">{vendor.name}</span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-1">رقم السجل التجاري (CR)</span>
+                <span className="text-slate-400 block mb-1">{FIELD_LABELS.commercialRegister}</span>
                 <span className="font-mono text-sm font-semibold text-navy">{vendor.commercialRecord}</span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-1">الرقم الضريبي (VAT)</span>
+                <span className="text-slate-400 block mb-1">{FIELD_LABELS.taxNumber}</span>
                 <span className="font-mono text-sm font-semibold text-navy">{vendor.taxNumber}</span>
               </div>
               <div>
@@ -380,7 +416,7 @@ export const VendorDetailPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 block mb-1">المقر الرئيسي</span>
-                <span className="font-semibold text-navy">{vendor.city || 'الرياض'}</span>
+                <span className="font-semibold text-navy">{vendor.city || LOCALE.hqCity}</span>
               </div>
               <div>
                 <span className="text-slate-400 block mb-1">حالة التوثيق والاعتماد</span>
@@ -432,7 +468,7 @@ export const VendorDetailPage: React.FC = () => {
                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <span className="text-slate-400 block mb-0.5">العنوان والمدينة</span>
-                  <span className="font-semibold text-navy">{vendor.city || 'الرياض'}</span>
+                  <span className="font-semibold text-navy">{vendor.city || LOCALE.hqCity}</span>
                   {vendor.address && <p className="text-slate-500 mt-0.5">{vendor.address}</p>}
                 </div>
               </div>
@@ -441,7 +477,7 @@ export const VendorDetailPage: React.FC = () => {
                 <Phone className="w-5 h-5 text-blue shrink-0 mt-0.5" />
                 <div>
                   <span className="text-slate-400 block mb-0.5">الهاتف المباشر</span>
-                  <span className="font-mono font-semibold text-navy">{vendor.phone || '011-4829100'}</span>
+                  <span className="font-mono font-semibold text-navy">{vendor.phone || '+963-11-4829100'}</span>
                 </div>
               </div>
 
@@ -449,7 +485,7 @@ export const VendorDetailPage: React.FC = () => {
                 <Mail className="w-5 h-5 text-amber shrink-0 mt-0.5" />
                 <div>
                   <span className="text-slate-400 block mb-0.5">البريد الإلكتروني</span>
-                  <span className="font-mono font-semibold text-navy">{vendor.email || 'procurement@vendor.sa'}</span>
+                  <span className="font-mono font-semibold text-navy">{vendor.email || 'procurement@vendor.sy'}</span>
                 </div>
               </div>
             </div>
@@ -488,16 +524,16 @@ export const VendorDetailPage: React.FC = () => {
                 <Landmark className="w-6 h-6 text-navy shrink-0" />
                 <div>
                   <span className="text-slate-400 block mb-1">اسم البنك المعتمد</span>
-                  <span className="text-sm font-bold text-navy">{vendor.bankName || 'مصرف الراجحي'}</span>
+                  <span className="text-sm font-bold text-navy">{vendor.bankName || 'المصرف التجاري السوري'}</span>
                 </div>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-start gap-3 md:col-span-2">
                 <CreditCard className="w-6 h-6 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="text-slate-400 block mb-1">رقم الحساب الدولي (IBAN)</span>
+                  <span className="text-slate-400 block mb-1">{FIELD_LABELS.bankAccount}</span>
                   <span className="font-mono text-sm font-bold text-navy">
-                    {vendor.bankIban || 'SA0380000000608010167519'}
+                    {vendor.bankIban || 'SY00-CBoS-0010928374'}
                   </span>
                   <span className="text-[11px] text-slate-400 block mt-1">
                     يتم التحويل التلقائي المعتمد لأوامر الدفع بعد اكتمال المطابقة الثلاثية.
@@ -619,15 +655,15 @@ export const VendorDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Zakat & Tax Certificate */}
+            {/* Tax Clearance Certificate */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-navy text-sm">شهادة الزكاة والدخل</span>
+                <span className="font-bold text-navy text-sm">شهادة براءة الذمة الضريبية</span>
                 <Badge variant="approved">سارية</Badge>
               </div>
-              <div className="text-slate-600 mb-2">الرقم الضريبي: <strong>{vendor.taxNumber}</strong></div>
+              <div className="text-slate-600 mb-2">{FIELD_LABELS.taxNumber}: <strong>{vendor.taxNumber}</strong></div>
               <div className="text-slate-600 mb-2">تاريخ الانتهاء: <strong>2027-04-30</strong></div>
-              <div className="text-[11px] text-slate-500">شهادة ضريبة القيمة المضافة سارية ومحدثة.</div>
+              <div className="text-[11px] text-slate-500">الشهادة الضريبية سارية ومحدثة.</div>
             </div>
 
             {/* ISO / Quality Certificate */}
@@ -652,7 +688,7 @@ export const VendorDetailPage: React.FC = () => {
               سجل أوامر الشراء الصادرة للمورد (Purchase History - ME23N)
             </h3>
             <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
-              إجمالي التعاملات: {formatCurrency(totalSpent, 'SAR')}
+              إجمالي التعاملات: {formatCurrency(totalSpent)}
             </span>
           </div>
 
@@ -682,7 +718,7 @@ export const VendorDetailPage: React.FC = () => {
                       <td className="p-3 text-slate-600">{formatDate(po.orderDate, 'yyyy-MM-dd')}</td>
                       <td className="p-3 text-slate-600">{formatDate(po.deliveryDate, 'yyyy-MM-dd')}</td>
                       <td className="p-3">{po.plantCode}</td>
-                      <td className="p-3 font-bold text-navy">{formatCurrency(po.totalAmount, 'SAR')}</td>
+                      <td className="p-3 font-bold text-navy">{formatCurrency(po.totalAmount)}</td>
                       <td className="p-3">
                         <Badge
                           variant={

@@ -24,13 +24,13 @@ function runTests() {
 
     const monthlyRes = DepreciationEngine.calculatePeriodicDepreciation(asset, 'Monthly');
     // Depreciable base = 120,000 - 12,000 = 108,000. Monthly = 108,000 / 60 = 1800.
-    assert(monthlyRes.depreciationAmount === 1800, 'Straight-line monthly calculation matches 1800 SAR');
-    assert(monthlyRes.newBookValue === 118200, 'Straight-line new book value correctly updated to 118,200 SAR');
-    assert(monthlyRes.newAccumulatedDepreciation === 1800, 'New accumulated depreciation updated to 1800 SAR');
+    assert(monthlyRes.depreciationAmount === 1800, 'Straight-line monthly calculation matches 1800 SYP');
+    assert(monthlyRes.newBookValue === 118200, 'Straight-line new book value correctly updated to 118,200 SYP');
+    assert(monthlyRes.newAccumulatedDepreciation === 1800, 'New accumulated depreciation updated to 1800 SYP');
 
     const yearlyRes = DepreciationEngine.calculatePeriodicDepreciation(asset, 'Yearly');
     // Yearly = 1800 * 12 = 21,600
-    assert(yearlyRes.depreciationAmount === 21600, 'Straight-line yearly calculation matches 21,600 SAR');
+    assert(yearlyRes.depreciationAmount === 21600, 'Straight-line yearly calculation matches 21,600 SYP');
   }
 
   // TEST 2: Straight-Line Salvage Value Boundary (Clamping)
@@ -47,8 +47,8 @@ function runTests() {
     };
 
     const clampRes = DepreciationEngine.calculatePeriodicDepreciation(nearSalvageAsset, 'Monthly');
-    assert(clampRes.depreciationAmount === 500, 'Depreciation clamped to remaining 500 SAR before salvage');
-    assert(clampRes.newBookValue === 12000, 'Book value reaches exactly salvage value (12,000 SAR)');
+    assert(clampRes.depreciationAmount === 500, 'Depreciation clamped to remaining 500 SYP before salvage');
+    assert(clampRes.newBookValue === 12000, 'Book value reaches exactly salvage value (12,000 SYP)');
 
     // Next period: already at salvage value
     const atSalvageAsset = {
@@ -75,8 +75,8 @@ function runTests() {
 
     const monthly = DepreciationEngine.calculatePeriodicDepreciation(asset, 'Monthly');
     // 100,000 * (0.40 / 12) = 3333.33
-    assert(monthly.depreciationAmount === 3333.33, 'Declining balance monthly calculation matches 3,333.33 SAR');
-    assert(monthly.newBookValue === 96666.67, 'Declining balance new book value is 96,666.67 SAR');
+    assert(monthly.depreciationAmount === 3333.33, 'Declining balance monthly calculation matches 3,333.33 SYP');
+    assert(monthly.newBookValue === 96666.67, 'Declining balance new book value is 96,666.67 SYP');
   }
 
   // TEST 4: Disposal Math & Balancing - Scrap
@@ -94,7 +94,7 @@ function runTests() {
     const debits = netBookValue + accDep;
     const credits = cost;
     assert(debits === credits, 'Scrap journal entry is strictly balanced (80,000 == 80,000)');
-    assert(gainLoss === -30000, 'Scrap loss calculation is strictly -30,000 SAR');
+    assert(gainLoss === -30000, 'Scrap loss calculation is strictly -30,000 SYP');
   }
 
   // TEST 5: Disposal Math & Balancing - Sale with Gain
@@ -113,7 +113,7 @@ function runTests() {
     const totalDebits = proceeds + accDep; // 165,000
     const totalCredits = cost + gain;     // 165,000
     assert(totalDebits === totalCredits, 'Sale with gain journal entry is strictly balanced (165,000 == 165,000)');
-    assert(gain === 15000, 'Sale gain computed accurately as +15,000 SAR');
+    assert(gain === 15000, 'Sale gain computed accurately as +15,000 SYP');
   }
 
   // TEST 6: Disposal Math & Balancing - Sale with Loss

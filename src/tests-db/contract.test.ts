@@ -221,9 +221,9 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
           fixtures.drivers.validDriver1Id,
           'Diesel',
           200,
-          1.15,
+          520.00,
           150600,
-          'Aramco Gas Station #5',
+          'محطة وقود حمص المركزية #5 (تجريبي)',
           '1100',
           null,
         ]
@@ -238,7 +238,7 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
     expect(fuelLog.liters || fuelLog.quantityLiters).toBeDefined();
     expect(fuelLog.total_cost || fuelLog.totalCost).toBeDefined();
     expect(fuelLog.odometer).toBeDefined();
-    expect(fuelLog.station_name || fuelLog.stationName).toBe('Aramco Gas Station #5');
+    expect(fuelLog.station_name || fuelLog.stationName).toBe('محطة وقود حمص المركزية #5 (تجريبي)');
   });
 
   // --------------------------------------------------------------------------
@@ -576,7 +576,7 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
     expect(createParams).toContain('p_request_id');
     expect(createParams).toContain('p_code');
     expect(createParams).toContain('p_name');
-    expect(createParams).toContain('p_iqama_number');
+    expect(createParams).toContain('p_national_id');
     expect(createParams).toContain('p_license_number');
 
     let driverId = '';
@@ -586,9 +586,9 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
         [
           crypto.randomUUID(),
           'DRV-CTR-01',
-          'فهد الحربي',
-          '2444555666',
-          '+966544001122',
+          'فراس الحموي',
+          '05014555666',
+          '+963944001122',
           'LIC-CTR-01',
           'عمومي ثقيل',
           '2028-12-31',
@@ -602,7 +602,7 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
     expect(newDrv).toBeDefined();
     expect(newDrv.id).toBeDefined();
     driverId = newDrv.id as string;
-    expect(newDrv.name).toBe('فهد الحربي');
+    expect(newDrv.name).toBe('فراس الحموي');
     expect(newDrv.status).toBe('available');
 
     // Update Driver
@@ -613,8 +613,8 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
           crypto.randomUUID(),
           driverId,
           1,
-          'فهد بن عبد الله الحربي',
-          '+966544001133',
+          'فراس عبد الله الحموي',
+          '+963944001133',
           'LIC-CTR-01',
           'عمومي ثقيل',
           '2028-12-31',
@@ -728,7 +728,7 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
     // 2. drivers table
     const driverCols = await getColumns('drivers');
     const expectedDriverCols = [
-      'id', 'code', 'name', 'iqama_number', 'license_number', 'license_class',
+      'id', 'code', 'name', 'national_id', 'license_number', 'license_class',
       'license_expiry', 'mobile', 'safety_rating', 'status', 'plant_code', 'version', 'is_deleted'
     ];
     for (const c of expectedDriverCols) {

@@ -10,6 +10,7 @@ import { t } from '../../../i18n/ar';
 import { db } from '../../../core/db';
 import { CustomerInvoiceModal } from '../components/CustomerInvoiceModal';
 import { CustomerReceiptModal } from '../components/CustomerReceiptModal';
+import { formatMoney } from '../../../core/utils/format';
 import type { CustomerInvoice, CustomerReceipt, Customer } from '../../../types/models';
 import {
   TrendingUp,
@@ -105,19 +106,19 @@ export const AccountsReceivablePage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الذمم المدينة القائمة (AR)"
-          value={`${openReceivables.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(openReceivables)}
           subtitle="مبيعات بانتظار التحصيل"
           icon={<TrendingUp className="w-5 h-5 text-amber-600" />}
         />
         <StatCard
           label="إجمالي مبيعات الطاقة المفوترة"
-          value={`${totalInvoiced.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalInvoiced)}
           subtitle={`${invoices.length} فاتورة مبيعات`}
           icon={<FilePlus className="w-5 h-5 text-blue-600" />}
         />
         <StatCard
           label="إجمالي المقبوضات البنكية المحصلة"
-          value={`${totalCollected.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalCollected)}
           subtitle={`${receipts.length} سند قبض بنكي`}
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
         />
@@ -151,7 +152,7 @@ export const AccountsReceivablePage: React.FC = () => {
                 <th className="py-2.5 px-3 text-start">تاريخ الإصدار</th>
                 <th className="py-2.5 px-3 text-start">تاريخ الاستحقاق</th>
                 <th className="py-2.5 px-3 text-end">المبلغ قبل الضريبة</th>
-                <th className="py-2.5 px-3 text-end">ضريبة القيمة المضافة</th>
+                <th className="py-2.5 px-3 text-end">الضريبة</th>
                 <th className="py-2.5 px-3 text-end">إجمالي الفاتورة</th>
                 <th className="py-2.5 px-3 text-center">حالة السداد</th>
                 <th className="py-2.5 px-3 text-start">قيد الأستاذ العام</th>
@@ -172,13 +173,13 @@ export const AccountsReceivablePage: React.FC = () => {
                     <td className="py-2.5 px-3 font-mono text-slate-600">{inv.invoiceDate}</td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{inv.dueDate}</td>
                     <td className="py-2.5 px-3 font-mono text-end font-semibold text-slate-700">
-                      {inv.netAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(inv.netAmount)}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-end text-amber-700">
-                      {inv.vatAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(inv.vatAmount)}
                     </td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800 text-sm">
-                      {inv.totalAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(inv.totalAmount)}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <Badge variant={inv.paymentStatus === 'Paid' ? 'approved' : 'pending'}>
@@ -225,7 +226,7 @@ export const AccountsReceivablePage: React.FC = () => {
                     <td className="py-2.5 px-3 text-slate-700">{rec.bankAccount}</td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{rec.referenceNumber}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800 text-sm">
-                      {rec.amount.toLocaleString('en-US')} ر.س
+                      {formatMoney(rec.amount)}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-blue-900 font-bold">{rec.jeDocNumber || '—'}</td>
                   </tr>
@@ -262,13 +263,13 @@ export const AccountsReceivablePage: React.FC = () => {
                     <td className="py-2.5 px-3 font-mono font-bold text-blue-900">{c.customerCode}</td>
                     <td className="py-2.5 px-3 font-bold text-slate-800">{c.name}</td>
                     <td className="py-2.5 px-3 font-mono text-end font-semibold text-slate-700">
-                      {invSum.toLocaleString('en-US')} ر.س
+                      {formatMoney(invSum)}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-end text-emerald-700">
-                      {recSum.toLocaleString('en-US')} ر.س
+                      {formatMoney(recSum)}
                     </td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-900 text-sm">
-                      {balance.toLocaleString('en-US')} ر.س
+                      {formatMoney(balance)}
                     </td>
                   </tr>
                 );

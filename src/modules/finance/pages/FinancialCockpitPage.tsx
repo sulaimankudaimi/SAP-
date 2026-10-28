@@ -13,6 +13,7 @@ import { FinanceService } from '../services/FinanceService';
 import { FinancialStatementsService } from '../services/FinancialStatementsService';
 import { JournalEntryModal } from '../components/JournalEntryModal';
 import { JournalDetailModal } from '../components/JournalDetailModal';
+import { formatMoney } from '../../../core/utils/format';
 import type { JournalEntry } from '../../../types/models';
 import {
   Landmark,
@@ -184,25 +185,25 @@ export const FinancialCockpitPage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="السيولة والنقدية بالبنوك"
-          value={`${totalCash.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalCash)}
           subtitle="حسابات العمليات والتحصيل"
           icon={<Landmark className="w-5 h-5 text-emerald-600" />}
         />
         <StatCard
           label="مستحقات الموردين المفتوحة (AP)"
-          value={`${totalApDue.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalApDue)}
           subtitle="فواتير شراء مستحقة"
           icon={<CreditCard className="w-5 h-5 text-amber-600" />}
         />
         <StatCard
           label="ذمم العملاء المدينة (AR)"
-          value={`${totalArReceivable.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalArReceivable)}
           subtitle="مبيعات طاقة قيد التحصيل"
           icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
         />
         <StatCard
           label="صافي الدخل التشغيلي (YTD)"
-          value={`${netIncomeYtd.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(netIncomeYtd)}
           subtitle={openPeriod}
           icon={<ShieldCheck className="w-5 h-5 text-[#0B2545]" />}
         />
@@ -299,7 +300,7 @@ export const FinancialCockpitPage: React.FC = () => {
                   <td className="py-2.5 px-3 font-medium text-slate-800 max-w-xs truncate">{je.headerText}</td>
                   <td className="py-2.5 px-3 font-mono text-slate-600">{je.reference || '—'}</td>
                   <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800">
-                    {je.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    {formatMoney(je.totalDebit)}
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     {je.isReversed ? (

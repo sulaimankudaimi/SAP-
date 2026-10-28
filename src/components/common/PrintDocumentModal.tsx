@@ -4,6 +4,8 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Printer, X, FileText, CheckCircle2 } from 'lucide-react';
 import { PrintTemplateService } from '../../modules/admin/services/PrintTemplateService';
+import { LOCALE } from '../../config/locale';
+import { formatMoney, formatNumber } from '../../core/utils/format';
 import type { PrintTemplate, PrintDocumentType } from '../../types/models';
 
 export interface PrintItemLine {
@@ -41,7 +43,7 @@ export const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
   subtotal,
   tax,
   total,
-  currency = 'SAR',
+  currency = LOCALE.currency.code,
   notes,
 }) => {
   const [template, setTemplate] = useState<PrintTemplate | null>(null);
@@ -65,7 +67,7 @@ export const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
     subtotal !== undefined
       ? subtotal
       : items.reduce((sum, item) => sum + (item.total || item.quantity * item.unitPrice), 0);
-  const calculatedTax = tax !== undefined ? tax : calculatedSubtotal * 0.15;
+  const calculatedTax = tax !== undefined ? tax : calculatedSubtotal * LOCALE.tax.defaultRate;
   const calculatedTotal = total !== undefined ? total : calculatedSubtotal + calculatedTax;
   const formattedDate = date || new Date().toISOString().slice(0, 10);
 
@@ -183,14 +185,15 @@ export const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                           <td className="py-2 px-3 font-mono font-semibold">{item.code}</td>
                           <td className="py-2 px-3">{item.description}</td>
                           <td className="py-2 px-3 text-center font-mono">
-                            {item.quantity.toLocaleString()} {item.unit}
+                            {formatNumber(item.quantity)} {item.unit}
                           </td>
                           <td className="py-2 px-3 text-end font-mono">
-                            {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {formatNumber(item.unitPrice, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-2 px-3 text-end font-mono font-semibold">
-                            {(item.total || item.quantity * item.unitPrice).toLocaleString(undefined, {
+                            {formatNumber(item.total || item.quantity * item.unitPrice, {
                               minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
                             })}
                           </td>
                         </tr>
@@ -210,19 +213,19 @@ export const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
                   <div className="flex justify-between text-[#64748B]">
                     <span>المجموع قبل الضريبة:</span>
                     <span className="font-mono">
-                      {calculatedSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                      {formatMoney(calculatedSubtotal, currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-[#64748B]">
-                    <span>ضريبة القيمة المضافة (15%):</span>
+                    <span>ضريبة:</span>
                     <span className="font-mono">
-                      {calculatedTax.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                      {formatMoney(calculatedTax, currency)}
                     </span>
                   </div>
                   <div className="flex justify-between font-bold text-[#0B2545] pt-1 border-t border-[#E5EAF2]">
                     <span>الإجمالي المستحق:</span>
                     <span className="font-mono text-[#0FA37F]">
-                      {calculatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                      {formatMoney(calculatedTotal, currency)}
                     </span>
                   </div>
                 </div>

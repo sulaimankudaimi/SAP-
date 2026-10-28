@@ -19,6 +19,8 @@ import {
   Container,
 } from 'lucide-react';
 import type { StorageLocation, StockBalance } from '../../../types/models';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export interface WarehouseIsometricZone {
   code: string;
@@ -320,7 +322,7 @@ export const WarehouseIsometricView: React.FC<WarehouseIsometricViewProps> = ({
               <div className="flex justify-between text-[11px]">
                 <span className="text-slate-300">إجمالي التقييم:</span>
                 <span className="font-bold text-[#F59E0B] font-mono">
-                  {new Intl.NumberFormat('en-US').format(hoveredZone.totalValuation)} ر.س
+                  {formatMoney(hoveredZone.totalValuation, undefined, { decimals: 0 })}
                 </span>
               </div>
               <div className="pt-1 text-[10px] text-slate-400 text-center">
@@ -403,7 +405,7 @@ export const WarehouseIsometricView: React.FC<WarehouseIsometricViewProps> = ({
                 <div className="mt-3 pt-2 border-t border-[#E5EAF2] flex justify-between text-[11px] text-[#64748B]">
                   <span>{zone.itemsCount} صنف مسجل</span>
                   <span className="font-mono font-bold text-[#0F172A]">
-                    {new Intl.NumberFormat('en-US').format(zone.totalValuation)} ر.س
+                    {formatMoney(zone.totalValuation, undefined, { decimals: 0 })}
                   </span>
                 </div>
               </div>
@@ -440,7 +442,7 @@ export const WarehouseIsometricView: React.FC<WarehouseIsometricViewProps> = ({
                     <div className="font-bold text-[#0F172A]">{zone.name}</div>
                     <div className="text-[10px] text-[#64748B]">{zone.type}</div>
                   </td>
-                  <td className="p-3 text-[#64748B]">1100 - الرياض</td>
+                  <td className="p-3 text-[#64748B]">1100 - {LOCALE.hqCity}</td>
                   <td className="p-3 text-center">
                     <Badge variant={getOccupancyBadge(zone.occupancyPercent).variant}>
                       {zone.occupancyPercent}%
@@ -448,7 +450,7 @@ export const WarehouseIsometricView: React.FC<WarehouseIsometricViewProps> = ({
                   </td>
                   <td className="p-3 text-center font-bold text-[#0F172A]">{zone.itemsCount}</td>
                   <td className="p-3 text-end font-mono font-bold text-[#0FA37F]">
-                    {new Intl.NumberFormat('en-US').format(zone.totalValuation)} ر.س
+                    {formatMoney(zone.totalValuation, undefined, { decimals: 0 })}
                   </td>
                   <td className="p-3 text-center">
                     <Button

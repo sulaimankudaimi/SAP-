@@ -9,6 +9,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useToast } from '../../../components/ui/Toast';
 import { dataGateway } from '../../../core/gateway/ServerGateway';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { Trip } from '../../../types/models';
 import {
   Navigation,
@@ -150,10 +151,11 @@ export const TripsListPage: React.FC = () => {
 
         <StatCard
           label="إجمالي تكاليف النقل المحققة"
-          value={`${trips
-            .filter((t) => t.status === 'completed')
-            .reduce((acc, curr) => acc + (curr.totalTripCost || 0), 0)
-            .toLocaleString()} ر.س`}
+          value={formatMoney(
+            trips
+              .filter((t) => t.status === 'completed')
+              .reduce((acc, curr) => acc + (curr.totalTripCost || 0), 0)
+          )}
           subtitle="بدلات سائقين ومحروقات"
           icon={<DollarSign className="w-5 h-5 text-[#0FA37F]" />}
         />
@@ -236,11 +238,11 @@ export const TripsListPage: React.FC = () => {
                     <td className="p-3">
                       <span className="font-bold text-[#0FA37F] block">{t.cargoType}</span>
                       <span className="text-[10px] text-[#64748B] font-mono">
-                        {t.cargoVolumeLiters?.toLocaleString()} لتر
+                        {formatNumber(t.cargoVolumeLiters ?? 0)} لتر
                       </span>
                     </td>
                     <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
-                      {t.distanceKm ? `${t.distanceKm.toLocaleString()} كم` : 'قيد السير'}
+                      {t.distanceKm ? `${formatNumber(t.distanceKm)} كم` : 'قيد السير'}
                     </td>
                     <td className="p-3 text-center">
                       {t.delayMinutes && t.delayMinutes > 0 ? (
@@ -258,7 +260,7 @@ export const TripsListPage: React.FC = () => {
                     <td className="p-3 text-end font-mono font-bold">
                       {t.totalTripCost ? (
                         <span className="text-[#0FA37F] block">
-                          {t.totalTripCost.toLocaleString()} ر.س
+                          {formatMoney(t.totalTripCost)}
                         </span>
                       ) : (
                         <span className="text-slate-400">—</span>

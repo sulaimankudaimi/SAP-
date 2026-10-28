@@ -9,6 +9,7 @@ import { AssetService } from '../services/AssetService';
 import type { Asset } from '../../../types/models';
 import { ScanBarcode, ArrowLeft, CheckCircle2, AlertCircle, Building2, User } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
 
 interface AssetScanDrawerProps {
   isOpen: boolean;
@@ -146,7 +147,7 @@ export const AssetScanDrawer: React.FC<AssetScanDrawerProps> = ({ isOpen, onClos
                   <div className="col-span-2 text-slate-600">
                     صافي القيمة الدفترية:{' '}
                     <span className="font-bold text-slate-900 font-mono">
-                      {matchedAsset.netBookValue.toLocaleString('en-US')} ريال
+                      {formatMoney(matchedAsset.netBookValue)}
                     </span>
                   </div>
                 </div>

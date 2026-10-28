@@ -48,6 +48,8 @@ import {
   Legend,
 } from 'recharts';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export const AssetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -251,7 +253,7 @@ export const AssetDetailPage: React.FC = () => {
                   <div className="w-14 h-14 rounded-2xl bg-[#0B2545]/10 text-[#0B2545] mx-auto flex items-center justify-center mb-2">
                     <Building2 className="w-7 h-7 text-emerald-600" />
                   </div>
-                  <p className="text-xs font-bold text-slate-700">معدات شركة الخليج</p>
+                  <p className="text-xs font-bold text-slate-700">معدات {LOCALE.brand.nameAr}</p>
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">{asset.category}</p>
                 </div>
               )}
@@ -350,25 +352,25 @@ export const AssetDetailPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">التكلفة التاريخية:</span>
                 <span className="font-mono font-bold text-slate-800">
-                  {asset.acquisitionCost.toLocaleString('en-US')} SAR
+                  {formatMoney(asset.acquisitionCost)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">مجمع الإهلاك:</span>
                 <span className="font-mono font-bold text-rose-600">
-                  {asset.accumulatedDepreciation.toLocaleString('en-US')} SAR
+                  {formatMoney(asset.accumulatedDepreciation)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">قيمة الخردة:</span>
                 <span className="font-mono text-slate-700">
-                  {asset.salvageValue.toLocaleString('en-US')} SAR
+                  {formatMoney(asset.salvageValue)}
                 </span>
               </div>
               <div className="flex items-center justify-between border-t border-slate-200 pt-2">
                 <span className="font-bold text-slate-800">صافي القيمة الدفترية:</span>
                 <span className="font-mono font-black text-emerald-700 text-sm">
-                  {asset.netBookValue.toLocaleString('en-US')} SAR
+                  {formatMoney(asset.netBookValue)}
                 </span>
               </div>
             </div>
@@ -457,7 +459,7 @@ export const AssetDetailPage: React.FC = () => {
               الطريقة: {asset.depreciationMethod === 'StraightLine' ? 'القسط الثابت' : 'القسط المتناقص'}
             </p>
             <p className="text-[10px] text-slate-500">
-              المجمع: {asset.accumulatedDepreciation.toLocaleString('en-US')} SAR
+              المجمع: {formatMoney(asset.accumulatedDepreciation)}
             </p>
           </div>
 
@@ -542,7 +544,7 @@ export const AssetDetailPage: React.FC = () => {
                   مسار القيمة الدفترية مقابل مجمع الإهلاك (5-Year Depreciation Curve)
                 </h4>
                 <p className="text-xs text-slate-500">
-                  مقارنة تراجع صافي القيمة الدفترية ونمو مجمع الإهلاك وصولاً إلى قيمة الخردة ({asset.salvageValue.toLocaleString('en-US')} SAR)
+                  مقارنة تراجع صافي القيمة الدفترية ونمو مجمع الإهلاك وصولاً إلى قيمة الخردة ({formatMoney(asset.salvageValue)})
                 </p>
               </div>
               <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg font-mono">
@@ -567,7 +569,7 @@ export const AssetDetailPage: React.FC = () => {
                   <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
                     formatter={(val: number | string | readonly (number | string)[] | undefined, name: number | string | undefined) => [
-                      `${Number(val || 0).toLocaleString('en-US')} SAR`,
+                      formatMoney(Number(val || 0)),
                       name === 'bookValue' ? 'صافي القيمة الدفترية' : 'مجمع الإهلاك',
                     ]}
                     contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
@@ -738,7 +740,7 @@ export const AssetDetailPage: React.FC = () => {
                       </div>
                       {v.estimatedMarketValue && (
                         <div>
-                          القيمة السوقية التقديرية: <strong className="font-mono text-emerald-800">{v.estimatedMarketValue.toLocaleString('en-US')} SAR</strong>
+                          القيمة السوقية التقديرية: <strong className="font-mono text-emerald-800">{formatMoney(v.estimatedMarketValue)}</strong>
                         </div>
                       )}
                     </div>

@@ -186,12 +186,12 @@ describe('Fail-Closed Multi-User Gateway Security & Invariant Tests', () => {
       await expect(
         FleetService.createDriver({
           code: 'DRV-99',
-          name: 'Ahmed',
-          iqamaNumber: '1098765432',
+          name: 'Tariq',
+          nationalId: '01098765432',
           licenseNumber: 'LIC-99',
           licenseClass: 'عمومي ثقيل',
           licenseExpiry: '2028-01-01',
-          mobile: '0500000000',
+          mobile: '+963930000000',
           plantCode: '1100',
           status: 'available',
           totalTripsCompleted: 0,

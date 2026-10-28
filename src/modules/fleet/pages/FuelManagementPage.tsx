@@ -9,6 +9,8 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useToast } from '../../../components/ui/Toast';
 import type { FuelLog, FuelAnomalyAlert } from '../../../types/models';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import { useConnectivityStore } from '../../../core/gateway/connectivity';
 import {
   Fuel,
@@ -133,15 +135,15 @@ export const FuelManagementPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <StatCard
           label="إجمالي كميات الوقود المستهلكة"
-          value={`${totalFuelLiters.toLocaleString()} لتر`}
+          value={`${formatNumber(totalFuelLiters)} لتر`}
           subtitle="ديزل وبنزين محطات"
           icon={<Droplet className="w-5 h-5 text-[#0FA37F]" />}
         />
 
         <StatCard
           label="إجمالي التكلفة المالية للوقود"
-          value={`${totalFuelCost.toLocaleString()} ر.س`}
-          subtitle="تسعيرة الديزل المعتمدة 1.15 ر.س"
+          value={formatMoney(totalFuelCost)}
+          subtitle={`سعر الديزل المرجعي 520 ${LOCALE.currency.symbolAr}/لتر (${LOCALE.demoFx.label})`}
           icon={<DollarSign className="w-5 h-5 text-[#0FA37F]" />}
         />
 
@@ -247,7 +249,7 @@ export const FuelManagementPage: React.FC = () => {
                     <th className="p-3 text-center">الكمية (لتر)</th>
                     <th className="p-3 text-center">العداد (كم)</th>
                     <th className="p-3 text-center font-bold text-[#0B2545]">معدل لتر / 100 كم</th>
-                    <th className="p-3 text-end">التكلفة (ر.س)</th>
+                    <th className="p-3 text-end">التكلفة ({LOCALE.currency.symbolAr})</th>
                     <th className="p-3 text-center">فحص الشذوذ</th>
                   </tr>
                 </thead>
@@ -280,10 +282,10 @@ export const FuelManagementPage: React.FC = () => {
                         <td className="p-3 font-semibold text-[#0F172A]">{log.driverName}</td>
                         <td className="p-3 text-[#64748B]">{log.stationName}</td>
                         <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                          {log.quantityLiters.toLocaleString()}
+                          {formatNumber(log.quantityLiters)}
                         </td>
                         <td className="p-3 text-center font-mono text-[#64748B]">
-                          {log.odometer.toLocaleString()}
+                          {formatNumber(log.odometer)}
                         </td>
                         <td className="p-3 text-center font-mono font-bold">
                           <span
@@ -297,7 +299,7 @@ export const FuelManagementPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-3 text-end font-mono font-bold text-[#0F172A]">
-                          {log.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })} ر.س
+                          {formatMoney(log.totalCost)}
                         </td>
                         <td className="p-3 text-center">
                           {log.isAnomaly ? (
@@ -318,7 +320,7 @@ export const FuelManagementPage: React.FC = () => {
               <span className="text-[#64748B]">
                 عرض <strong className="text-[#0F172A] font-mono">{totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> إلى{' '}
                 <strong className="text-[#0F172A] font-mono">{Math.min(currentPage * pageSize, totalCount)}</strong> من أصل{' '}
-                <strong className="text-[#0FA37F] font-mono">{totalCount.toLocaleString()}</strong> حركة وقود مسجلة
+                <strong className="text-[#0FA37F] font-mono">{formatNumber(totalCount)}</strong> حركة وقود مسجلة
               </span>
 
               <div className="flex items-center gap-2">

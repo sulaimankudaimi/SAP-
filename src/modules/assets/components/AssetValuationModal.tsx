@@ -10,6 +10,7 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Asset, AssetValuation } from '../../../types/models';
 import { ClipboardCheck, ShieldAlert, Award, Paperclip } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 interface AssetValuationModalProps {
   isOpen: boolean;
@@ -35,7 +36,7 @@ export const AssetValuationModal: React.FC<AssetValuationModalProps> = ({
   const { success, error } = useToast();
 
   const [inspectionDate, setInspectionDate] = useState(new Date().toISOString().split('T')[0]);
-  const [inspectorName, setInspectorName] = useState(user?.fullName || 'م. سامي الحربي (كبير مهندسي الفحص)');
+  const [inspectorName, setInspectorName] = useState(user?.fullName || `م. ${LOCALE.namePools.firstNames[2]} ${LOCALE.namePools.lastNames[2]} (كبير مهندسي الفحص)`);
   const [conditionScore, setConditionScore] = useState<number>(85);
   const [physicalConditionNotes, setPhysicalConditionNotes] = useState('');
   const [estimatedMarketValue, setEstimatedMarketValue] = useState(asset ? asset.netBookValue.toString() : '0');
@@ -181,7 +182,7 @@ export const AssetValuationModal: React.FC<AssetValuationModalProps> = ({
 
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              القيمة السوقية العادلة المقدرة (SAR)
+              القيمة السوقية العادلة المقدرة ({LOCALE.currency.code})
             </label>
             <Input
               type="number"

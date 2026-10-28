@@ -449,7 +449,7 @@ export class IntegrityService {
     if (trialBalanceDiff > 0.001 && violationCount === 0) {
       violationCount = 1;
       unbalancedJeSamples.push(
-        `ميزان المراجعة الإجمالي غير متوازن بفارق ${trialBalanceDiff.toFixed(2)} ر.س`
+        `ميزان المراجعة الإجمالي غير متوازن بفارق ${trialBalanceDiff.toFixed(2)} ل.س`
       );
     }
 

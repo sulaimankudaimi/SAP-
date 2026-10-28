@@ -8,6 +8,7 @@ import {
   plantRepository,
   vendorRepository,
 } from '../../../core/repositories';
+import { formatDate } from '../../../core/utils/format';
 import type {
   PurchaseOrder,
   StockBalance,
@@ -147,7 +148,7 @@ export class DashboardService {
       const amount = matchingPOs.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
       const orderCount = matchingPOs.length;
 
-      const label = bucketStart.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
+      const label = formatDate(bucketStart, {
         month: 'short',
         day: days <= 90 ? 'numeric' : undefined,
       });

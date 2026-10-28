@@ -72,13 +72,14 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
   // Scenario 4b: Goods receipt and invoice entry for the same PO via Promise.all
   // ---------------------------------------------------------------------------
   it('4b. Goods receipt posting and invoice entry for the same PO via Promise.all -> three-way match consistent, one journal per doc, balances equal ledger sums', async () => {
-    // Setup a clean PO for 100 units at 50 SAR
+    // Setup a clean PO for 100 units at 50 SYP
     const poDocNumber = 'PO-2026-CONC01';
     const unitPrice = 50;
     const quantity = 100;
-    const netAmount = unitPrice * quantity; // 5000 SAR
-    const vatAmount = netAmount * 0.15; // 750 SAR
-    const totalAmount = netAmount + vatAmount; // 5750 SAR
+    const netAmount = unitPrice * quantity; // 5000 SYP
+    const taxRate = 0.0; // Syria default tax rate 0%
+    const vatAmount = netAmount * taxRate; // 0 SYP
+    const totalAmount = netAmount + vatAmount; // 5000 SYP
 
     const newPo: PurchaseOrder = {
       id: `po-conc-${Date.now()}`,
@@ -91,7 +92,7 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
       orderDate: '2026-03-20',
       deliveryDate: '2026-03-25',
       totalAmount,
-      currency: 'SAR',
+      currency: 'SYP',
       paymentTerms: 'Net 30',
       items: [
         {
@@ -149,7 +150,7 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
           quantity,
           unitPrice,
           amount: netAmount,
-          vatRate: 0.15,
+          vatRate: taxRate,
           vatAmount,
           totalWithVat: totalAmount,
           poItemNumber: 10,
@@ -275,7 +276,7 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
       orderDate: '2026-03-20',
       deliveryDate: '2026-03-25',
       totalAmount: 1500,
-      currency: 'SAR',
+      currency: 'SYP',
       paymentTerms: 'Net 30',
       items: [],
       createdBy: 'admin',
@@ -330,8 +331,8 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
       invoiceDate: '2026-03-20',
       postingDate: '2026-03-20',
       dueDate: '2026-04-20',
-      totalAmount: 2300,
-      vatAmount: 300,
+      totalAmount: 2000,
+      vatAmount: 0,
       netAmount: 2000,
       items: [
         {
@@ -340,9 +341,9 @@ describe('Concurrent Scenarios & High-Integrity Multi-User Protection Suite', ()
           quantity: 20,
           unitPrice: 100,
           amount: 2000,
-          vatRate: 0.15,
-          vatAmount: 300,
-          totalWithVat: 2300,
+          vatRate: 0,
+          vatAmount: 0,
+          totalWithVat: 2000,
         },
       ],
     }, 'admin');

@@ -1,4 +1,20 @@
+/**
+ * Syria Localization & Monetary Rescale (Prompt 2)
+ * ------------------------------------------------
+ * All historical demo amounts were originally authored in SAR.
+ * Every monetary amount, unit price, budget, asset cost, PO/invoice amount,
+ * fuel price per liter, maintenance cost, and approval threshold in this seed
+ * has been converted to new Syrian Pounds (SYP) using the single rescale factor:
+ *
+ *   SAR_TO_USD (3.75) * DEMO_FX_SYP_PER_USD (120) = 450
+ *
+ * Large values are rounded to the nearest 1,000 SYP; small values (such as
+ * demo fuel prices per liter) are rounded to the nearest 10 SYP so relative
+ * ratios for approval thresholds, budget checks, and tolerance tests remain intact.
+ */
 import { db } from '../core/db';
+import { LOCALE } from '../config/locale';
+import { formatPlate } from '../core/utils/format';
 import { CryptoService } from '../core/services/crypto';
 import { FirstBootSecret } from '../core/security/FirstBootSecret';
 import { NumberRangeService } from '../core/services/NumberRangeService';
@@ -45,6 +61,9 @@ import type {
 } from '../types/models';
 
 export const SEED_ACTOR_ID = 'seed-system-actor';
+export const SEED_VERSION = '2026.02-SY';
+export const SEED_VERSION_KEY = 'seed.version';
+export const SAR_TO_SYP_FACTOR = 450;
 import type { StatusVariant } from '../types';
 import { FinanceService } from '../modules/finance/services/FinanceService';
 
@@ -154,7 +173,7 @@ export class DatabaseSeeder {
 
     const roles: Role[] = [
       { id: 'r-admin', code: SYSTEM_ROLES.ADMIN, name: 'مدير النظام (System Administrator)', description: 'كامل الصلاحيات الفنية والتشغيلية لكافة الوحدات', permissionCodes: ['*'], isSystem: true },
-      { id: 'r-proc-mgr', code: SYSTEM_ROLES.PROCUREMENT_MANAGER, name: 'مدير المشتريات (Procurement Manager)', description: 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 250 ألف ر.س', permissionCodes: ['MM_VIEW', 'MM_CREATE', 'MM_CHANGE', 'MM_APPROVE', 'MD_VIEW', 'FI_VIEW'], isSystem: true },
+      { id: 'r-proc-mgr', code: SYSTEM_ROLES.PROCUREMENT_MANAGER, name: 'مدير المشتريات (Procurement Manager)', description: 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 112.5 مليون ل.س', permissionCodes: ['MM_VIEW', 'MM_CREATE', 'MM_CHANGE', 'MM_APPROVE', 'MD_VIEW', 'FI_VIEW'], isSystem: true },
       { id: 'r-proc-off', code: SYSTEM_ROLES.PROCUREMENT_OFFICER, name: 'موظف مشتريات (Procurement Officer)', description: 'إنشاء طلبات عروض الأسعار وإصدار أوامر الشراء المبدئية', permissionCodes: ['MM_VIEW', 'MM_CREATE', 'MM_CHANGE', 'MD_VIEW'], isSystem: true },
       { id: 'r-wh-clerk', code: SYSTEM_ROLES.WAREHOUSE_CLERK, name: 'أمين مستودع (Warehouse Clerk)', description: 'استلام المواد MIGO، صرف المواد، والجرد الفعلي بالمحطات', permissionCodes: ['WM_VIEW', 'WM_POST', 'MM_VIEW', 'MD_VIEW'], isSystem: true },
       { id: 'r-flt-mgr', code: SYSTEM_ROLES.FLEET_MANAGER, name: 'مدير الأسطول (Fleet & Logistics Manager)', description: 'إدارة أسطول صهاريج نقل الوقود ومتابعة الصيانة والسائقين', permissionCodes: ['TM_VIEW', 'TM_CREATE', 'TM_CHANGE', 'MD_VIEW'], isSystem: true },
@@ -194,17 +213,23 @@ export class DatabaseSeeder {
         isDeleted: boolean;
       }
 
+      const fn = LOCALE.namePools.firstNames;
+      const ln = LOCALE.namePools.lastNames;
+      const p0 = LOCALE.plants[0];
+      const p1 = LOCALE.plants[1];
+      const p2 = LOCALE.plants[2];
+
       const demoUserTemplates: DemoUserTemplate[] = [
-        { id: 'u-admin', username: 'admin', fullName: 'م. أحمد الشمري (المدير العام)', email: 'admin@gulfenergy.sa', roleId: 'r-admin', roleCode: SYSTEM_ROLES.ADMIN, roleName: 'مدير النظام', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-proc-mgr', username: 'proc.mgr', fullName: 'أ. فهد الدوسري (مدير المشتريات)', email: 'fahad@gulfenergy.sa', roleId: 'r-proc-mgr', roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-proc-off', username: 'proc.off', fullName: 'سارة القحطاني (مسؤولة المشتريات)', email: 'sara@gulfenergy.sa', roleId: 'r-proc-off', roleCode: SYSTEM_ROLES.PROCUREMENT_OFFICER, roleName: 'موظف مشتريات', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-wh-clerk', username: 'wh.clerk', fullName: 'سلطان المطيري (أمين المستودع)', email: 'sultan@gulfenergy.sa', roleId: 'r-wh-clerk', roleCode: SYSTEM_ROLES.WAREHOUSE_CLERK, roleName: 'أمين مستودع', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-flt-mgr', username: 'flt.mgr', fullName: 'خالد العنزي (مدير اللوجستيات)', email: 'khaled@gulfenergy.sa', roleId: 'r-flt-mgr', roleCode: SYSTEM_ROLES.FLEET_MANAGER, roleName: 'مدير الأسطول', companyCode: '1000', plantCode: '1200', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-acc', username: 'accountant', fullName: 'محمد الحربي (محاسب مالي)', email: 'm.harbi@gulfenergy.sa', roleId: 'r-acc', roleCode: SYSTEM_ROLES.ACCOUNTANT, roleName: 'محاسب مالي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-fin-mgr', username: 'fin.mgr', fullName: 'عبدالعزيز العتيبي (المدير المالي)', email: 'a.otaibi@gulfenergy.sa', roleId: 'r-fin-mgr', roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'مدير مالي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-auditor', username: 'auditor', fullName: 'نورة السبيعي (مدقق مالي وتشغيلي)', email: 'noura@gulfenergy.sa', roleId: 'r-auditor', roleCode: SYSTEM_ROLES.AUDITOR, roleName: 'مدقق داخلي', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-asset-mgr', username: 'asset.mgr', fullName: 'م. طارق الزهراني (مدير الأصول والصيانة)', email: 'tariq@gulfenergy.sa', roleId: 'r-asset-mgr', roleCode: SYSTEM_ROLES.ASSET_MANAGER, roleName: 'مدير أصول', companyCode: '1000', plantCode: '1300', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
-        { id: 'u-viewer', username: 'viewer', fullName: 'ريم الغامدي (مستعرض عمليات)', email: 'reem@gulfenergy.sa', roleId: 'r-viewer', roleCode: SYSTEM_ROLES.VIEWER, roleName: 'مستعرض فقط', companyCode: '1000', plantCode: '1100', failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-admin', username: 'admin', fullName: `م. ${fn[0]} ${ln[0]} (المدير العام)`, email: 'admin@shamenergy.sy', roleId: 'r-admin', roleCode: SYSTEM_ROLES.ADMIN, roleName: 'مدير النظام', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-proc-mgr', username: 'proc.mgr', fullName: `أ. ${fn[1]} ${ln[1]} (مدير المشتريات)`, email: 'procurement.mgr@shamenergy.sy', roleId: 'r-proc-mgr', roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-proc-off', username: 'proc.off', fullName: `${fn[2]} ${ln[2]} (مسؤول المشتريات)`, email: 'buyer@shamenergy.sy', roleId: 'r-proc-off', roleCode: SYSTEM_ROLES.PROCUREMENT_OFFICER, roleName: 'موظف مشتريات', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-wh-clerk', username: 'wh.clerk', fullName: `${fn[3]} ${ln[3]} (أمين المستودع)`, email: 'warehouse@shamenergy.sy', roleId: 'r-wh-clerk', roleCode: SYSTEM_ROLES.WAREHOUSE_CLERK, roleName: 'أمين مستودع', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-flt-mgr', username: 'flt.mgr', fullName: `${fn[4]} ${ln[4]} (مدير اللوجستيات)`, email: 'fleet@shamenergy.sy', roleId: 'r-flt-mgr', roleCode: SYSTEM_ROLES.FLEET_MANAGER, roleName: 'مدير الأسطول', companyCode: '1000', plantCode: p1.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-acc', username: 'accountant', fullName: `${fn[5]} ${ln[5]} (محاسب مالي)`, email: 'accounting@shamenergy.sy', roleId: 'r-acc', roleCode: SYSTEM_ROLES.ACCOUNTANT, roleName: 'محاسب مالي', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-fin-mgr', username: 'fin.mgr', fullName: `${fn[6]} ${ln[6]} (المدير المالي)`, email: 'cfo@shamenergy.sy', roleId: 'r-fin-mgr', roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'مدير مالي', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-auditor', username: 'auditor', fullName: `${fn[7]} ${ln[7]} (مدقق مالي وتشغيلي)`, email: 'audit@shamenergy.sy', roleId: 'r-auditor', roleCode: SYSTEM_ROLES.AUDITOR, roleName: 'مدقق داخلي', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-asset-mgr', username: 'asset.mgr', fullName: `م. ${fn[8]} ${ln[8]} (مدير الأصول والصيانة)`, email: 'assets@shamenergy.sy', roleId: 'r-asset-mgr', roleCode: SYSTEM_ROLES.ASSET_MANAGER, roleName: 'مدير أصول', companyCode: '1000', plantCode: p2.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
+        { id: 'u-viewer', username: 'viewer', fullName: `${fn[9]} ${ln[9]} (مستعرض عمليات)`, email: 'viewer@shamenergy.sy', roleId: 'r-viewer', roleCode: SYSTEM_ROLES.VIEWER, roleName: 'مستعرض فقط', companyCode: '1000', plantCode: p0.code, failedLoginAttempts: 0, isLocked: false, mustChangePassword: false, createdAt: now, updatedAt: now, isDeleted: false },
       ];
 
       for (const t of demoUserTemplates) {
@@ -253,13 +278,13 @@ export class DatabaseSeeder {
         {
           id: 'u-admin',
           username: 'admin',
-          fullName: 'م. أحمد الشمري (المدير العام)',
-          email: 'admin@gulfenergy.sa',
+          fullName: `م. ${LOCALE.namePools.firstNames[0]} ${LOCALE.namePools.lastNames[0]} (المدير العام)`,
+          email: 'admin@shamenergy.sy',
           roleId: 'r-admin',
           roleCode: SYSTEM_ROLES.ADMIN,
           roleName: 'مدير النظام',
           companyCode: '1000',
-          plantCode: '1100',
+          plantCode: LOCALE.plants[0].code,
           passwordHash: adminHash,
           passwordSalt: adminSalt,
           passwordIterations: CryptoService.CURRENT_ITERATIONS,
@@ -273,27 +298,39 @@ export class DatabaseSeeder {
       ];
     }
 
-    // 4. Enterprise Structure (1 Company, 3 Plants, 6 Storage Locations)
-    const company: Company = { id: 'c-1000', code: '1000', name: 'شركة الخليج للطاقة (المملكة العربية السعودية)', currency: 'SAR', country: 'SA', taxNumber: '300192834700003', isDeleted: false };
-    const plants: Plant[] = [
-      { id: 'p-1100', code: '1100', name: 'مركز الرياض اللوجستي ومستودعات التوزيع الأوسط', companyCode: '1000', city: 'الرياض', isDeleted: false },
-      { id: 'p-1200', code: '1200', name: 'محطة ينبع البترولية ومستودع الساحل الغربي', companyCode: '1000', city: 'ينبع', isDeleted: false },
-      { id: 'p-1300', code: '1300', name: 'مجمع الدمام التشغيلي والأرصفة البحرية', companyCode: '1000', city: 'الدمام', isDeleted: false },
-    ];
-    const storageLocations: StorageLocation[] = [
-      { id: 'sl-1101', code: 'SL01', name: 'مستودع صهاريج وقود الديزل والبنزين', plantCode: '1100', type: 'FuelBulk', isDeleted: false },
-      { id: 'sl-1102', code: 'SL02', name: 'مستودع الزيوت والشحوم المعبأة', plantCode: '1100', type: 'PackedLube', isDeleted: false },
-      { id: 'sl-1201', code: 'SL03', name: 'مستودع قطع غيار المضخات والصمامات', plantCode: '1200', type: 'SpareParts', isDeleted: false },
-      { id: 'sl-1202', code: 'SL04', name: 'مستودع سوائل الحفر ومواد كيميائية', plantCode: '1200', type: 'Chemicals', isDeleted: false },
-      { id: 'sl-1301', code: 'SL05', name: 'مستودع أنابيب الحفر والمعدات الثقيلة', plantCode: '1300', type: 'HeavyEquipment', isDeleted: false },
-      { id: 'sl-1302', code: 'SL06', name: 'مستودع معدات السلامة والوقاية (PPE)', plantCode: '1300', type: 'SafetySupplies', isDeleted: false },
-    ];
+    // 4. Enterprise Structure (1 Company, 3 Plants, 6 Storage Locations from LOCALE)
+    const company: Company = {
+      id: 'c-1000',
+      code: '1000',
+      name: `${LOCALE.brand.nameAr} (${LOCALE.country.nameAr})`,
+      currency: LOCALE.currency.code,
+      country: LOCALE.country.code,
+      taxNumber: 'SY-TAX-100001',
+      isDeleted: false,
+    };
+    const plants: Plant[] = LOCALE.plants.map((p, idx) => ({
+      id: `p-${idx + 1}`,
+      code: p.code,
+      name: p.nameAr,
+      companyCode: '1000',
+      city: p.city,
+      isDeleted: false,
+    }));
+    const slTypes = ['FuelBulk', 'PackedLube', 'SpareParts', 'Chemicals', 'HeavyEquipment', 'SafetySupplies'] as const;
+    const storageLocations: StorageLocation[] = LOCALE.storageLocations.map((sl, idx) => ({
+      id: `sl-${idx + 1}`,
+      code: sl.code,
+      name: sl.nameAr,
+      plantCode: sl.plantCode,
+      type: slTypes[idx % slTypes.length],
+      isDeleted: false,
+    }));
 
     // 5. 25 Cost Centers
     const costCenterNames = [
-      'الإدارة العامة والتنفيذية', 'إدارة الحفر والاستكشاف', 'عمليات محطات ينبع',
-      'عمليات محطات الدمام', 'أسطول صهاريج المنطقة الوسطى', 'أسطول صهاريج الغربية',
-      'ورشة الصيانة الميكانيكية', 'إدارة البيئة والسلامة (EHS)', 'مستودعات الرياض المركزية',
+      'الإدارة العامة والتنفيذية', 'إدارة الحفر والاستكشاف', `عمليات ${LOCALE.plants[1].nameAr}`,
+      `عمليات ${LOCALE.plants[2].nameAr}`, `أسطول صهاريج ${LOCALE.plants[0].city}`, `أسطول صهاريج ${LOCALE.plants[1].city}`,
+      'ورشة الصيانة الميكانيكية', 'إدارة البيئة والسلامة (EHS)', `مستودعات ${LOCALE.plants[0].city} المركزية`,
       'إدارة المشتريات والتوريد', 'المبيعات وعقود الطاقة', 'الإدارة المالية والمحاسبة',
       'تقنية المعلومات والاتصالات', 'الموارد البشرية والتدريب', 'مختبرات فحص جودة الوقود',
       'أرصفة الشحن البحري', 'صيانة محطات الضخ الهيدروليكي', 'مراقبة المخزون والجرد',
@@ -301,68 +338,70 @@ export class DatabaseSeeder {
       'خطوط أنابيب نقل الخام', 'وحدة معالجة المياه الصناعية', 'مكتب إدارة المشاريع (PMO)',
       'إدارة العلاقات الحكومية والموانئ'
     ];
+    const fn = LOCALE.namePools.firstNames;
+    const ln = LOCALE.namePools.lastNames;
     const costCenters: CostCenter[] = costCenterNames.map((name, idx) => ({
       id: `cc-${1000 + idx + 1}`,
       code: `CC-${1000 + idx + 1}`,
       name,
       companyCode: '1000',
-      responsiblePerson: `م. مدير مركز ${idx + 1}`,
+      responsiblePerson: `م. ${fn[idx % fn.length]} ${ln[idx % ln.length]}`,
       isDeleted: false,
     }));
 
     // 6. 60 Chart of Accounts (SAP standard numbering 1xxxxx to 8xxxxx)
     const glAccounts: GLAccount[] = [
       // 1xxxxx Assets
-      { id: 'gl-101010', accountNumber: '101010', name: 'النقدية بالبنوك المحلية (الراجحي / الأهلي)', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-101020', accountNumber: '101020', name: 'صندوق العهد النقدية المؤقتة', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-110010', accountNumber: '110010', name: 'الذمم المدينة التجارية (عملاء الطاقة)', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120010', accountNumber: '120010', name: 'مخزون وقود الديزل (Euro 5)', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120020', accountNumber: '120020', name: 'مخزون البنزين 95 أوكتان', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120030', accountNumber: '120030', name: 'مخزون زيوت المحركات والمواد البترولية', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120040', accountNumber: '120040', name: 'مخزون قطع غيار المضخات ومحابس الأنابيب', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120050', accountNumber: '120050', name: 'مخزون مواد كيميائية وسوائل الحفر', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-120060', accountNumber: '120060', name: 'بضاعة بالطريق (Goods in Transit)', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-150010', accountNumber: '150010', name: 'أصول ثابتة - خزانات ومحطات الضخ', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-150020', accountNumber: '150020', name: 'أصول ثابتة - أسطول الشاحنات والصهاريج', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-150030', accountNumber: '150030', name: 'مباني ومستودعات التخزين الجافة', category: 'Asset', currency: 'SAR', isDeleted: false },
-      { id: 'gl-150090', accountNumber: '150090', name: 'مجمع استهلاك الأصول الثابتة', category: 'Asset', currency: 'SAR', isDeleted: false },
+      { id: 'gl-101010', accountNumber: '101010', name: 'النقدية بالبنوك المحلية (المصرف التجاري / مصرف التسليف)', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-101020', accountNumber: '101020', name: 'صندوق العهد النقدية المؤقتة', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-110010', accountNumber: '110010', name: 'الذمم المدينة التجارية (عملاء الطاقة)', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120010', accountNumber: '120010', name: 'مخزون وقود الديزل (Euro 5)', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120020', accountNumber: '120020', name: 'مخزون البنزين 95 أوكتان', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120030', accountNumber: '120030', name: 'مخزون زيوت المحركات والمواد البترولية', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120040', accountNumber: '120040', name: 'مخزون قطع غيار المضخات ومحابس الأنابيب', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120050', accountNumber: '120050', name: 'مخزون مواد كيميائية وسوائل الحفر', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-120060', accountNumber: '120060', name: 'بضاعة بالطريق (Goods in Transit)', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-150010', accountNumber: '150010', name: 'أصول ثابتة - خزانات ومحطات الضخ', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-150020', accountNumber: '150020', name: 'أصول ثابتة - أسطول الشاحنات والصهاريج', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-150030', accountNumber: '150030', name: 'مباني ومستودعات التخزين الجافة', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-150090', accountNumber: '150090', name: 'مجمع استهلاك الأصول الثابتة', category: 'Asset', currency: LOCALE.currency.code, isDeleted: false },
 
       // 2xxxxx Liabilities
-      { id: 'gl-201010', accountNumber: '201010', name: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', category: 'Liability', currency: 'SAR', isDeleted: false },
-      { id: 'gl-201020', accountNumber: '201020', name: 'مستحقات مقاولي النقل واللوجستيات', category: 'Liability', currency: 'SAR', isDeleted: false },
-      { id: 'gl-202010', accountNumber: '202010', name: 'ضريبة القيمة المضافة المستحقة (ZATCA)', category: 'Liability', currency: 'SAR', isDeleted: false },
-      { id: 'gl-203010', accountNumber: '203010', name: 'مستحقات الرواتب والتأمينات الاجتماعية', category: 'Liability', currency: 'SAR', isDeleted: false },
-      { id: 'gl-210010', accountNumber: '210010', name: 'أوراق دفع وتسهيلات ائتمانية بنكية', category: 'Liability', currency: 'SAR', isDeleted: false },
+      { id: 'gl-201010', accountNumber: '201010', name: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', category: 'Liability', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-201020', accountNumber: '201020', name: 'مستحقات مقاولي النقل واللوجستيات', category: 'Liability', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-202010', accountNumber: '202010', name: 'ضريبة مبيعات مستحقة', category: 'Liability', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-203010', accountNumber: '203010', name: 'مستحقات الرواتب والتأمينات الاجتماعية', category: 'Liability', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-210010', accountNumber: '210010', name: 'أوراق دفع وتسهيلات ائتمانية بنكية', category: 'Liability', currency: LOCALE.currency.code, isDeleted: false },
 
       // 3xxxxx Equity
-      { id: 'gl-301010', accountNumber: '301010', name: 'رأس المال المدفوع', category: 'Equity', currency: 'SAR', isDeleted: false },
-      { id: 'gl-302010', accountNumber: '302010', name: 'الاحتياطي النظامي', category: 'Equity', currency: 'SAR', isDeleted: false },
-      { id: 'gl-303010', accountNumber: '303010', name: 'الأرباح المبقاة', category: 'Equity', currency: 'SAR', isDeleted: false },
+      { id: 'gl-301010', accountNumber: '301010', name: 'رأس المال المدفوع', category: 'Equity', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-302010', accountNumber: '302010', name: 'الاحتياطي النظامي', category: 'Equity', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-303010', accountNumber: '303010', name: 'الأرباح المبقاة', category: 'Equity', currency: LOCALE.currency.code, isDeleted: false },
 
       // 4xxxxx Revenue
-      { id: 'gl-401010', accountNumber: '401010', name: 'إيرادات مبيعات وقود الديزل الصناعي', category: 'Revenue', currency: 'SAR', isDeleted: false },
-      { id: 'gl-401020', accountNumber: '401020', name: 'إيرادات مبيعات وقود المحطات والسيارات', category: 'Revenue', currency: 'SAR', isDeleted: false },
-      { id: 'gl-402010', accountNumber: '402010', name: 'إيرادات خدمات نقل وشحن المواد البترولية', category: 'Revenue', currency: 'SAR', isDeleted: false },
-      { id: 'gl-403010', accountNumber: '403010', name: 'إيرادات عقود الصيانة والخدمات الفنية', category: 'Revenue', currency: 'SAR', isDeleted: false },
+      { id: 'gl-401010', accountNumber: '401010', name: 'إيرادات مبيعات وقود الديزل الصناعي', category: 'Revenue', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-401020', accountNumber: '401020', name: 'إيرادات مبيعات وقود المحطات والسيارات', category: 'Revenue', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-402010', accountNumber: '402010', name: 'إيرادات خدمات نقل وشحن المواد البترولية', category: 'Revenue', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-403010', accountNumber: '403010', name: 'إيرادات عقود الصيانة والخدمات الفنية', category: 'Revenue', currency: LOCALE.currency.code, isDeleted: false },
 
       // 5xxxxx Cost of Goods Sold (COGS)
-      { id: 'gl-501010', accountNumber: '501010', name: 'تكلفة مشتريات الوقود الخام والمكرر', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-501020', accountNumber: '501020', name: 'تكلفة قطع الغيار والمهمات المستهلكة', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-502010', accountNumber: '502010', name: 'فروقات جرد المخزون الفعلي (Inventory Shrinkage)', category: 'Expense', currency: 'SAR', isDeleted: false },
+      { id: 'gl-501010', accountNumber: '501010', name: 'تكلفة مشتريات الوقود الخام والمكرر', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-501020', accountNumber: '501020', name: 'تكلفة قطع الغيار والمهمات المستهلكة', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-502010', accountNumber: '502010', name: 'فروقات جرد المخزون الفعلي (Inventory Shrinkage)', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
 
       // 6xxxxx Operating Expenses
-      { id: 'gl-601010', accountNumber: '601010', name: 'رواتب وأجور السائقين والفنيين', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-602010', accountNumber: '602010', name: 'مصروفات صيانة وإصلاح أسطول الصهاريج', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-603010', accountNumber: '603010', name: 'وقود تشغيل الشاحنات ومعدات النقل', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-604010', accountNumber: '604010', name: 'إيجارات المستودعات والمكاتب الإدارية', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-605010', accountNumber: '605010', name: 'مصاريف التأمين على الصهاريج والبضائع', category: 'Expense', currency: 'SAR', isDeleted: false },
+      { id: 'gl-601010', accountNumber: '601010', name: 'رواتب وأجور السائقين والفنيين', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-602010', accountNumber: '602010', name: 'مصروفات صيانة وإصلاح أسطول الصهاريج', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-603010', accountNumber: '603010', name: 'وقود تشغيل الشاحنات ومعدات النقل', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-604010', accountNumber: '604010', name: 'إيجارات المستودعات والمكاتب الإدارية', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-605010', accountNumber: '605010', name: 'مصاريف التأمين على الصهاريج والبضائع', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
 
       // 7xxxxx Depreciation
-      { id: 'gl-701010', accountNumber: '701010', name: 'استهلاك صهاريج وشاحنات الأسطول', category: 'Expense', currency: 'SAR', isDeleted: false },
-      { id: 'gl-701020', accountNumber: '701020', name: 'استهلاك خزانات الوقود والمضخات', category: 'Expense', currency: 'SAR', isDeleted: false },
+      { id: 'gl-701010', accountNumber: '701010', name: 'استهلاك صهاريج وشاحنات الأسطول', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
+      { id: 'gl-701020', accountNumber: '701020', name: 'استهلاك خزانات الوقود والمضخات', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
 
       // 8xxxxx Other / Tax
-      { id: 'gl-801010', accountNumber: '801010', name: 'مخصص الزكاة الشرعية وضريبة الدخل', category: 'Expense', currency: 'SAR', isDeleted: false },
+      { id: 'gl-801010', accountNumber: '801010', name: 'مخصص ضريبة الدخل والرسوم السيادية', category: 'Expense', currency: LOCALE.currency.code, isDeleted: false },
     ];
     // Fill remaining accounts up to 60 for complete SAP chart
     for (let i = glAccounts.length + 1; i <= 60; i++) {
@@ -371,7 +410,7 @@ export class DatabaseSeeder {
         accountNumber: `600${String(i).padStart(3, '0')}`,
         name: `حساب تشغيلي فرعي #${i} - نفقات الطاقة والمرافق`,
         category: 'Expense',
-        currency: 'SAR',
+        currency: LOCALE.currency.code,
         isDeleted: false,
       });
     }
@@ -397,32 +436,32 @@ export class DatabaseSeeder {
       { id: 'u-bag', code: 'BAG', name: 'كيس (50 كجم)', isDeleted: false },
     ];
 
-    // 8. 120 Materials (Oil & Gas Domain: Drill pipes, Valves, Mud pumps, Bits, Bearings, Chemicals, PPE...)
+    // 8. 120 Materials (Oil & Gas Domain: rescaled by 450 to SYP)
     const materialTemplates = [
-      { name: 'وقود ديزل منخفض الكبريت (Euro 5)', group: 'GRP-FUEL', unit: 'LTR', price: 1.15, abc: 'A', reorder: 50000, safety: 20000 },
-      { name: 'بنزين ممتاز 95 أوكتان', group: 'GRP-FUEL', unit: 'LTR', price: 2.33, abc: 'A', reorder: 40000, safety: 15000 },
-      { name: 'بنزين 91 أوكتان خالي من الرصاص', group: 'GRP-FUEL', unit: 'LTR', price: 2.18, abc: 'A', reorder: 45000, safety: 18000 },
-      { name: 'زيت محركات الديزل الثقيلة 15W-40', group: 'GRP-LUBE', unit: 'BBL', price: 1250, abc: 'B', reorder: 50, safety: 20 },
-      { name: 'شحم حراري عالي التحمل EP-2', group: 'GRP-LUBE', unit: 'BBL', price: 850, abc: 'C', reorder: 30, safety: 10 },
-      { name: 'أنبوب حفر فولاذي عالي الصلابة 5 بوصة Grade G-105', group: 'GRP-PIPE', unit: 'MTR', price: 420, abc: 'A', reorder: 600, safety: 200 },
-      { name: 'أنبوب تغليف آبار النفط 9-5/8 بوصة L-80', group: 'GRP-PIPE', unit: 'MTR', price: 580, abc: 'A', reorder: 400, safety: 150 },
-      { name: 'صمام بوابة هيدروليكي (Gate Valve) ضغط 5000 PSI', group: 'GRP-VALVE', unit: 'PCS', price: 14500, abc: 'A', reorder: 8, safety: 3 },
-      { name: 'صمام أمان كروي (Ball Valve) مقاس 6 بوصة ANSI 600', group: 'GRP-VALVE', unit: 'PCS', price: 8900, abc: 'B', reorder: 12, safety: 4 },
-      { name: 'صمام عدم رجوع (Check Valve) 4 بوصة', group: 'GRP-VALVE', unit: 'PCS', price: 4200, abc: 'B', reorder: 15, safety: 5 },
-      { name: 'مضخة طين ثلاثية الأسطوانات (Triplex Mud Pump 1600 HP)', group: 'GRP-PUMP', unit: 'SET', price: 385000, abc: 'A', reorder: 2, safety: 1 },
-      { name: 'مضخة تفريغ وقود طاردة مركزية 50 HP', group: 'GRP-PUMP', unit: 'PCS', price: 24000, abc: 'A', reorder: 5, safety: 2 },
-      { name: 'رأس حفر ماسي متعدد التبلور (PDC Drill Bit 8-1/2")', group: 'GRP-SPARE', unit: 'PCS', price: 45000, abc: 'A', reorder: 6, safety: 2 },
-      { name: 'رأس حفر مخروطي فولاذي ثلاثي القوائم (Roller Cone Bit 12-1/4")', group: 'GRP-SPARE', unit: 'PCS', price: 28000, abc: 'A', reorder: 8, safety: 3 },
-      { name: 'محمل كروي ذاتي المحاذاة (Spherical Roller Bearing SKF)', group: 'GRP-SPARE', unit: 'PCS', price: 3200, abc: 'B', reorder: 25, safety: 10 },
-      { name: 'مانع تسرب ميكانيكي عالي الضغط (Mechanical Seal)', group: 'GRP-SPARE', unit: 'SET', price: 1850, abc: 'C', reorder: 40, safety: 15 },
-      { name: 'مسحوق طين البنتونيت عالي النقاوة لحفر الآبار (Bentonite API)', group: 'GRP-CHEM', unit: 'BAG', price: 65, abc: 'B', reorder: 1000, safety: 300 },
-      { name: 'مادة باريت لزيادة كثافة سوائل الحفر (Barite 4.2 SG)', group: 'GRP-CHEM', unit: 'BAG', price: 85, abc: 'B', reorder: 800, safety: 250 },
-      { name: 'مثبط تآكل الأنابيب والمضخات (Corrosion Inhibitor)', group: 'GRP-CHEM', unit: 'BBL', price: 3400, abc: 'B', reorder: 20, safety: 8 },
-      { name: 'خوذة أمان معيارية مقاومة للصدمات والكهرباء (Safety Helmet)', group: 'GRP-PPE', unit: 'PCS', price: 120, abc: 'C', reorder: 200, safety: 50 },
-      { name: 'بدلة عمل مقاومة للحريق والمواد الكيميائية (Nomex Coverall)', group: 'GRP-PPE', unit: 'PCS', price: 380, abc: 'B', reorder: 150, safety: 40 },
-      { name: 'حذاء سلامة مقاوم للزيوت والانزلاق مزود بمقدمة فولاذية', group: 'GRP-PPE', unit: 'PCS', price: 210, abc: 'C', reorder: 180, safety: 50 },
-      { name: 'جهاز كشف الغازات الرباعي المحمول (H2S, CO, O2, LEL)', group: 'GRP-PPE', unit: 'SET', price: 4200, abc: 'A', reorder: 10, safety: 4 },
-      { name: 'حشوات عازلة للحرارة والضغط للفلنجات (Spiral Wound Gasket)', group: 'GRP-SPARE', unit: 'PCS', price: 85, abc: 'C', reorder: 300, safety: 100 },
+      { name: 'وقود ديزل منخفض الكبريت (Euro 5) - تجريبي', group: 'GRP-FUEL', unit: 'LTR', price: 520, abc: 'A', reorder: 50000, safety: 20000 },
+      { name: 'بنزين ممتاز 95 أوكتان - تجريبي', group: 'GRP-FUEL', unit: 'LTR', price: 1050, abc: 'A', reorder: 40000, safety: 15000 },
+      { name: 'بنزين 91 أوكتان خالي من الرصاص - تجريبي', group: 'GRP-FUEL', unit: 'LTR', price: 980, abc: 'A', reorder: 45000, safety: 18000 },
+      { name: 'زيت محركات الديزل الثقيلة 15W-40', group: 'GRP-LUBE', unit: 'BBL', price: 563000, abc: 'B', reorder: 50, safety: 20 },
+      { name: 'شحم حراري عالي التحمل EP-2', group: 'GRP-LUBE', unit: 'BBL', price: 383000, abc: 'C', reorder: 30, safety: 10 },
+      { name: 'أنبوب حفر فولاذي عالي الصلابة 5 بوصة Grade G-105', group: 'GRP-PIPE', unit: 'MTR', price: 189000, abc: 'A', reorder: 600, safety: 200 },
+      { name: 'أنبوب تغليف آبار النفط 9-5/8 بوصة L-80', group: 'GRP-PIPE', unit: 'MTR', price: 261000, abc: 'A', reorder: 400, safety: 150 },
+      { name: 'صمام بوابة هيدروليكي (Gate Valve) ضغط 5000 PSI', group: 'GRP-VALVE', unit: 'PCS', price: 6525000, abc: 'A', reorder: 8, safety: 3 },
+      { name: 'صمام أمان كروي (Ball Valve) مقاس 6 بوصة ANSI 600', group: 'GRP-VALVE', unit: 'PCS', price: 4005000, abc: 'B', reorder: 12, safety: 4 },
+      { name: 'صمام عدم رجوع (Check Valve) 4 بوصة', group: 'GRP-VALVE', unit: 'PCS', price: 1890000, abc: 'B', reorder: 15, safety: 5 },
+      { name: 'مضخة طين ثلاثية الأسطوانات (Triplex Mud Pump 1600 HP)', group: 'GRP-PUMP', unit: 'SET', price: 173250000, abc: 'A', reorder: 2, safety: 1 },
+      { name: 'مضخة تفريغ وقود طاردة مركزية 50 HP', group: 'GRP-PUMP', unit: 'PCS', price: 10800000, abc: 'A', reorder: 5, safety: 2 },
+      { name: 'رأس حفر ماسي متعدد التبلور (PDC Drill Bit 8-1/2")', group: 'GRP-SPARE', unit: 'PCS', price: 20250000, abc: 'A', reorder: 6, safety: 2 },
+      { name: 'رأس حفر مخروطي فولاذي ثلاثي القوائم (Roller Cone Bit 12-1/4")', group: 'GRP-SPARE', unit: 'PCS', price: 12600000, abc: 'A', reorder: 8, safety: 3 },
+      { name: 'محمل كروي ذاتي المحاذاة (Spherical Roller Bearing SKF)', group: 'GRP-SPARE', unit: 'PCS', price: 1440000, abc: 'B', reorder: 25, safety: 10 },
+      { name: 'مانع تسرب ميكانيكي عالي الضغط (Mechanical Seal)', group: 'GRP-SPARE', unit: 'SET', price: 833000, abc: 'C', reorder: 40, safety: 15 },
+      { name: 'مسحوق طين البنتونيت عالي النقاوة لحفر الآبار (Bentonite API)', group: 'GRP-CHEM', unit: 'BAG', price: 29250, abc: 'B', reorder: 1000, safety: 300 },
+      { name: 'مادة باريت لزيادة كثافة سوائل الحفر (Barite 4.2 SG)', group: 'GRP-CHEM', unit: 'BAG', price: 38250, abc: 'B', reorder: 800, safety: 250 },
+      { name: 'مثبط تآكل الأنابيب والمضخات (Corrosion Inhibitor)', group: 'GRP-CHEM', unit: 'BBL', price: 1530000, abc: 'B', reorder: 20, safety: 8 },
+      { name: 'خوذة أمان معيارية مقاومة للصدمات والكهرباء (Safety Helmet)', group: 'GRP-PPE', unit: 'PCS', price: 54000, abc: 'C', reorder: 200, safety: 50 },
+      { name: 'بدلة عمل مقاومة للحريق والمواد الكيميائية (Nomex Coverall)', group: 'GRP-PPE', unit: 'PCS', price: 171000, abc: 'B', reorder: 150, safety: 40 },
+      { name: 'حذاء سلامة مقاوم للزيوت والانزلاق مزود بمقدمة فولاذية', group: 'GRP-PPE', unit: 'PCS', price: 94500, abc: 'C', reorder: 180, safety: 50 },
+      { name: 'جهاز كشف الغازات الرباعي المحمول (H2S, CO, O2, LEL)', group: 'GRP-PPE', unit: 'SET', price: 1890000, abc: 'A', reorder: 10, safety: 4 },
+      { name: 'حشوات عازلة للحرارة والضغط للفلنجات (Spiral Wound Gasket)', group: 'GRP-SPARE', unit: 'PCS', price: 38250, abc: 'C', reorder: 300, safety: 100 },
     ];
 
     const materials: Material[] = [];
@@ -443,71 +482,56 @@ export class DatabaseSeeder {
         reorderPoint: template.reorder,
         safetyStock: template.safety,
         standardPrice: template.price,
-        currency: 'SAR',
+        currency: LOCALE.currency.code,
         isDeleted: false,
       });
     }
 
-    // 9. 30 Vendors with Ratings (Aramco-approved, equipment suppliers)
-    const vendorNames = [
-      'شركة أرامكو لتجارة المنتجات البترولية', 'مجموعة الزامل للمشاريع الصناعية', 'شركة الخريف لتقنيات البترول',
-      'شركة الحفر العربية (ADC)', 'مصنع الأنابيب السعودية', 'شركة الأنابيب الفخارية الوطنية',
-      'شركة المجرور للتجارة والمقاولات البترولية', 'المؤسسة الوطنية للمضخات والتوربينات', 'شركة لوبريف للزيوت الأساسية',
-      'شركة الشرق للصمامات وتجهيزات الآبار', 'شركة التوريدات الصناعية الخليجية', 'المتحدة لخدمات حقول النفط',
-      'شركة ينبع للخدمات البتروكيماوية', 'مجموعة سعيد رداد القابضة', 'شركة الفلك للمعدات البحرية والموانئ',
-      'شركة الفوزان للمهمات الصناعية', 'مؤسسة صمام الأمان لمعدات الوقاية', 'شركة السيف للكيماويات المتطورة',
-      'وكالة بيكر هيوز للحلول المتكاملة', 'شركة شلمبرجير السعودية', 'شركة هاليبرتون لخدمات الطاقة',
-      'مؤسسة النقل والتوزيع اللوجستي السريع', 'شركة مسارات البترول لنقل الوقود', 'شركة بترورابغ للإمدادات',
-      'شركة فال للصمامات والتحكم الآلي', 'مصنع الجزيرة للأنابيب والمعدات الثقيلة', 'شركة الصقر للأمن الصناعي والسلامة',
-      'شركة درع الخليج للإلكترونيات والمقاييس', 'المؤسسة الحديثة لمحطات الضخ', 'شركة روافد الإمداد للمعدات'
-    ];
-    const vendors: Vendor[] = vendorNames.map((name, idx) => ({
-      id: `ven-${idx + 1}`,
-      vendorCode: `VEN-${String(1000 + idx + 1)}`,
-      name,
-      commercialRecord: `1010${String(345000 + idx)}`,
-      taxNumber: `300${String(1827364000 + idx)}`,
-      category: idx < 5 ? 'FuelRefinery' : idx < 15 ? 'EquipmentManufacturer' : 'LogisticsContractor',
-      rating: 4.0 + (idx % 10) * 0.1,
-      paymentTerms: idx % 2 === 0 ? 'Net 30 Days' : 'Net 60 Days',
-      city: idx % 3 === 0 ? 'الرياض' : idx % 3 === 1 ? 'ينبع' : 'الدمام',
-      isDeleted: false,
-    }));
+    // 9. 30 Vendors with Ratings (from LOCALE.vendorNamePool)
+    const vendorPool = LOCALE.vendorNamePool;
+    const vendorCities = [LOCALE.plants[0].city, LOCALE.plants[1].city, LOCALE.plants[2].city, 'حلب', 'اللاذقية', 'طرطوس'];
+    const vendors: Vendor[] = Array.from({ length: 30 }, (_, idx) => {
+      const baseName = vendorPool[idx % vendorPool.length];
+      const city = vendorCities[idx % vendorCities.length];
+      const name = idx >= vendorPool.length ? `${baseName} - فرع ${city} (${idx + 1})` : baseName;
+      return {
+        id: `ven-${idx + 1}`,
+        vendorCode: `VEN-${String(1000 + idx + 1)}`,
+        name,
+        commercialRecord: `SY-CR-${String(345000 + idx)}`,
+        taxNumber: `SY-TAX-${String(182736 + idx)}`,
+        category: idx < 5 ? 'FuelRefinery' : idx < 15 ? 'EquipmentManufacturer' : 'LogisticsContractor',
+        rating: 4.0 + (idx % 10) * 0.1,
+        paymentTerms: idx % 2 === 0 ? 'Net 30 Days' : 'Net 60 Days',
+        city,
+        isDeleted: false,
+      };
+    });
 
-    // 10. 15 Customers (Power plants, logistics, industries)
-    const customerNames = [
-      'الشركة السعودية للكهرباء (SEC) - محطة التوليد 10', 'شركة مرافق للمياه والكهرباء بالجبيل وينبع',
-      'شركة معادن للفوسفات والألمنيوم', 'مجموعة الموانئ والخدمات اللوجستية البحرية',
-      'شركة سابك للمغذيات الزراعية', 'مجمع الرياض اللوجستي المركزي',
-      'شركة التطوير الصناعي للأسمنت', 'مطارات القابضة - تزويد الطائرات بالوقود',
-      'شركة قطارات السكك الحديدية (سار)', 'محطة كهرباء الشقيق البخارية',
-      'شركة التعدين العربية الكبرى', 'شركة نقل وتوزيع الطاقة الوطنية',
-      'مجمع التصنيع اللوجستي بينبع', 'شركة مقاولات الحفر والإنشاءات الكبرى',
-      'شركة مصفاة أرامكو توتال (ساتورب)'
-    ];
-    const customers: Customer[] = customerNames.map((name, idx) => ({
+    // 10. 15 Customers (from LOCALE.customerNamePool, rescaled creditLimit by 450)
+    const customerPool = LOCALE.customerNamePool;
+    const customerCities = LOCALE.governorates.map((g) => g.nameAr);
+    const customers: Customer[] = Array.from({ length: 15 }, (_, idx) => ({
       id: `cus-${idx + 1}`,
       customerCode: `CUS-${String(2000 + idx + 1)}`,
-      name,
-      taxNumber: `310${String(2948576000 + idx)}`,
-      creditLimit: 5000000 + idx * 1000000,
-      city: idx % 2 === 0 ? 'الرياض' : 'الدمام',
+      name: customerPool[idx % customerPool.length],
+      taxNumber: `SY-TAX-${String(294857 + idx)}`,
+      creditLimit: (5000000 + idx * 1000000) * SAR_TO_SYP_FACTOR,
+      city: customerCities[idx % customerCities.length],
       isDeleted: false,
     }));
 
-    // 11. Driver Names & 40 Vehicles (Fuel tankers, heavy haulers)
-    const driverFirstNames = ['عبدالله', 'سعد', 'محمد', 'علي', 'فهد', 'يوسف', 'إبراهيم', 'عمر', 'سلمان', 'ماجد'];
-    const driverLastNames = ['الشمري', 'الدوسري', 'القحطاني', 'العتيبي', 'المطيري', 'الحربي', 'الغامدي', 'الزهراني', 'الشهري', 'العنزي'];
-
+    // 11. Driver Names & 40 Vehicles (Fuel tankers, heavy haulers) from LOCALE
     const vehicles: Vehicle[] = [];
     for (let i = 1; i <= 40; i++) {
       const isTanker = i <= 25;
-      const fName = driverFirstNames[(i - 1) % driverFirstNames.length];
-      const lName = driverLastNames[Math.floor((i - 1) / 3) % driverLastNames.length];
+      const fName = fn[(i - 1) % fn.length];
+      const lName = ln[Math.floor((i - 1) / 2) % ln.length];
+      const gov = LOCALE.governorates[(i - 1) % LOCALE.governorates.length];
       vehicles.push({
         id: `veh-${i}`,
         code: `TNK-${String(i).padStart(3, '0')}`,
-        plateNumber: `${1000 + i}-أ ب ج`,
+        plateNumber: formatPlate(gov.nameAr, 100000 + i * 137),
         vin: `WDB9340331L${String(100000 + i)}`,
         type: isTanker ? 'Tanker' : (i % 3 === 0 ? 'Crane' : 'HeavyTruck'),
         fuelType: 'Diesel',
@@ -527,24 +551,24 @@ export class DatabaseSeeder {
       });
     }
 
-    // 12. 30 Drivers
+    // 12. 30 Drivers (using nationalId and Syrian phone/license formats)
     const drivers: Driver[] = [];
     for (let i = 1; i <= 30; i++) {
-      const fName = driverFirstNames[(i - 1) % driverFirstNames.length];
-      const lName = driverLastNames[Math.floor((i - 1) / 3) % driverLastNames.length];
+      const fName = fn[(i - 1) % fn.length];
+      const lName = ln[Math.floor((i - 1) / 2) % ln.length];
       drivers.push({
         id: `drv-${i}`,
         code: `DRV-${String(i).padStart(3, '0')}`,
         name: `${fName} ${lName}`,
-        iqamaNumber: `234${String(1000000 + i)}`,
-        licenseNumber: `SA-DL-${String(50000 + i)}`,
+        nationalId: `010${String(10000000 + i)}`,
+        licenseNumber: `SY-DL-${String(50000 + i)}`,
         licenseClass: i % 3 === 0 ? 'نقل مواد خطرة (HazMat)' : 'عمومي ثقيل',
         licenseExpiry: '2028-12-31',
-        mobile: `055${String(1000000 + i)}`,
+        mobile: `${LOCALE.phone.countryCode}94${String(1000000 + i)}`,
         safetyRating: 4.2 + (i % 8) * 0.1,
         performanceScore: 88 + (i % 12),
         certifications: [
-          'شهادة أرامكو لنقل المواد البترولية (HazMat)',
+          'شهادة السلامة المهنية لنقل المواد البترولية (HazMat)',
           'شهادة الدفاع المدني لمكافحة حرائق الصهاريج',
         ],
         status: i % 4 === 0 ? 'on_trip' : 'available',
@@ -554,7 +578,7 @@ export class DatabaseSeeder {
       });
     }
 
-    // 13. 60 Fixed Assets with AA-style numbers, barcodes, custodians, and lifecycle states
+    // 13. 60 Fixed Assets with AA-style numbers, barcodes, custodians, and lifecycle states (rescaled by 450)
     const assets: Asset[] = [];
     const assetTransfers: AssetTransfer[] = [];
     const assetValuations: AssetValuation[] = [];
@@ -571,26 +595,19 @@ export class DatabaseSeeder {
       'AuC',
     ];
 
-    const custodians = [
-      'م. أحمد الشمري',
-      'م. خالد الغامدي',
-      'م. فهد القحطاني',
-      'م. عبدالله الشهري',
-      'م. بدر الحربي',
-      'م. سلطان العنزي',
-    ];
+    const custodians = Array.from({ length: 6 }, (_, idx) => `م. ${fn[(idx + 4) % fn.length]} ${ln[(idx + 6) % ln.length]}`);
 
     const locations = [
-      'المستودع الرئيسي - الرياض',
-      'حظيرة الصهاريج رقم 2 - جدة',
-      'رصيف الشحن والتفريغ البحري - الدمام',
-      'محطة الضخ الهيدروليكية المركزية',
-      'مبنى الصيانة والورش المركزية',
+      LOCALE.storageLocations[0].nameAr,
+      LOCALE.sites[3].nameAr,
+      LOCALE.sites[4].nameAr,
+      LOCALE.sites[5].nameAr,
+      LOCALE.sites[6].nameAr,
     ];
 
     for (let i = 1; i <= 60; i++) {
       const cat = assetCategories[(i - 1) % assetCategories.length];
-      const cost = 120000 + i * 25000;
+      const cost = (120000 + i * 25000) * SAR_TO_SYP_FACTOR;
       const usefulLife = i % 2 === 0 ? 60 : 120;
       const isAuC = cat === 'AuC' || i === 8 || i === 16;
       const isDisposed = i === 12 || i === 24;
@@ -625,7 +642,7 @@ export class DatabaseSeeder {
                 : 'شبكة خطوط أنابيب الضخ السريع'
             }`,
         category: cat,
-        serialNumber: `SN-GE-${20000 + i}`,
+        serialNumber: `SN-SHAM-${20000 + i}`,
         barcode,
         plantCode: i % 3 === 0 ? '1100' : i % 3 === 1 ? '1200' : '1300',
         costCenter: `CC-${1000 + ((i % 10) + 1)}`,
@@ -653,8 +670,8 @@ export class DatabaseSeeder {
           : 'Active',
         disposalDate: isDisposed ? '2026-02-15' : undefined,
         disposalType: isDisposed ? (i === 12 ? 'Scrap' : 'Sale') : undefined,
-        disposalProceeds: isDisposed && i === 24 ? 35000 : 0,
-        disposalGainLoss: isDisposed && i === 24 ? -15000 : isDisposed ? -38000 : undefined,
+        disposalProceeds: isDisposed && i === 24 ? 35000 * SAR_TO_SYP_FACTOR : 0,
+        disposalGainLoss: isDisposed && i === 24 ? -15000 * SAR_TO_SYP_FACTOR : isDisposed ? -38000 * SAR_TO_SYP_FACTOR : undefined,
         disposalJeDocNumber: isDisposed ? `JE-2026-DISP0${i}` : undefined,
         capitalizationJeDocNumber: `JE-2026-CAP0${i}`,
         isDeleted: false,
@@ -673,12 +690,12 @@ export class DatabaseSeeder {
           toPlant: '1200',
           fromCostCenter: 'CC-1001',
           toCostCenter: 'CC-1002',
-          fromLocation: 'المستودع الرئيسي - الرياض',
-          toLocation: 'محطة ومستودعات جدة اللوجستية',
-          fromCustodian: 'م. أحمد الشمري',
+          fromLocation: LOCALE.storageLocations[0].nameAr,
+          toLocation: LOCALE.sites[3].nameAr,
+          fromCustodian: custodians[0],
           toCustodian: custodian,
           transferDate: '2026-03-01',
-          reason: 'إعادة توزيع المعدات والمضخات لدعم التوسعات التشغيلية في المنطقة الغربية',
+          reason: `إعادة توزيع المعدات والمضخات لدعم التوسعات التشغيلية في ${LOCALE.plants[1].nameAr}`,
           acknowledgedByCustodian: !isInTransfer,
           acknowledgedAt: !isInTransfer ? '2026-03-02T10:00:00Z' : undefined,
           createdBy: 'usr-admin-1',
@@ -699,7 +716,7 @@ export class DatabaseSeeder {
           assetId: `ast-${i}`,
           assetNumber,
           inspectionDate: '2026-02-20',
-          inspectorName: 'م. سامي الحربي (كبير مهندسي الفحص)',
+          inspectorName: `م. ${fn[11]} ${ln[11]} (كبير مهندسي الفحص)`,
           conditionScore: score,
           conditionGrade: score >= 85 ? 'Excellent' : score >= 70 ? 'Good' : 'Fair',
           physicalConditionNotes: 'تم فحص منظومة الضخ وقياس الاهتزازات الميكانيكية، الحالة العامة جيدة ومطابقة للمواصفات القياسية.',
@@ -714,7 +731,7 @@ export class DatabaseSeeder {
       }
     }
 
-    // Seed sample historical depreciation run
+    // Seed sample historical depreciation run (rescaled by 450)
     depreciationRuns.push({
       id: 'dep-run-sample-1',
       docNumber: 'DEP-2026-000001',
@@ -725,7 +742,7 @@ export class DatabaseSeeder {
       runDate: '2026-09-30T16:00:00Z',
       runType: 'Monthly',
       isSimulation: false,
-      totalDepreciationAmount: 185400,
+      totalDepreciationAmount: 185400 * SAR_TO_SYP_FACTOR,
       assetCount: 42,
       postedToGL: true,
       journalEntryDocNumber: 'JE-2026-000101',
@@ -778,7 +795,7 @@ export class DatabaseSeeder {
         orderDate: '2026-09-15',
         deliveryDate: '2026-10-15',
         totalAmount,
-        currency: 'SAR',
+        currency: LOCALE.currency.code,
         paymentTerms: vendor.paymentTerms,
         items,
         createdBy: 'u-proc-mgr',
@@ -826,13 +843,16 @@ export class DatabaseSeeder {
         // Consistent Vendor Invoice
         const invNumber = `INV-2026-${String(i).padStart(6, '0')}`;
         const netAmt = totalAmount;
-        const vatAmt = netAmt * 0.15;
+        const vatAmt = netAmt * LOCALE.tax.defaultRate;
         const invItems: VendorInvoiceItem[] = [
           {
             lineItem: 10,
             description: mat.name,
             amount: netAmt,
-            vatRate: 0.15,
+            taxCode: 'SALES',
+            taxRate: LOCALE.tax.defaultRate,
+            taxAmount: vatAmt,
+            vatRate: LOCALE.tax.defaultRate,
             vatAmount: vatAmt,
             totalWithVat: netAmt + vatAmt,
           },
@@ -945,10 +965,10 @@ export class DatabaseSeeder {
           date: `2026-${String(m).padStart(2, '0')}-15`,
           fuelType: 'Diesel',
           quantityLiters: liters,
-          costPerLiter: 1.15,
-          totalCost: liters * 1.15,
+          costPerLiter: 520,
+          totalCost: liters * 520,
           odometer: veh.currentOdometer - (12 - m) * 2500,
-          stationName: 'محطة أرامكو المركزية - طريق الخرج',
+          stationName: `محطة محروقات ${LOCALE.plants[0].city} المركزية - طريق ${LOCALE.plants[1].city} (تجريبي)`,
           calculatedConsumptionPer100Km: lPer100,
           isAnomaly,
           anomalyDeviationPercentage: devPct,
@@ -956,7 +976,7 @@ export class DatabaseSeeder {
         });
       }
 
-      // Maintenance order per vehicle
+      // Maintenance order per vehicle (rescaled by 450)
       maintenanceOrders.push({
         id: `mo-${veh.code}`,
         docNumber: `MO-2026-${String(vIdx + 1).padStart(6, '0')}`,
@@ -965,10 +985,10 @@ export class DatabaseSeeder {
         vehiclePlate: veh.plateNumber,
         orderType: vIdx % 3 === 0 ? 'Inspection' : 'Preventive',
         description: 'صيانة وقائية دورية 50,000 كم، تغيير زيوت الفلاتر وفحص المكابح',
-        estimatedCost: 3500,
-        actualCost: 3450,
-        partsCost: 1850,
-        laborCost: 1600,
+        estimatedCost: 3500 * SAR_TO_SYP_FACTOR,
+        actualCost: 3450 * SAR_TO_SYP_FACTOR,
+        partsCost: 1850 * SAR_TO_SYP_FACTOR,
+        laborCost: 1600 * SAR_TO_SYP_FACTOR,
         laborHours: 12,
         downtimeHours: 16,
         partsUsed: [
@@ -978,8 +998,8 @@ export class DatabaseSeeder {
             materialName: materials[0]?.name || 'زيت محركات ديزل تخليقي',
             quantity: 2,
             unit: 'DRUM',
-            unitPrice: 450,
-            totalCost: 900,
+            unitPrice: 450 * SAR_TO_SYP_FACTOR,
+            totalCost: 900 * SAR_TO_SYP_FACTOR,
             storageLocation: 'SL01',
           },
           {
@@ -988,8 +1008,8 @@ export class DatabaseSeeder {
             materialName: materials[3]?.name || 'طقم فلاتر ديزل وهواء متكامل',
             quantity: 1,
             unit: 'SET',
-            unitPrice: 950,
-            totalCost: 950,
+            unitPrice: 950 * SAR_TO_SYP_FACTOR,
+            totalCost: 950 * SAR_TO_SYP_FACTOR,
             storageLocation: 'SL01',
           },
         ],
@@ -1007,11 +1027,11 @@ export class DatabaseSeeder {
 
     // 16b. Trips & Dispatches (20 trips: 6 in-progress, 14 completed)
     const tripRoutes = [
-      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: 'حقل الغوار - محطة الضخ 4', dist: 395 },
-      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: '1300 - مجمع الدمام ورأس تنورة', dist: 405 },
-      { origin: '1100 - مركز الرياض اللوجستي المركزي', dest: '1200 - مصفاة ينبع البترولية', dist: 1050 },
-      { origin: 'حقل خريص - منشأة الضخ المركزية', dest: '1100 - مركز الرياض اللوجستي المركزي', dist: 160 },
-      { origin: '1300 - مجمع الدمام ورأس تنورة', dest: 'مجمع الجبيل الصناعي للبتروكيماويات', dist: 95 },
+      { origin: `${LOCALE.plants[0].code} - ${LOCALE.plants[0].nameAr}`, dest: LOCALE.sites[0].nameAr, dist: 450 },
+      { origin: `${LOCALE.plants[0].code} - ${LOCALE.plants[0].nameAr}`, dest: `${LOCALE.plants[2].code} - ${LOCALE.plants[2].nameAr}`, dist: 280 },
+      { origin: `${LOCALE.plants[0].code} - ${LOCALE.plants[0].nameAr}`, dest: `${LOCALE.plants[1].code} - ${LOCALE.plants[1].nameAr}`, dist: 165 },
+      { origin: LOCALE.sites[2].nameAr, dest: `${LOCALE.plants[1].code} - ${LOCALE.plants[1].nameAr}`, dist: 155 },
+      { origin: `${LOCALE.plants[2].code} - ${LOCALE.plants[2].nameAr}`, dest: LOCALE.sites[5].nameAr, dist: 45 },
     ];
 
     const trips: Trip[] = [];
@@ -1024,8 +1044,8 @@ export class DatabaseSeeder {
       const dist = r.dist;
       const endOdo = startOdo + dist;
       const fuelLiters = Math.round(dist * 0.38);
-      const fuelCost = Math.round(fuelLiters * 1.15);
-      const allowance = Math.round(dist * 0.35);
+      const fuelCost = Math.round(fuelLiters * 520);
+      const allowance = Math.round(dist * 160);
       const totalCost = fuelCost + allowance;
 
       trips.push({
@@ -1171,11 +1191,11 @@ export class DatabaseSeeder {
       },
     ];
 
-    // 17. Budgets per Cost Center (25 Cost Centers)
+    // 17. Budgets per Cost Center (25 Cost Centers — rescaled by 450 to SYP)
     const budgets: Budget[] = costCenters.map((cc) => {
-      const allocated = 1500000;
-      const actual = 850000;
-      const committed = 250000;
+      const allocated = 1500000 * SAR_TO_SYP_FACTOR;
+      const actual = 850000 * SAR_TO_SYP_FACTOR;
+      const committed = 250000 * SAR_TO_SYP_FACTOR;
       return {
         id: `bgt-${cc.code}-2026`,
         costCenter: cc.code,
@@ -1208,8 +1228,8 @@ export class DatabaseSeeder {
         materialName: it.materialName,
         quantity: it.quantity,
         unit: it.unit,
-        unitPrice: 150,
-        totalAmount: it.quantity * 150,
+        unitPrice: 150 * SAR_TO_SYP_FACTOR,
+        totalAmount: it.quantity * 150 * SAR_TO_SYP_FACTOR,
         storageLocation: it.storageLocation,
         batchNumber: `BATCH-2026-A1`,
       })),
@@ -1232,7 +1252,7 @@ export class DatabaseSeeder {
         countDate: '2026-09-30',
         freezeMovements: true,
         abcClassFilter: 'A',
-        totalVarianceValue: 1250,
+        totalVarianceValue: 1250 * SAR_TO_SYP_FACTOR,
         postedDocNumber: 'MD-2026-000099',
         items: [
           {
@@ -1340,9 +1360,9 @@ export class DatabaseSeeder {
         storageLocation: 'SL01',
         quantity: 250,
         unit: materials[10].baseUnit,
-        startingPrice: 10000,
-        reservePrice: 15000,
-        currency: 'SAR',
+        startingPrice: 10000 * SAR_TO_SYP_FACTOR,
+        reservePrice: 15000 * SAR_TO_SYP_FACTOR,
+        currency: LOCALE.currency.code,
         condition: 'Obsolete',
         status: 'published',
         createdAt: now,
@@ -1431,7 +1451,7 @@ export class DatabaseSeeder {
     // 21. Seed Financial Accounting & Controlling (Periods, GL entries, account rules)
     await FinanceService.seedFinanceIfEmpty();
 
-    // 22. Seed Explicit Initial Company Tolerance Policy (3% price / 5% quantity / 0 SAR absolute)
+    // 22. Seed Explicit Initial Company Tolerance, Currency, FX, and Tax Policy
     const initialToleranceSettings: Setting[] = [
       {
         id: 'set-tolerance-price-pct',
@@ -1457,6 +1477,69 @@ export class DatabaseSeeder {
         value: '0',
         category: 'general',
         description: 'initial company policy, editable',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-currency-base',
+        key: 'currency.base',
+        value: LOCALE.currency.code,
+        category: 'Finance',
+        description: 'العملة الأساسية للنظام المحاسبي',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-currency-secondary',
+        key: 'currency.secondary',
+        value: LOCALE.secondaryCurrency,
+        category: 'Finance',
+        description: 'العملة الثانوية للنظام',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-currency-fx-syp-usd',
+        key: 'currency.fx.sypPerUsd',
+        value: String(LOCALE.demoFx.sypPerUsd),
+        category: 'Finance',
+        description: `سعر الصرف (${LOCALE.demoFx.label}) مقابل الدولار الأمريكي`,
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-currency-fx-label',
+        key: 'currency.fx.label',
+        value: LOCALE.demoFx.label,
+        category: 'Finance',
+        description: 'تصنيف سعر الصرف (تجريبي)',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-tax-sales-rate',
+        key: 'tax.sales.rate',
+        value: String(LOCALE.tax.defaultRate),
+        category: 'Finance',
+        description: 'نسبة ضريبة المبيعات القابلة للضبط (الافتراضي 0)',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-tax-default-code',
+        key: 'tax.defaultCode',
+        value: 'EXEMPT',
+        category: 'Finance',
+        description: 'رمز الضريبة الافتراضي',
+        updatedAt: now,
+        isDeleted: false,
+      },
+      {
+        id: 'set-seed-version',
+        key: SEED_VERSION_KEY,
+        value: SEED_VERSION,
+        category: 'Finance',
+        description: 'إصدار البيانات التجريبية (Demo Seed Version)',
         updatedAt: now,
         isDeleted: false,
       },

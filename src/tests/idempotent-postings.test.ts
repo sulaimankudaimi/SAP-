@@ -178,7 +178,7 @@ describe('Idempotent Postings & Registry Verification Suite', () => {
       vehicleId: vehicle.id,
       driverId: driver.id,
       originPlant: '1100',
-      destinationLocation: 'Yanbu Terminal',
+      destinationLocation: 'مصفاة حمص',
       cargoType: 'Crude',
       cargoVolumeLiters: 45000,
       scheduledDeparture: '2026-03-20 06:00',

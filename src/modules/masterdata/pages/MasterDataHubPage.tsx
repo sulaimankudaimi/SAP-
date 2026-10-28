@@ -28,6 +28,7 @@ import { Breadcrumbs } from '../../../components/ui/Breadcrumbs';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { formatNumber, formatDate } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const MasterDataHubPage: React.FC = () => {
   const navigate = useNavigate();
@@ -195,7 +196,7 @@ export const MasterDataHubPage: React.FC = () => {
             <span>نظام إدارة البيانات الأساسية الموحد (SAP Master Data Cockpit)</span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold">
-            مركز البيانات الأساسية — شركة الخليج للطاقة
+            مركز البيانات الأساسية — {LOCALE.brand.nameAr}
           </h1>
           <p className="text-xs text-slate-300 mt-2 leading-relaxed">
             المنصة المركزية لإدارة وتوثيق كائنات البيانات الرئيسية (الأصناف، الموردين، العملاء، المحطات، والحسابات) مع الحفاظ التام على التكامل المرجعي وسجلات التدقيق التاريخية.

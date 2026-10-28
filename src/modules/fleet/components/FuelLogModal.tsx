@@ -8,6 +8,8 @@ import { useToast } from '../../../components/ui/Toast';
 import { FleetService } from '../services/FleetService';
 import type { Vehicle, Driver } from '../../../types/models';
 import { Fuel, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 interface FuelLogModalProps {
   isOpen: boolean;
@@ -33,7 +35,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
   const [date, setDate] = useState('');
   const [fuelType, setFuelType] = useState<'Diesel' | 'Gasoline95' | 'Gasoline91'>('Diesel');
   const [quantityLiters, setQuantityLiters] = useState(0);
-  const [costPerLiter, setCostPerLiter] = useState(1.15);
+  const [costPerLiter, setCostPerLiter] = useState(520);
   const [odometer, setOdometer] = useState(0);
   const [stationName, setStationName] = useState('');
 
@@ -122,7 +124,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
       } else {
         success(
           'تم تسجيل استهلاك الوقود',
-          `تم قيد ${quantityLiters} لتر بمبلغ ${(quantityLiters * costPerLiter).toLocaleString()} ر.س (معدل: ${fuelLog.calculatedConsumptionPer100Km} لتر/100كم)`
+          `تم قيد ${quantityLiters} لتر بمبلغ ${formatMoney(quantityLiters * costPerLiter)} (معدل: ${fuelLog.calculatedConsumptionPer100Km} لتر/100كم)`
         );
       }
 
@@ -183,17 +185,17 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
           />
 
           <Select
-            label="نوع الوقود:"
+            label={`نوع الوقود (${LOCALE.demoFx.label}):`}
             value={fuelType}
             onChange={(e) => {
               const val = e.target.value as 'Diesel' | 'Gasoline95' | 'Gasoline91';
               setFuelType(val);
-              setCostPerLiter(val === 'Diesel' ? 1.15 : val === 'Gasoline95' ? 2.33 : 2.18);
+              setCostPerLiter(val === 'Diesel' ? 520 : val === 'Gasoline95' ? 1050 : 980);
             }}
             options={[
-              { label: 'ديزل تجاري (Diesel) - 1.15 ر.س/لتر', value: 'Diesel' },
-              { label: 'بنزين 95 سوبر - 2.33 ر.س/لتر', value: 'Gasoline95' },
-              { label: 'بنزين 91 ممتاز - 2.18 ر.س/لتر', value: 'Gasoline91' },
+              { label: `ديزل تجاري (Diesel) - 520 ${LOCALE.currency.symbolAr}/لتر (${LOCALE.demoFx.label})`, value: 'Diesel' },
+              { label: `بنزين 95 أوكتان - 1,050 ${LOCALE.currency.symbolAr}/لتر (${LOCALE.demoFx.label})`, value: 'Gasoline95' },
+              { label: `بنزين 91 عادي - 980 ${LOCALE.currency.symbolAr}/لتر (${LOCALE.demoFx.label})`, value: 'Gasoline91' },
             ]}
           />
         </div>
@@ -209,7 +211,7 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
           />
 
           <Input
-            label="سعر اللتر (ر.س):"
+            label={`سعر اللتر (${LOCALE.currency.symbolAr} - ${LOCALE.demoFx.label}):`}
             type="number"
             step="0.01"
             value={costPerLiter}
@@ -230,14 +232,14 @@ export const FuelLogModal: React.FC<FuelLogModalProps> = ({
           label="اسم المحطة / موقع التعبئة:"
           value={stationName}
           onChange={(e) => setStationName(e.target.value)}
-          placeholder="مثال: محطة الدريس، محطة أرامكو المركزية، خزان الورشة الذاتي"
+          placeholder="مثال: محطة وقود دمشق المركزية، خزان الورشة الذاتي"
           required
         />
 
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
           <span className="text-[#64748B]">إجمالي قيمة الوقود المدفوعة:</span>
           <span className="text-base font-bold font-mono text-[#0FA37F]">
-            {(quantityLiters * costPerLiter).toLocaleString(undefined, { minimumFractionDigits: 2 })} ر.س
+            {formatMoney(quantityLiters * costPerLiter)}
           </span>
         </div>
 

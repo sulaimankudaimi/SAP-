@@ -180,6 +180,23 @@ export class GulfErpDatabase extends Dexie {
     this.version(5).stores({
       integrityRuns: 'id, timestamp, status',
     });
+
+    // Version 6: Syria localization — rename Driver.iqamaNumber to Driver.nationalId
+    this.version(6)
+      .stores({
+        drivers: 'id, code, nationalId, status, isDeleted',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('drivers')
+          .toCollection()
+          .modify((driver: Record<string, unknown>) => {
+            if (driver.nationalId === undefined && typeof driver.iqamaNumber === 'string') {
+              driver.nationalId = driver.iqamaNumber;
+            }
+            delete driver.iqamaNumber;
+          });
+      });
   }
 }
 

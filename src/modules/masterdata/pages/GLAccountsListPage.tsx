@@ -27,6 +27,7 @@ import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber, formatCurrency } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const GLAccountsListPage: React.FC = () => {
   const { showToast } = useToast();
@@ -45,7 +46,7 @@ export const GLAccountsListPage: React.FC = () => {
     accountNumber: '',
     name: '',
     category: 'Asset' as GLAccount['category'],
-    currency: 'SAR',
+    currency: LOCALE.currency.code as string,
     balance: '0',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -105,7 +106,7 @@ export const GLAccountsListPage: React.FC = () => {
       });
 
       setIsCreateOpen(false);
-      setFormData({ accountNumber: '', name: '', category: 'Asset', currency: 'SAR', balance: '0' });
+      setFormData({ accountNumber: '', name: '', category: 'Asset', currency: LOCALE.currency.code, balance: '0' });
       setFormErrors({});
       await loadAccounts();
     } catch (err) {
@@ -209,7 +210,7 @@ export const GLAccountsListPage: React.FC = () => {
         header: 'الرصيد الدفتري التقديري',
         cell: ({ row }) => (
           <span className="font-bold text-navy">
-            {formatCurrency(row.original.balance || 0, row.original.currency || 'SAR')}
+            {formatCurrency(row.original.balance || 0, row.original.currency || LOCALE.currency.code)}
           </span>
         ),
       },
@@ -275,7 +276,7 @@ export const GLAccountsListPage: React.FC = () => {
         />
         <StatCard
           label="العملة الموحدة"
-          value="SAR (ريال سعودي)"
+          value={`${LOCALE.currency.code} (${LOCALE.currency.symbolAr})`}
           icon={<DollarSign className="w-6 h-6 text-blue" />}
         />
       </div>
@@ -285,7 +286,7 @@ export const GLAccountsListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برقم الحساب أو الاسم..."
-        exportFileName="شجرة_الحسابات_طاقة_الخليج"
+        exportFileName="شجرة_الحسابات_الشام_للطاقة"
       />
 
       {/* Create Modal */}

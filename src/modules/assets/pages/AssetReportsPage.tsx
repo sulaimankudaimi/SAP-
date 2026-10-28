@@ -18,6 +18,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export const AssetReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -184,9 +186,10 @@ export const AssetReportsPage: React.FC = () => {
               onChange={(e) => setSelectedPlant(e.target.value)}
               options={[
                 { value: '', label: 'كافة المحطات' },
-                { value: '1100', label: '1100 - محطة الرياض' },
-                { value: '1200', label: '1200 - محطة جدة' },
-                { value: '1300', label: '1300 - مستودع الدمام' },
+                ...LOCALE.plants.map((p) => ({
+                  value: p.code,
+                  label: `${p.code} - ${p.nameAr}`,
+                })),
               ]}
             />
           </div>
@@ -243,9 +246,9 @@ export const AssetReportsPage: React.FC = () => {
                       <td className="py-2.5 px-3 text-slate-600">{a.plantCode}</td>
                       <td className="py-2.5 px-3 text-slate-700">{a.custodian}</td>
                       <td className="py-2.5 px-3 font-mono">{a.acquisitionDate}</td>
-                      <td className="py-2.5 px-3 font-mono">{a.acquisitionCost.toLocaleString('en-US')} SAR</td>
-                      <td className="py-2.5 px-3 font-mono text-rose-600">{a.accumulatedDepreciation.toLocaleString('en-US')} SAR</td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{a.netBookValue.toLocaleString('en-US')} SAR</td>
+                      <td className="py-2.5 px-3 font-mono">{formatMoney(a.acquisitionCost)}</td>
+                      <td className="py-2.5 px-3 font-mono text-rose-600">{formatMoney(a.accumulatedDepreciation)}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{formatMoney(a.netBookValue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -274,13 +277,13 @@ export const AssetReportsPage: React.FC = () => {
                       <tr key={a.id} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-mono font-bold text-blue-900">{a.assetNumber}</td>
                         <td className="py-2.5 px-3 font-semibold text-slate-800">{a.name}</td>
-                        <td className="py-2.5 px-3 font-mono">{a.acquisitionCost.toLocaleString('en-US')} SAR</td>
+                        <td className="py-2.5 px-3 font-mono">{formatMoney(a.acquisitionCost)}</td>
                         <td className="py-2.5 px-3">{a.depreciationMethod === 'StraightLine' ? 'قسط ثابت' : 'قسط متناقص'}</td>
                         <td className="py-2.5 px-3">{a.usefulLifeMonths} شهر</td>
-                        <td className="py-2.5 px-3 font-mono">{a.salvageValue.toLocaleString('en-US')} SAR</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{monthlyDep.toLocaleString('en-US')} SAR</td>
-                        <td className="py-2.5 px-3 font-mono text-rose-600">{a.accumulatedDepreciation.toLocaleString('en-US')} SAR</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{a.netBookValue.toLocaleString('en-US')} SAR</td>
+                        <td className="py-2.5 px-3 font-mono">{formatMoney(a.salvageValue)}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-blue-700">{formatMoney(monthlyDep)}</td>
+                        <td className="py-2.5 px-3 font-mono text-rose-600">{formatMoney(a.accumulatedDepreciation)}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{formatMoney(a.netBookValue)}</td>
                       </tr>
                     );
                   })}
@@ -319,14 +322,14 @@ export const AssetReportsPage: React.FC = () => {
                       <td className="py-2.5 px-3 font-mono">
                         {a.status === 'Disposed' ? a.disposalDate || '—' : a.acquisitionDate}
                       </td>
-                      <td className="py-2.5 px-3 font-mono">{a.acquisitionCost.toLocaleString('en-US')} SAR</td>
+                      <td className="py-2.5 px-3 font-mono">{formatMoney(a.acquisitionCost)}</td>
                       <td className="py-2.5 px-3 font-mono">
-                        {a.status === 'Disposed' ? `${(a.disposalProceeds || 0).toLocaleString('en-US')} SAR` : '—'}
+                        {a.status === 'Disposed' ? formatMoney(a.disposalProceeds || 0) : '—'}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold">
                         {a.status === 'Disposed' ? (
                           <span className={(a.disposalGainLoss ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
-                            {(a.disposalGainLoss ?? 0).toLocaleString('en-US')} SAR
+                            {formatMoney(a.disposalGainLoss ?? 0)}
                           </span>
                         ) : (
                           '—'

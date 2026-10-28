@@ -11,6 +11,8 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Driver } from '../../../types/models';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
+import { formatNumber } from '../../../core/utils/format';
+import { FIELD_LABELS, validateNationalNumber, validateSyrianPhone } from '../../../core/utils/validators';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { currentActorId } from '../../../core/security/SessionContext';
 import {
@@ -58,13 +60,13 @@ export const DriversListPage: React.FC = () => {
   // Create Driver Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newIqama, setNewIqama] = useState('');
+  const [newNationalId, setNewNationalId] = useState('');
   const [newLicenseNo, setNewLicenseNo] = useState('');
   const [newLicenseClass, setNewLicenseClass] = useState<'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي'>('نقل مواد خطرة (HazMat)');
   const [newLicenseExpiry, setNewLicenseExpiry] = useState('2028-12-31');
-  const [newMobile, setNewMobile] = useState('0551234567');
+  const [newMobile, setNewMobile] = useState('+963944123456');
   const [newSafetyRating, setNewSafetyRating] = useState(4.8);
-  const [newCerts, setNewCerts] = useState('شهادة أرامكو لنقل المواد الخطرة، شهادة الدفاع المدني');
+  const [newCerts, setNewCerts] = useState('شهادة السلامة لنقل المواد الخطرة، شهادة الدفاع المدني');
 
   // Edit Driver Modal & Conflict Guard
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -162,7 +164,7 @@ export const DriversListPage: React.FC = () => {
           d.name.toLowerCase().includes(q) ||
           d.code.toLowerCase().includes(q) ||
           d.licenseNumber.toLowerCase().includes(q) ||
-          d.iqamaNumber.includes(q)
+          d.nationalId.includes(q)
         );
       }
       return true;
@@ -171,6 +173,16 @@ export const DriversListPage: React.FC = () => {
 
   const handleCreateDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    const natRes = validateNationalNumber(newNationalId);
+    if (!natRes.valid) {
+      error('تنبيه', natRes.error || 'الرقم الوطني غير صالح');
+      return;
+    }
+    const phoneRes = validateSyrianPhone(newMobile);
+    if (!phoneRes.valid) {
+      error('تنبيه', phoneRes.error || 'رقم الهاتف غير صالح');
+      return;
+    }
     try {
       const code = `DRV-${String(drivers.length + 1).padStart(3, '0')}`;
       const certsArray = newCerts
@@ -181,14 +193,14 @@ export const DriversListPage: React.FC = () => {
       await FleetService.createDriver({
         code,
         name: newName,
-        iqamaNumber: newIqama,
+        nationalId: newNationalId,
         licenseNumber: newLicenseNo,
         licenseClass: newLicenseClass,
         licenseExpiry: newLicenseExpiry,
         mobile: newMobile,
         safetyRating: newSafetyRating,
         performanceScore: 92,
-        certifications: certsArray.length > 0 ? certsArray : ['أرامكو لنقل المواد الخطرة (HazMat)'],
+        certifications: certsArray.length > 0 ? certsArray : ['شهادة السلامة لنقل المواد الخطرة (HazMat)'],
         status: 'available',
         totalTripsCompleted: 0,
         totalDistanceKm: 0,
@@ -224,7 +236,7 @@ export const DriversListPage: React.FC = () => {
             سجل سائقي أسطول الوقود وتراخيص المواد الخطرة (Drivers & HSE Certifications)
           </h2>
           <p className="text-xs text-[#64748B] mt-1">
-            إدارة كفاءة السائقين، فئات رخص القيادة المهنية، شهادات أرامكو والدفاع المدني، ومؤشرات السلامة
+            إدارة كفاءة السائقين، فئات رخص القيادة المهنية، شهادات السلامة لنقل المواد الخطرة والدفاع المدني، ومؤشرات السلامة
           </p>
         </div>
 
@@ -263,7 +275,7 @@ export const DriversListPage: React.FC = () => {
         <StatCard
           label="مرخصون لنقل المواد الخطرة (HazMat)"
           value={drivers.filter((d) => d.licenseClass?.includes('خطرة')).length}
-          subtitle="اعتماد أرامكو والدفاع المدني"
+          subtitle="اعتماد السلامة المهنية والدفاع المدني"
           icon={<ShieldCheck className="w-5 h-5 text-[#2563EB]" />}
         />
 
@@ -286,7 +298,7 @@ export const DriversListPage: React.FC = () => {
       <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] shadow-sm space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Input
-            placeholder="بحث باسم السائق، الكود، رقم الإقامة، أو رقم الرخصة..."
+            placeholder="بحث باسم السائق، الكود، الرقم الوطني، أو رقم الرخصة..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             startIcon={<Search className="w-4 h-4 text-[#64748B]" />}
@@ -315,7 +327,7 @@ export const DriversListPage: React.FC = () => {
               <tr>
                 <th className="p-3 text-start">السائق والكود</th>
                 <th className="p-3 text-start">فئة الرخصة</th>
-                <th className="p-3 text-center">رقم الإقامة</th>
+                <th className="p-3 text-center">{FIELD_LABELS.nationalNumber}</th>
                 <th className="p-3 text-center">انتهاء الرخصة</th>
                 <th className="p-3 text-center">الهاتف</th>
                 <th className="p-3 text-center">تقييم السلامة</th>
@@ -360,7 +372,7 @@ export const DriversListPage: React.FC = () => {
                         ))}
                       </div>
                     </td>
-                    <td className="p-3 text-center font-mono text-[#64748B]">{d.iqamaNumber}</td>
+                    <td className="p-3 text-center font-mono text-[#64748B]">{d.nationalId}</td>
                     <td className="p-3 text-center font-mono text-[#64748B]">{d.licenseExpiry}</td>
                     <td className="p-3 text-center font-mono" dir="ltr">{d.mobile}</td>
                     <td className="p-3 text-center">
@@ -435,7 +447,7 @@ export const DriversListPage: React.FC = () => {
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
                 <span className="text-[11px] text-[#2563EB]">إجمالي المسافات المقطوعة:</span>
                 <div className="text-2xl font-bold font-mono text-[#2563EB] mt-1">
-                  {(selectedDriver.totalDistanceKm || 14500).toLocaleString()} كم
+                  {formatNumber(selectedDriver.totalDistanceKm || 14500)} كم
                 </div>
               </div>
             </div>
@@ -448,7 +460,7 @@ export const DriversListPage: React.FC = () => {
               </h4>
               <div className="space-y-2">
                 {(selectedDriver.certifications || [
-                  'شهادة أرامكو السعودية لنقل المواد البترولية والخطرة (HazMat Driver)',
+                  'شهادة السلامة المهنية لنقل المواد البترولية والخطرة (HazMat Driver)',
                   'شهادة القيادة الوقائية المتقدمة (Defensive Driving Certification)',
                   'شهادة السلامة ومكافحة حرائق الصهاريج من الدفاع المدني',
                 ]).map((cert, idx) => (
@@ -495,23 +507,23 @@ export const DriversListPage: React.FC = () => {
             label="اسم السائق الكامل:"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="مثال: صالح بن حمد المري"
+            placeholder="مثال: سامر محمود الحلبي"
             required
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
-              label="رقم الإقامة / الهوية الوطنية:"
-              value={newIqama}
-              onChange={(e) => setNewIqama(e.target.value)}
-              placeholder="234XXXXXXXX"
+              label={`${FIELD_LABELS.nationalNumber}:`}
+              value={newNationalId}
+              onChange={(e) => setNewNationalId(e.target.value)}
+              placeholder="0102030405"
               required
             />
             <Input
               label="رقم رخصة القيادة:"
               value={newLicenseNo}
               onChange={(e) => setNewLicenseNo(e.target.value)}
-              placeholder="SA-DL-XXXXX"
+              placeholder="SY-DL-XXXXX"
               required
             />
           </div>
@@ -560,7 +572,7 @@ export const DriversListPage: React.FC = () => {
             label="شهادات السلامة المهنية (افصل بينها بفاصلة):"
             value={newCerts}
             onChange={(e) => setNewCerts(e.target.value)}
-            placeholder="أرامكو لنقل المواد الخطرة، الدفاع المدني، OSHA"
+            placeholder="شهادة السلامة لنقل المواد الخطرة، الدفاع المدني، OSHA"
           />
 
           <div className="flex justify-end gap-3 pt-3 border-t border-[#E5EAF2]">

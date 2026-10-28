@@ -22,6 +22,8 @@ import {
   Play,
 } from 'lucide-react';
 import type { AuditLog, ApprovalRequest } from '../types/models';
+import { formatMoney, formatTime } from '../core/utils/format';
+import { LOCALE } from '../config/locale';
 
 interface TableStat {
   name: string;
@@ -45,7 +47,7 @@ export const DevAdminPage: React.FC = () => {
 
   // Approval Test State
   const [testApproval, setTestApproval] = useState<ApprovalRequest | null>(null);
-  const [testAmount, setTestAmount] = useState<number>(185000);
+  const [testAmount, setTestAmount] = useState<number>(83250000);
 
   // Fetch Table Counts
   const refreshStats = async () => {
@@ -141,11 +143,11 @@ export const DevAdminPage: React.FC = () => {
         documentId: `test-doc-${Date.now()}`,
         documentNumber: docNum,
         amount: testAmount,
-        currency: 'SAR',
+        currency: LOCALE.currency.code,
         requester: user,
       });
       setTestApproval(req);
-      success('تم إرسال طلب الاعتماد', `تم تحديد ${req.steps.length} خطوات اعتماد لمبلغ ${testAmount} ر.س`);
+      success('تم إرسال طلب الاعتماد', `تم تحديد ${req.steps.length} خطوات اعتماد لمبلغ ${formatMoney(testAmount)}`);
       await refreshStats();
     } catch (err) {
       error('خطأ في طلب الاعتماد', String(err));
@@ -317,16 +319,16 @@ export const DevAdminPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-[#0F172A] mb-1">
-                  قيمة أمر الشراء التجريبي (SAR):
+                  قيمة أمر الشراء التجريبي ({LOCALE.currency.code}):
                 </label>
                 <select
                   value={testAmount}
                   onChange={(e) => setTestAmount(Number(e.target.value))}
                   className="w-full bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl p-2 text-xs font-mono text-[#0F172A]"
                 >
-                  <option value={35000}>35,000 ر.س (مستوى 1: مدير المشتريات فقط)</option>
-                  <option value={185000}>185,000 ر.س (مستوى 2: + المدير المالي)</option>
-                  <option value={450000}>450,000 ر.س (مستوى 3: + المدير العام)</option>
+                  <option value={15750000}>{formatMoney(15750000)} (مستوى 1: مدير المشتريات فقط)</option>
+                  <option value={83250000}>{formatMoney(83250000)} (مستوى 2: + المدير المالي)</option>
+                  <option value={202500000}>{formatMoney(202500000)} (مستوى 3: + المدير العام)</option>
                 </select>
               </div>
               <Button
@@ -439,7 +441,7 @@ export const DevAdminPage: React.FC = () => {
             <tbody className="divide-y divide-[#E5EAF2]">
               {recentAuditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-[#F4F7FB]/60 font-mono text-[11px]">
-                  <td className="py-2.5 px-3 text-[#64748B]">{new Date(log.timestamp).toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn')}</td>
+                  <td className="py-2.5 px-3 text-[#64748B]">{formatTime(log.timestamp)}</td>
                   <td className="py-2.5 px-3 font-sans font-semibold text-[#0F172A]">{log.userName}</td>
                   <td className="py-2.5 px-3">
                     <span

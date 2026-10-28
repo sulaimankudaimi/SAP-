@@ -459,10 +459,10 @@ export class AutomaticPostingEngine {
         lineNumber: 2,
         postingKey: '40',
         accountNumber: '202010',
-        accountName: 'ضريبة القيمة المضافة المستحقة (مدخلات قابلة للخصم)',
+        accountName: 'الضريبة المستحقة (مدخلات)',
         debit: vatAmount,
         credit: 0,
-        lineText: `ضريبة مدخلات فواتير مشتريات 15%`,
+        lineText: `ضريبة مدخلات فواتير مشتريات`,
       });
     }
 
@@ -741,10 +741,10 @@ export class AutomaticPostingEngine {
         lineNumber: 3,
         postingKey: '50',
         accountNumber: '202010',
-        accountName: 'ضريبة القيمة المضافة المستحقة (مخرجات مستحقة لهيئة الزكاة)',
+        accountName: 'الضريبة المستحقة (مخرجات)',
         debit: 0,
         credit: vatAmount,
-        lineText: `ضريبة مخرجات مبيعات 15%`,
+        lineText: `ضريبة مخرجات مبيعات`,
       });
     }
 

@@ -34,6 +34,14 @@ import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber, formatDate } from '../../../core/utils';
 import { ImportCsvModal, TargetFieldDef } from '../components/ImportCsvModal';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
+import {
+  validateCommercialRegister,
+  validateTaxNumber,
+  validateSyrianPhone,
+  validateBankAccount,
+  FIELD_LABELS,
+} from '../../../core/utils/validators';
 
 export const VendorsListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -60,11 +68,11 @@ export const VendorsListPage: React.FC = () => {
     taxNumber: '',
     category: 'وقود ومحروقات',
     paymentTerms: '30_days',
-    city: 'الرياض',
+    city: LOCALE.hqCity as string,
     phone: '',
     email: '',
     contactPerson: '',
-    bankName: 'مصرف الراجحي',
+    bankName: 'المصرف التجاري السوري',
     bankIban: '',
     crExpiryDate: '2027-12-31',
     ratingDelivery: '4.8',
@@ -120,8 +128,22 @@ export const VendorsListPage: React.FC = () => {
 
     if (!formData.vendorCode.trim()) errors.vendorCode = 'رمز المورد مطلوب';
     if (!formData.name.trim()) errors.name = 'اسم المورد مطلوب';
-    if (!formData.commercialRecord.trim()) errors.commercialRecord = 'رقم السجل التجاري مطلوب';
-    if (!formData.taxNumber.trim()) errors.taxNumber = 'الرقم الضريبي مطلوب';
+
+    const crValidation = validateCommercialRegister(formData.commercialRecord);
+    if (!crValidation.valid) errors.commercialRecord = crValidation.error || 'رقم السجل التجاري مطلوب';
+
+    const taxValidation = validateTaxNumber(formData.taxNumber);
+    if (!taxValidation.valid) errors.taxNumber = taxValidation.error || 'الرقم الضريبي مطلوب';
+
+    if (formData.phone.trim()) {
+      const phoneValidation = validateSyrianPhone(formData.phone);
+      if (!phoneValidation.valid) errors.phone = phoneValidation.error || 'رقم الهاتف غير صالح';
+    }
+
+    if (formData.bankIban.trim()) {
+      const bankValidation = validateBankAccount(formData.bankIban);
+      if (!bankValidation.valid) errors.bankIban = bankValidation.error || 'رقم الحساب غير صالح';
+    }
 
     if (formData.vendorCode.trim()) {
       const isUnique = await MasterDataService.isCodeUnique('vendors', 'vendorCode', formData.vendorCode.trim());
@@ -179,11 +201,11 @@ export const VendorsListPage: React.FC = () => {
         taxNumber: '',
         category: 'وقود ومحروقات',
         paymentTerms: '30_days',
-        city: 'الرياض',
+        city: LOCALE.hqCity,
         phone: '',
         email: '',
         contactPerson: '',
-        bankName: 'مصرف الراجحي',
+        bankName: 'المصرف التجاري السوري',
         bankIban: '',
         crExpiryDate: '2027-12-31',
         ratingDelivery: '4.8',
@@ -251,11 +273,11 @@ export const VendorsListPage: React.FC = () => {
 
   const importTargetFields: TargetFieldDef[] = [
     { key: 'vendorCode', label: 'رمز المورد (Vendor Code)', required: true, example: 'VEND-001' },
-    { key: 'name', label: 'اسم المورد (Vendor Name)', required: true, example: 'شركة أرامكو للتوزيع' },
-    { key: 'commercialRecord', label: 'السجل التجاري', required: true, example: '1010293847' },
-    { key: 'taxNumber', label: 'الرقم الضريبي', required: true, example: '300192837400003' },
+    { key: 'name', label: 'اسم المورد (Vendor Name)', required: true, example: 'شركة الفرات للتوريدات النفطية' },
+    { key: 'commercialRecord', label: FIELD_LABELS.commercialRegister, required: true, example: 'CR-DAM-10293' },
+    { key: 'taxNumber', label: FIELD_LABELS.taxNumber, required: true, example: 'TAX-SY-39281' },
     { key: 'category', label: 'تصنيف النشاط', example: 'وقود ومحروقات' },
-    { key: 'city', label: 'المدينة', example: 'الرياض' },
+    { key: 'city', label: 'المدينة', example: LOCALE.hqCity },
     { key: 'paymentTerms', label: 'شروط الدفع', example: '30_days' },
     { key: 'crExpiryDate', label: 'تاريخ انتهاء السجل', example: '2027-10-15' },
   ];
@@ -498,7 +520,7 @@ export const VendorsListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برمز المورد، الاسم، السجل التجاري، أو المدينة..."
-        exportFileName="دليل_الموردين_طاقة_الخليج"
+        exportFileName="دليل_الموردين_الشام_للطاقة"
         onRowClick={(row) => navigate(`/master-data/vendors/${row.id}`)}
       />
 
@@ -513,7 +535,7 @@ export const VendorsListPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="رمز المورد المعياري (Vendor Code) *"
-              placeholder="مثال: VEND-ARAMCO-01"
+              placeholder="مثال: VEND-SY-01"
               value={formData.vendorCode}
               onChange={(e) => setFormData({ ...formData, vendorCode: e.target.value })}
               error={formErrors.vendorCode}
@@ -521,7 +543,7 @@ export const VendorsListPage: React.FC = () => {
 
             <Input
               label="اسم الشركة / المورد بالكامل *"
-              placeholder="مثال: الشركة الوطنية للمشتقات النفطية"
+              placeholder="مثال: شركة الفرات للمشتقات النفطية"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               error={formErrors.name}
@@ -530,16 +552,16 @@ export const VendorsListPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="رقم السجل التجاري (CR Number) *"
-              placeholder="1010123456"
+              label={`${FIELD_LABELS.commercialRegister} *`}
+              placeholder="CR-DAM-10293"
               value={formData.commercialRecord}
               onChange={(e) => setFormData({ ...formData, commercialRecord: e.target.value })}
               error={formErrors.commercialRecord}
             />
 
             <Input
-              label="الرقم الضريبي (VAT ID) *"
-              placeholder="300123456700003"
+              label={`${FIELD_LABELS.taxNumber} *`}
+              placeholder="TAX-SY-39281"
               value={formData.taxNumber}
               onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
               error={formErrors.taxNumber}
@@ -581,21 +603,22 @@ export const VendorsListPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="رقم الهاتف"
-              placeholder="0112345678"
+              placeholder="+963944123456"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              error={formErrors.phone}
             />
 
             <Input
               label="البريد الإلكتروني"
-              placeholder="procurement@vendor.sa"
+              placeholder="procurement@vendor.sy"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
 
             <Input
               label="الشخص المسؤول للاتصال"
-              placeholder="م. خالد العتيبي"
+              placeholder="م. طارق الشامي"
               value={formData.contactPerson}
               onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
             />
@@ -609,10 +632,11 @@ export const VendorsListPage: React.FC = () => {
             />
 
             <Input
-              label="رقم الحساب الدولي (IBAN)"
-              placeholder="SA0380000000608010167519"
+              label={FIELD_LABELS.bankAccount}
+              placeholder="SY00-CBoS-0010928374"
               value={formData.bankIban}
               onChange={(e) => setFormData({ ...formData, bankIban: e.target.value })}
+              error={formErrors.bankIban}
             />
           </div>
 

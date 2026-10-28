@@ -13,6 +13,7 @@ import { Button } from '../../../components/ui/Button';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
 import { useToast } from '../../../components/ui/Toast';
 import { dataGateway } from '../../../core/gateway/ServerGateway';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { PreventiveSchedule, Trip } from '../../../types/models';
 import {
   Truck,
@@ -268,12 +269,12 @@ export const FleetDashboardPage: React.FC = () => {
             <div className="flex items-baseline justify-between pt-1">
               <div>
                 <span className="text-2xl font-bold font-mono text-[#0F172A]">
-                  {(kpis?.fuelConsumedTodayLiters ?? 0).toLocaleString()}
+                  {formatNumber(kpis?.fuelConsumedTodayLiters ?? 0)}
                 </span>
                 <span className="text-xs text-[#64748B] ms-1">لتر</span>
               </div>
               <span className="text-xs font-mono font-bold text-[#0FA37F]">
-                {(kpis?.fuelCostTodaySar ?? 0).toLocaleString()} ر.س
+                {formatMoney(kpis?.fuelCostTodaySar ?? 0)}
               </span>
             </div>
 
@@ -405,7 +406,7 @@ export const FleetDashboardPage: React.FC = () => {
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-[#64748B]">
-                    <span>استحقاق العداد: <strong className="font-mono text-[#0F172A]">{pm.nextDueOdometer.toLocaleString()} كم</strong></span>
+                    <span>استحقاق العداد: <strong className="font-mono text-[#0F172A]">{formatNumber(pm.nextDueOdometer)} كم</strong></span>
                     <span>التاريخ: {pm.nextDueDate}</span>
                   </div>
                   {'alertReason' in pm && Boolean((pm as { alertReason?: string }).alertReason) ? (

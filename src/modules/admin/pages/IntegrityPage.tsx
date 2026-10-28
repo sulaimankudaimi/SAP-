@@ -23,6 +23,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { ScreenSkeleton } from '../../../components/ui/Skeleton';
+import { formatDateTime } from '../../../core/utils/format';
 import { IntegrityService } from '../../../core/services/IntegrityService';
 import type {
   IntegrityReport,
@@ -125,14 +126,7 @@ export const IntegrityPage: React.FC = () => {
   const formatDate = (isoStr?: string) => {
     if (!isoStr) return '—';
     try {
-      return new Date(isoStr).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
+      return formatDateTime(isoStr, { second: '2-digit' });
     } catch {
       return isoStr;
     }

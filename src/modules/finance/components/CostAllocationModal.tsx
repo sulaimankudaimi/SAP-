@@ -7,6 +7,8 @@ import { db } from '../../../core/db';
 import { ControllingService } from '../services/ControllingService';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type { CostCenter } from '../../../types/models';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney } from '../../../core/utils/format';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 
 interface CostAllocationModalProps {
@@ -168,7 +170,7 @@ export const CostAllocationModal: React.FC<CostAllocationModalProps> = ({
             </select>
           </div>
           <div className="col-span-3">
-            <label className="text-slate-500 font-bold block mb-1">المبلغ الإجمالي المراد توزيعه (SAR)</label>
+            <label className="text-slate-500 font-bold block mb-1">المبلغ الإجمالي المراد توزيعه ({LOCALE.currency.code})</label>
             <Input
               type="number"
               value={totalAmount}
@@ -194,7 +196,7 @@ export const CostAllocationModal: React.FC<CostAllocationModalProps> = ({
               <tr>
                 <th className="py-2 px-3">مركز التكلفة المستلم (Receiver)</th>
                 <th className="py-2 px-3 w-28 text-center">النسبة المئوية (%)</th>
-                <th className="py-2 px-3 w-36 text-end">المبلغ المحمَّل (ر.س)</th>
+                <th className="py-2 px-3 w-36 text-end">المبلغ المحمَّل ({LOCALE.currency.symbolAr})</th>
                 <th className="py-2 px-2 text-center w-8"></th>
               </tr>
             </thead>
@@ -225,7 +227,7 @@ export const CostAllocationModal: React.FC<CostAllocationModalProps> = ({
                     />
                   </td>
                   <td className="py-2 px-3 text-end font-mono font-bold text-slate-900">
-                    {s.allocatedAmount.toLocaleString('en-US')} ر.س
+                    {formatMoney(s.allocatedAmount)}
                   </td>
                   <td className="py-2 px-2 text-center">
                     <button type="button" onClick={() => removeSegment(idx)} className="text-slate-400 hover:text-rose-600">

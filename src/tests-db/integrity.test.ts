@@ -144,8 +144,8 @@ describe('Database Integrity Auditing & Nightly Checker Invariants', () => {
         cargo_type, cargo_volume_liters, scheduled_departure, scheduled_arrival, start_odometer,
         total_trip_cost, je_doc_number, created_by
       ) VALUES (
-        gen_random_uuid(), $1, 'completed', $2, $3, '1100', 'Yanbu', 'Diesel', 30000,
-        now(), now(), 150000, 500.00, 'NON_EXISTENT_JE_DOC_9999', 'admin'
+        gen_random_uuid(), $1, 'completed', $2, $3, '1100', 'حمص', 'Diesel', 30000,
+        now(), now(), 150000, 225000.00, 'NON_EXISTENT_JE_DOC_9999', 'admin'
       );
     `, [orphanTripDoc, fixtures.vehicles.riyadhTankerId, fixtures.drivers.validDriver1Id]);
 

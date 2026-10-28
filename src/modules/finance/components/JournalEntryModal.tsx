@@ -10,7 +10,8 @@ import { db } from '../../../core/db';
 import { FinanceService } from '../services/FinanceService';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type { GLAccount, CostCenter, SAPDocumentType, PostingKey } from '../../../types/models';
-import { Plus, Trash2, CheckCircle2, AlertCircle, FileText, Paperclip, Bookmark } from 'lucide-react';
+import { formatMoney } from '../../../core/utils/format';
+import { Plus, Trash2, CheckCircle2, AlertCircle, FileText, Bookmark } from 'lucide-react';
 
 interface JournalEntryModalProps {
   isOpen: boolean;
@@ -146,7 +147,7 @@ export const JournalEntryModal: React.FC<JournalEntryModalProps> = ({ isOpen, on
     }
 
     if (!isParked && !isBalanced) {
-      showToast(`القيد غير متوازن! الفارق بين المدين والدائن هو ${difference.toFixed(2)} ر.س`, 'error');
+      showToast(`القيد غير متوازن! الفارق بين المدين والدائن هو ${formatMoney(difference)}`, 'error');
       return;
     }
 
@@ -295,16 +296,16 @@ export const JournalEntryModal: React.FC<JournalEntryModalProps> = ({ isOpen, on
           <div className="flex items-center gap-6">
             <div>
               <span className="font-sans text-slate-500 text-[11px] block">إجمالي المدين:</span>
-              <span className="text-emerald-700 text-sm font-black">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+              <span className="text-emerald-700 text-sm font-black">{formatMoney(totalDebit)}</span>
             </div>
             <div>
               <span className="font-sans text-slate-500 text-[11px] block">إجمالي الدائن:</span>
-              <span className="text-blue-700 text-sm font-black">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س</span>
+              <span className="text-blue-700 text-sm font-black">{formatMoney(totalCredit)}</span>
             </div>
             <div>
               <span className="font-sans text-slate-500 text-[11px] block">الفارق (Difference):</span>
               <span className={`text-sm font-black ${difference === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {difference.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                {formatMoney(difference)}
               </span>
             </div>
           </div>

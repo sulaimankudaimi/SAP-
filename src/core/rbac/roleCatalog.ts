@@ -54,13 +54,13 @@ export const SYSTEM_ROLE_DEFINITIONS: Record<string, RoleCatalogEntry> = {
   [SYSTEM_ROLES.PROCUREMENT_MANAGER]: {
     code: SYSTEM_ROLES.PROCUREMENT_MANAGER,
     name: 'مدير المشتريات (Procurement Manager)',
-    description: 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 250 ألف ر.س',
+    description: 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 112.5 مليون ل.س',
     isSystem: true,
     permissions: [
       { module: 'MM', activity: 'view' },
-      { module: 'MM', activity: 'create', amountLimit: 250000.0 },
-      { module: 'MM', activity: 'change', amountLimit: 250000.0 },
-      { module: 'MM', activity: 'approve', amountLimit: 250000.0 },
+      { module: 'MM', activity: 'create', amountLimit: 112500000.0 },
+      { module: 'MM', activity: 'change', amountLimit: 112500000.0 },
+      { module: 'MM', activity: 'approve', amountLimit: 112500000.0 },
       { module: 'MD', activity: 'view' },
       { module: 'FI', activity: 'view' },
     ],
@@ -72,8 +72,8 @@ export const SYSTEM_ROLE_DEFINITIONS: Record<string, RoleCatalogEntry> = {
     isSystem: true,
     permissions: [
       { module: 'MM', activity: 'view' },
-      { module: 'MM', activity: 'create', amountLimit: 50000.0 },
-      { module: 'MM', activity: 'change', amountLimit: 50000.0 },
+      { module: 'MM', activity: 'create', amountLimit: 22500000.0 },
+      { module: 'MM', activity: 'change', amountLimit: 22500000.0 },
       { module: 'MD', activity: 'view' },
     ],
   },
@@ -84,7 +84,7 @@ export const SYSTEM_ROLE_DEFINITIONS: Record<string, RoleCatalogEntry> = {
     isSystem: true,
     permissions: [
       { module: 'FI', activity: 'view' },
-      { module: 'FI', activity: 'post', amountLimit: 100000.0 },
+      { module: 'FI', activity: 'post', amountLimit: 45000000.0 },
       { module: 'MM', activity: 'view' },
       { module: 'WM', activity: 'view' },
       { module: 'MD', activity: 'view' },
@@ -128,7 +128,7 @@ export const SYSTEM_ROLE_DEFINITIONS: Record<string, RoleCatalogEntry> = {
     permissions: [
       { module: 'AM', activity: 'view' },
       { module: 'AM', activity: 'create' },
-      { module: 'AM', activity: 'post', amountLimit: 500000.0 },
+      { module: 'AM', activity: 'post', amountLimit: 225000000.0 },
       { module: 'MD', activity: 'view' },
     ],
   },

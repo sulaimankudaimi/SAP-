@@ -60,7 +60,7 @@ export const READ_SPECS = {
       'id',
       'code',
       'name',
-      'iqama_number',
+      'national_id',
       'mobile',
       'license_number',
       'license_class',

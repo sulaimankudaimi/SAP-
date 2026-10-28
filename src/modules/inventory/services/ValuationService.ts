@@ -3,6 +3,8 @@
  * and Standard Price valuation logic according to IAS 2 / SAP S/4HANA MM.
  */
 
+import { LOCALE } from '../../../config/locale';
+
 export interface ValuationState {
   currentStock: number;
   currentMap: number;
@@ -101,12 +103,12 @@ export class ValuationService {
 
   /**
    * Unit test suite verifying MAP correctness against canonical textbook SAP scenarios:
-   * 1. Initial stock: 100 pcs @ 10.00 SAR -> Total: 1,000 SAR (MAP = 10.00)
-   * 2. Goods Receipt: 50 pcs @ 16.00 SAR -> Total: (100*10 + 50*16) / 150 = 1,800 / 150 = 12.00 SAR (MAP = 12.00)
-   * 3. Goods Issue: 30 pcs -> Remaining: 120 pcs @ 12.00 SAR (MAP remains 12.00)
-   * 4. Goods Receipt: 80 pcs @ 14.25 SAR -> Total: (120*12 + 80*14.25) / 200 = (1440 + 1140) / 200 = 2,580 / 200 = 12.90 SAR
+   * 1. Initial stock: 100 pcs @ 10.00 SYP -> Total: 1,000 SYP (MAP = 10.00)
+   * 2. Goods Receipt: 50 pcs @ 16.00 SYP -> Total: (100*10 + 50*16) / 150 = 1,800 / 150 = 12.00 SYP (MAP = 12.00)
+   * 3. Goods Issue: 30 pcs -> Remaining: 120 pcs @ 12.00 SYP (MAP remains 12.00)
+   * 4. Goods Receipt: 80 pcs @ 14.25 SYP -> Total: (120*12 + 80*14.25) / 200 = (1440 + 1140) / 200 = 2,580 / 200 = 12.90 SYP
    * 5. Issue of 200 pcs -> Stock: 0, MAP remains 12.90
-   * 6. Receipt into zero stock: 10 pcs @ 25.00 SAR -> Stock: 10, MAP = 25.00
+   * 6. Receipt into zero stock: 10 pcs @ 25.00 SYP -> Stock: 10, MAP = 25.00
    */
   static runUnitTests(): { allPassed: boolean; results: ValuationTestCaseResult[] } {
     const results: ValuationTestCaseResult[] = [];
@@ -119,7 +121,7 @@ export class ValuationService {
     const res1 = this.calculateMapOnReceipt(stock, map, 50, 16.0);
     const pass1 = Math.abs(res1.newMap - 12.0) < 0.001 && res1.newStock === 150;
     results.push({
-      step: '1. استلام مشتريات (101): 50 قطعة بسعر 16.00 ر.س مع رصيد سابق 100 بسعر 10.00',
+      step: `1. استلام مشتريات (101): 50 قطعة بسعر 16.00 ${LOCALE.currency.symbolAr} مع رصيد سابق 100 بسعر 10.00`,
       action: 'RECEIPT',
       quantity: 50,
       unitPrice: 16.0,
@@ -136,7 +138,7 @@ export class ValuationService {
     const res2 = this.calculateValuationOnIssue(stock, map, 30);
     const pass2 = Math.abs(res2.newMap - 12.0) < 0.001 && res2.newStock === 120;
     results.push({
-      step: '2. صرف مخزني (201): صرف 30 قطعة لمركز تكلفة - بقاء السعر المتحرك 12.00 ر.س',
+      step: `2. صرف مخزني (201): صرف 30 قطعة لمركز تكلفة - بقاء السعر المتحرك 12.00 ${LOCALE.currency.symbolAr}`,
       action: 'ISSUE',
       quantity: 30,
       unitPrice: 12.0,
@@ -154,7 +156,7 @@ export class ValuationService {
     const res3 = this.calculateMapOnReceipt(stock, map, 80, 14.25);
     const pass3 = Math.abs(res3.newMap - 12.9) < 0.001 && res3.newStock === 200;
     results.push({
-      step: '3. استلام دفعة إضافية (101): 80 قطعة بسعر 14.25 ر.س -> المتوسط الجديد 12.90 ر.س',
+      step: `3. استلام دفعة إضافية (101): 80 قطعة بسعر 14.25 ${LOCALE.currency.symbolAr} -> المتوسط الجديد 12.90 ${LOCALE.currency.symbolAr}`,
       action: 'RECEIPT',
       quantity: 80,
       unitPrice: 14.25,
@@ -188,7 +190,7 @@ export class ValuationService {
     const res5 = this.calculateMapOnReceipt(stock, map, 10, 25.0);
     const pass5 = res5.newStock === 10 && Math.abs(res5.newMap - 25.0) < 0.001;
     results.push({
-      step: '5. استلام في مخزون صفري: 10 قطع بسعر 25.00 ر.س -> المتوسط الجديد يصبح 25.00 ر.س',
+      step: `5. استلام في مخزون صفري: 10 قطع بسعر 25.00 ${LOCALE.currency.symbolAr} -> المتوسط الجديد يصبح 25.00 ${LOCALE.currency.symbolAr}`,
       action: 'RECEIPT',
       quantity: 10,
       unitPrice: 25.0,

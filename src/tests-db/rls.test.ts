@@ -73,7 +73,7 @@ describe('Database RLS & Access Control Invariants', () => {
           fixtures.vehicles.riyadhTankerId,
           fixtures.drivers.validDriver1Id,
           '1100',
-          'Riyadh Terminal',
+          'مستودع دمشق',
           'Diesel',
           30000,
           new Date().toISOString(),
@@ -103,7 +103,7 @@ describe('Database RLS & Access Control Invariants', () => {
           fixtures.vehicles.riyadhTankerId,
           fixtures.drivers.validDriver1Id,
           '1100',
-          'Riyadh Terminal',
+          'مستودع دمشق',
           'Diesel',
           30000,
           new Date().toISOString(),
@@ -137,8 +137,8 @@ describe('Database RLS & Access Control Invariants', () => {
       // 2. Drivers table
       await expect(
         client.query(`
-          INSERT INTO public.drivers (code, name, iqama_number, mobile, license_number, license_class, license_expiry, plant_code)
-          VALUES ('HACK-DRV', 'Hacked Driver', '2999999999', '+966500000000', 'LIC-HACK', 'Heavy', '2028-01-01', '1100');
+          INSERT INTO public.drivers (code, name, national_id, mobile, license_number, license_class, license_expiry, plant_code)
+          VALUES ('HACK-DRV', 'Hacked Driver', '01999999999', '+963930000000', 'LIC-HACK', 'Heavy', '2028-01-01', '1100');
         `)
       ).rejects.toThrow(/violates row-level security|permission denied/i);
       await expect(
@@ -282,7 +282,7 @@ describe('Database RLS & Access Control Invariants', () => {
           fixtures.vehicles.riyadhTankerId,
           fixtures.drivers.validDriver1Id,
           '1100',
-          'Riyadh Depot',
+          'مستودع دمشق',
           'Diesel',
           30000,
           new Date().toISOString(),

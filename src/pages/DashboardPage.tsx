@@ -23,6 +23,8 @@ import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
 import { ScreenSkeleton } from '../components/ui/Skeleton';
 import { formatCurrency, formatNumber } from '../core/utils';
+import { formatDate, formatTime } from '../core/utils/format';
+import { LOCALE } from '../config/locale';
 import { BackupService } from '../modules/admin/services/BackupService';
 import { isRouteImplemented } from '../app/routeStatus';
 import {
@@ -103,7 +105,7 @@ export const DashboardPage: React.FC = () => {
       }
 
       const now = new Date();
-      setLastUpdated(now.toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setLastUpdated(formatTime(now));
     } catch (err) {
       DiagnosticLogger.error('DashboardPage', 'Failed to load dashboard data:', err);
       error('خطأ في تحميل البيانات', 'تعذر جلب البيانات التشغيلية للوحة التحكم.');
@@ -130,14 +132,10 @@ export const DashboardPage: React.FC = () => {
     return <ScreenSkeleton />;
   }
 
-  // Format today's date in Gregorian with Arabic month names (e.g., "3 أكتوبر 2026")
-  const todayFormatted = new Intl.DateTimeFormat('ar-SA-u-ca-gregory', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date());
+  // Format today's date in Gregorian with Levantine Arabic month names and Western digits
+  const todayFormatted = formatDate(new Date());
 
-  const userName = user?.fullName || 'م. أحمد الشمري';
+  const userName = user?.fullName || 'م. سامر الحلبي';
 
   return (
     <div className="space-y-6">
@@ -153,7 +151,7 @@ export const DashboardPage: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-[#64748B]">
-            نظام طاقة الخليج ERP الموحد — المتابعة التشغيلية والمالية الفورية لقطاع النفط والغاز وسلاسل الإمداد
+            نظام {LOCALE.brand.productName} الموحد — المتابعة التشغيلية والمالية الفورية لقطاع النفط والغاز وسلاسل الإمداد
           </p>
         </div>
 
@@ -246,7 +244,7 @@ export const DashboardPage: React.FC = () => {
             >
               <StatCard
                 label="إجمالي قيمة المشتريات هذا الشهر"
-                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0, 'SAR')}
+                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0)}
                 icon={<ShoppingCart className="w-5 h-5 text-[#0FA37F]" />}
                 trend={{
                   value: kpiSummary?.monthlyProcurementTrend || 8.4,
@@ -260,7 +258,7 @@ export const DashboardPage: React.FC = () => {
             <div>
               <StatCard
                 label="إجمالي قيمة المشتريات هذا الشهر"
-                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0, 'SAR')}
+                value={formatCurrency(kpiSummary?.monthlyProcurementTotal || 0)}
                 icon={<ShoppingCart className="w-5 h-5 text-[#0FA37F]" />}
                 trend={{
                   value: kpiSummary?.monthlyProcurementTrend || 8.4,
@@ -281,7 +279,7 @@ export const DashboardPage: React.FC = () => {
           >
             <StatCard
               label="قيمة المخزون الحالي (Stock Valuation)"
-              value={formatCurrency(kpiSummary?.inventoryValuation || 0, 'SAR')}
+              value={formatCurrency(kpiSummary?.inventoryValuation || 0)}
               icon={<Boxes className="w-5 h-5 text-[#F59E0B]" />}
               trend={{
                 value: kpiSummary?.inventoryValuationTrend || -1.8,
@@ -301,7 +299,7 @@ export const DashboardPage: React.FC = () => {
           >
             <StatCard
               label="الأصول الثابتة (القيمة الدفترية الصافية)"
-              value={formatCurrency(kpiSummary?.fixedAssetsNetValue || 0, 'SAR')}
+              value={formatCurrency(kpiSummary?.fixedAssetsNetValue || 0)}
               icon={<Building className="w-5 h-5 text-[#0B2545]" />}
               trend={{
                 value: kpiSummary?.fixedAssetsTrend || 3.2,

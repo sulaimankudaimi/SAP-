@@ -9,6 +9,7 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Asset, AssetClass, DepreciationMethod } from '../../../types/models';
 import { PlusCircle, Building2, Wrench, ShieldCheck, Layers } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 interface AssetAcquisitionModalProps {
   isOpen: boolean;
@@ -37,8 +38,8 @@ export const AssetAcquisitionModal: React.FC<AssetAcquisitionModalProps> = ({
   const [barcode, setBarcode] = useState('');
   const [plantCode, setPlantCode] = useState('1100');
   const [costCenter, setCostCenter] = useState('CC-1001');
-  const [location, setLocation] = useState('المستودع الرئيسي - الرياض');
-  const [custodian, setCustodian] = useState(user?.fullName || 'م. أحمد الشمري');
+  const [location, setLocation] = useState(`المستودع الرئيسي - ${LOCALE.hqCity}`);
+  const [custodian, setCustodian] = useState(user?.fullName || `م. ${LOCALE.namePools.firstNames[0]} ${LOCALE.namePools.lastNames[0]}`);
   const [acquisitionCost, setAcquisitionCost] = useState(
     aucAssetToSettle ? aucAssetToSettle.acquisitionCost.toString() : '150000'
   );
@@ -251,11 +252,10 @@ export const AssetAcquisitionModal: React.FC<AssetAcquisitionModalProps> = ({
             <Select
               value={plantCode}
               onChange={(e) => setPlantCode(e.target.value)}
-              options={[
-                { value: '1100', label: '1100 - محطة التوزيع المركزية بالرياض' },
-                { value: '1200', label: '1200 - محطة ومستودعات جدة اللوجستية' },
-                { value: '1300', label: '1300 - مستودع المنطقة الشرقية - الدمام' },
-              ]}
+              options={LOCALE.plants.map((p) => ({
+                value: p.code,
+                label: `${p.code} - ${p.nameAr}`,
+              }))}
             />
           </div>
 
@@ -296,7 +296,7 @@ export const AssetAcquisitionModal: React.FC<AssetAcquisitionModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                تكلفة الاقتناء التاريخية (SAR) *
+                تكلفة الاقتناء التاريخية ({LOCALE.currency.code}) *
               </label>
               <Input
                 type="number"
@@ -353,7 +353,7 @@ export const AssetAcquisitionModal: React.FC<AssetAcquisitionModalProps> = ({
 
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                قيمة الخردة / الإنقاذ المقدرة (SAR)
+                قيمة الخردة / الإنقاذ المقدرة ({LOCALE.currency.code})
               </label>
               <Input
                 type="number"

@@ -439,20 +439,20 @@ describe('Admin Part 2 Unit Tests & Acceptance Criteria', () => {
   // --------------------------------------------------------------------------
   describe('6. Dynamic Workflow Release Strategy Evaluation', () => {
     it('evaluates approval steps based on configurable rules', async () => {
-      // Under default rules:
-      // PO <= 50,000 SAR -> 1 step (Procurement Manager)
-      // PO 50,000.01 - 250,000 SAR -> 2 steps (Procurement Manager + Finance Manager)
-      // PO > 250,000 SAR -> 3 steps (Procurement + Finance + Admin)
-      const stepsLow = await WorkflowService.determineSteps('PO', 35000);
+      // Under default rules (rescaled by 450 to SYP):
+      // PO <= 22,500,000 SYP -> 1 step (Procurement Manager)
+      // PO 22,500,000.01 - 112,500,000 SYP -> 2 steps (Procurement Manager + Finance Manager)
+      // PO > 112,500,000 SYP -> 3 steps (Procurement + Finance + Admin)
+      const stepsLow = await WorkflowService.determineSteps('PO', 15000000);
       expect(stepsLow).toHaveLength(1);
       expect(stepsLow[0].roleCode).toBe(SYSTEM_ROLES.PROCUREMENT_MANAGER);
 
-      const stepsMid = await WorkflowService.determineSteps('PO', 150000);
+      const stepsMid = await WorkflowService.determineSteps('PO', 67500000);
       expect(stepsMid).toHaveLength(2);
       expect(stepsMid[0].roleCode).toBe(SYSTEM_ROLES.PROCUREMENT_MANAGER);
       expect(stepsMid[1].roleCode).toBe(SYSTEM_ROLES.FINANCE_MANAGER);
 
-      const stepsHigh = await WorkflowService.determineSteps('PO', 500000);
+      const stepsHigh = await WorkflowService.determineSteps('PO', 225000000);
       expect(stepsHigh).toHaveLength(3);
       expect(stepsHigh[2].roleCode).toBe(SYSTEM_ROLES.ADMIN);
     });

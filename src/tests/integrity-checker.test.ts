@@ -28,9 +28,9 @@ describe('Integrity Checker & ADR Invariants Automated Verification', () => {
     await db.plants.add({
       id: 'pl-1100',
       code: '1100',
-      name: 'محطة الرياض المركزية',
+      name: 'المقر الرئيسي ومستودع دمشق المركزي',
       companyCode: '1000',
-      city: 'الرياض',
+      city: 'دمشق',
       allowsNegativeStock: false,
       isDeleted: false,
     });
@@ -73,11 +73,11 @@ describe('Integrity Checker & ADR Invariants Automated Verification', () => {
       id: 'tr-001',
       docNumber: duplicateDocNumber,
       vehicleId: 'veh-1',
-      vehiclePlate: '1234-KSA',
+      vehiclePlate: 'دمشق 123456',
       driverId: 'drv-1',
-      driverName: 'خالد السبيعي',
+      driverName: 'مازن الحموي',
       originPlant: '1100',
-      destinationLocation: 'محطة الخرج',
+      destinationLocation: 'محطة حمص',
       cargoType: 'Diesel',
       cargoVolumeLiters: 35000,
       scheduledDeparture: new Date().toISOString(),
@@ -96,11 +96,11 @@ describe('Integrity Checker & ADR Invariants Automated Verification', () => {
       id: 'tr-002',
       docNumber: duplicateDocNumber, // Duplicate!
       vehicleId: 'veh-2',
-      vehiclePlate: '5678-KSA',
+      vehiclePlate: 'حمص 567890',
       driverId: 'drv-2',
-      driverName: 'سعد القحطاني',
+      driverName: 'غسان خوري',
       originPlant: '1100',
-      destinationLocation: 'محطة المجمعة',
+      destinationLocation: 'مرفأ طرطوس',
       cargoType: 'Gasoline95',
       cargoVolumeLiters: 30000,
       scheduledDeparture: new Date().toISOString(),
@@ -144,7 +144,7 @@ describe('Integrity Checker & ADR Invariants Automated Verification', () => {
       postingDate: '2026-10-13',
       headerText: 'قيد غير متوازن للاختبار',
       totalDebit: 5000.0,
-      totalCredit: 4500.0, // Difference of 500 SAR!
+      totalCredit: 4500.0, // Difference of 500 SYP!
       lines: [
         {
           lineNumber: 1,

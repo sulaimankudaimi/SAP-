@@ -10,6 +10,8 @@ import { useToast } from '../../../components/ui/Toast';
 import type { Asset } from '../../../types/models';
 import { Trash2, DollarSign, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 interface AssetDisposalModalProps {
   isOpen: boolean;
@@ -67,8 +69,8 @@ export const AssetDisposalModal: React.FC<AssetDisposalModalProps> = ({
 
       const impactMsg =
         result.gainLoss >= 0
-          ? `مع تحقيق أرباح رأسمالية قدرها ${result.gainLoss.toLocaleString('en-US')} ريال`
-          : `مع إثبات خسائر رأسمالية قدرها ${Math.abs(result.gainLoss).toLocaleString('en-US')} ريال`;
+          ? `مع تحقيق أرباح رأسمالية قدرها ${formatMoney(result.gainLoss)}`
+          : `مع إثبات خسائر رأسمالية قدرها ${formatMoney(Math.abs(result.gainLoss))}`;
 
       success(
         'تم استبعاد الأصل وترحيل القيد بنجاح',
@@ -106,10 +108,10 @@ export const AssetDisposalModal: React.FC<AssetDisposalModalProps> = ({
             الأثر المالي المباشر لاستبعاد الأصل
           </h5>
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>التكلفة التاريخية: <span className="font-bold text-slate-800 font-mono">{cost.toLocaleString('en-US')} ريال</span></div>
-            <div>مجمع الإهلاك المتراكم: <span className="font-bold text-slate-800 font-mono">{accDep.toLocaleString('en-US')} ريال</span></div>
-            <div>صافي القيمة الدفترية (NBV): <span className="font-bold text-slate-800 font-mono">{netBookValue.toLocaleString('en-US')} ريال</span></div>
-            <div>متحصلات البيع: <span className="font-bold text-slate-800 font-mono">{proceedsNum.toLocaleString('en-US')} ريال</span></div>
+            <div>التكلفة التاريخية: <span className="font-bold text-slate-800 font-mono">{formatMoney(cost)}</span></div>
+            <div>مجمع الإهلاك المتراكم: <span className="font-bold text-slate-800 font-mono">{formatMoney(accDep)}</span></div>
+            <div>صافي القيمة الدفترية (NBV): <span className="font-bold text-slate-800 font-mono">{formatMoney(netBookValue)}</span></div>
+            <div>متحصلات البيع: <span className="font-bold text-slate-800 font-mono">{formatMoney(proceedsNum)}</span></div>
           </div>
 
           <div className={`p-3 rounded-lg flex items-center justify-between text-xs font-bold ${
@@ -136,7 +138,7 @@ export const AssetDisposalModal: React.FC<AssetDisposalModalProps> = ({
               </span>
             </div>
             <span className="font-mono text-sm">
-              {Math.abs(gainLoss).toLocaleString('en-US')} ريال
+              {formatMoney(Math.abs(gainLoss))}
             </span>
           </div>
         </div>
@@ -178,7 +180,7 @@ export const AssetDisposalModal: React.FC<AssetDisposalModalProps> = ({
           {disposalType === 'Sale' && (
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                قيمة البيع / المتحصلات النقدية (SAR) *
+                قيمة البيع / المتحصلات النقدية ({LOCALE.currency.code}) *
               </label>
               <Input
                 type="number"

@@ -17,6 +17,8 @@ import { ProgressBar } from '../../../components/ui/ProgressBar';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import {
   Warehouse,
   Boxes,
@@ -230,7 +232,7 @@ export const WarehouseDashboardPage: React.FC = () => {
             <span className="px-2.5 py-0.5 rounded-full bg-[#0FA37F]/20 text-[#0FA37F] border border-[#0FA37F]/30 text-[11px] font-bold">
               SAP MM-IM & WM Module
             </span>
-            <span className="text-xs text-slate-300">| المحطة الرئيسية: 1100 - الرياض</span>
+            <span className="text-xs text-slate-300">| المحطة الرئيسية: 1100 - {LOCALE.hqCity}</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight">
             إدارة المخزون والمستودعات الذكية (Warehouse Inventory Management)
@@ -293,16 +295,14 @@ export const WarehouseDashboardPage: React.FC = () => {
 
         <StatCard
           label="إجمالي كمية المخزون (Units)"
-          value={new Intl.NumberFormat('en-US').format(totalStockQuantity)}
+          value={formatNumber(totalStockQuantity)}
           subtitle="وقود وزيوت وقطع غيار ومهمات"
           icon={<Boxes className="w-5 h-5 text-[#2563EB]" />}
         />
 
         <StatCard
-          label="إجمالي قيمة المخزون (SAR)"
-          value={`${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
-            totalInventoryValuation
-          )} ر.س`}
+          label={`إجمالي قيمة المخزون (${LOCALE.currency.code})`}
+          value={formatMoney(totalInventoryValuation, undefined, { decimals: 0 })}
           subtitle="مُقَيَّم بالمتوسط المرجح المتحرك (MAP)"
           icon={<Package className="w-5 h-5 text-[#0FA37F]" />}
           trend={{ value: 4.8, isPositive: true }}
@@ -372,7 +372,7 @@ export const WarehouseDashboardPage: React.FC = () => {
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                 <span className="text-[10px] text-[#0FA37F] font-bold block">الوارد (101/501)</span>
                 <span className="text-sm font-bold font-mono text-[#0FA37F] mt-1 block">
-                  +{new Intl.NumberFormat('en-US').format(todayMetrics.inbound || 84500)}
+                  +{formatNumber(todayMetrics.inbound || 84500)}
                 </span>
                 <span className="text-[9px] text-[#64748B]">وحدة</span>
               </div>
@@ -380,7 +380,7 @@ export const WarehouseDashboardPage: React.FC = () => {
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
                 <span className="text-[10px] text-[#2563EB] font-bold block">الصادر (201/261)</span>
                 <span className="text-sm font-bold font-mono text-[#2563EB] mt-1 block">
-                  -{new Intl.NumberFormat('en-US').format(todayMetrics.outbound || 32100)}
+                  -{formatNumber(todayMetrics.outbound || 32100)}
                 </span>
                 <span className="text-[9px] text-[#64748B]">وحدة</span>
               </div>
@@ -388,7 +388,7 @@ export const WarehouseDashboardPage: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-[10px] text-[#0F172A] font-bold block">صافي التدفق</span>
                 <span className="text-sm font-bold font-mono text-[#0B2545] mt-1 block">
-                  +{new Intl.NumberFormat('en-US').format(todayMetrics.net || 52400)}
+                  +{formatNumber(todayMetrics.net || 52400)}
                 </span>
                 <span className="text-[9px] text-[#64748B]">وحدة</span>
               </div>
@@ -513,7 +513,7 @@ export const WarehouseDashboardPage: React.FC = () => {
                       <div className="font-mono text-[10px] text-[#64748B]">{item.code}</div>
                     </td>
                     <td className="p-2.5 text-center font-mono font-bold text-[#0F172A]">
-                      {new Intl.NumberFormat('en-US').format(item.stock)} {item.unit}
+                      {formatNumber(item.stock)} {item.unit}
                     </td>
                     <td className="p-2.5">
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -525,10 +525,10 @@ export const WarehouseDashboardPage: React.FC = () => {
                       <span className="text-[10px] text-[#64748B] font-mono">{item.fillPercentage}%</span>
                     </td>
                     <td className="p-2.5 text-end font-mono text-[#64748B]">
-                      {new Intl.NumberFormat('en-US').format(item.standardPrice)} ر.س
+                      {formatMoney(item.standardPrice)}
                     </td>
                     <td className="p-2.5 text-end font-mono font-bold text-[#0FA37F]">
-                      {new Intl.NumberFormat('en-US').format(item.valuation)} ر.س
+                      {formatMoney(item.valuation, undefined, { decimals: 0 })}
                     </td>
                     <td className="p-2.5 text-center">
                       <Badge

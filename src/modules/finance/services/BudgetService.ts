@@ -1,6 +1,7 @@
 import { db } from '../../../core/db';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission, SessionContext } from '../../../core/security/SessionContext';
+import { formatMoney } from '../../../core/utils/format';
 import type { Budget, CostCenter } from '../../../types/models';
 
 export interface BudgetAvailabilityCheckResult {
@@ -64,7 +65,7 @@ export class BudgetService {
 
     let warning: string | undefined;
     if (!isAvailable) {
-      warning = `المبلغ المطلوب (${requestedAmount.toLocaleString('en-US')} ر.س) يتجاوز الميزانية المتبقية المتاحة (${available.toLocaleString('en-US')} ر.س). الفارق: ${Math.abs(remainingAfter).toLocaleString('en-US')} ر.س`;
+      warning = `المبلغ المطلوب (${formatMoney(requestedAmount)}) يتجاوز الميزانية المتبقية المتاحة (${formatMoney(available)}). الفارق: ${formatMoney(Math.abs(remainingAfter))}`;
     } else if (utilizationPct > 85) {
       warning = `تنبيه: نسبة استهلاك الميزانية بلغت ${utilizationPct}% وتقترب من الحد المسموح.`;
     }

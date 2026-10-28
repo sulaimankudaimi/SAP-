@@ -18,6 +18,7 @@ import { db } from '../core/db';
 import { dataGateway } from '../core/gateway/ServerGateway';
 import { isServerMode } from '../core/gateway/connectivity';
 import { ServerAuthService } from '../core/gateway/ServerAuthService';
+import { LOCALE } from '../config/locale';
 
 const loginSchema = z.object({
   username: z.string().min(2, 'يرجى إدخال اسم المستخدم أو الرقم الوظيفي'),
@@ -37,17 +38,20 @@ interface DemoAccount {
   name: string;
 }
 
+const fn = LOCALE.namePools.firstNames;
+const ln = LOCALE.namePools.lastNames;
+
 const DEMO_ACCOUNTS: DemoAccount[] = [
-  { username: 'admin', roleName: 'مدير النظام', name: 'م. أحمد الشمري' },
-  { username: 'proc.mgr', roleName: 'مدير المشتريات', name: 'فهد الدوسري' },
-  { username: 'proc.off', roleName: 'موظف مشتريات', name: 'سارة القحطاني' },
-  { username: 'wh.clerk', roleName: 'أمين مستودع', name: 'سلطان المطيري' },
-  { username: 'flt.mgr', roleName: 'مدير الأسطول', name: 'خالد العنزي' },
-  { username: 'accountant', roleName: 'محاسب مالي', name: 'محمد الحربي' },
-  { username: 'fin.mgr', roleName: 'مدير مالي', name: 'عبدالعزيز العتيبي' },
-  { username: 'auditor', roleName: 'مدقق داخلي', name: 'نورة السبيعي' },
-  { username: 'asset.mgr', roleName: 'مدير أصول', name: 'طارق الزهراني' },
-  { username: 'viewer', roleName: 'مستعرض فقط', name: 'ريم الغامدي' },
+  { username: 'admin', roleName: 'مدير النظام', name: `م. ${fn[0]} ${ln[0]}` },
+  { username: 'proc.mgr', roleName: 'مدير المشتريات', name: `أ. ${fn[1]} ${ln[1]}` },
+  { username: 'proc.off', roleName: 'موظف مشتريات', name: `${fn[2]} ${ln[2]}` },
+  { username: 'wh.clerk', roleName: 'أمين مستودع', name: `${fn[3]} ${ln[3]}` },
+  { username: 'flt.mgr', roleName: 'مدير الأسطول', name: `${fn[4]} ${ln[4]}` },
+  { username: 'accountant', roleName: 'محاسب مالي', name: `${fn[5]} ${ln[5]}` },
+  { username: 'fin.mgr', roleName: 'مدير مالي', name: `${fn[6]} ${ln[6]}` },
+  { username: 'auditor', roleName: 'مدقق داخلي', name: `${fn[7]} ${ln[7]}` },
+  { username: 'asset.mgr', roleName: 'مدير أصول', name: `م. ${fn[8]} ${ln[8]}` },
+  { username: 'viewer', roleName: 'مستعرض فقط', name: `${fn[9]} ${ln[9]}` },
 ];
 
 export const LoginPage: React.FC = () => {
@@ -374,7 +378,7 @@ export const LoginPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#F4F7FB] border border-[#E5EAF2] flex items-center justify-between text-[11px] text-[#64748B]">
             <span className="flex items-center gap-1.5 font-medium">
               <Building2 className="w-3.5 h-3.5 text-[#0FA37F]" />
-              الفرع الافتراضي: 1100 - الرياض
+              الفرع الافتراضي: {LOCALE.plants[0].code} - {LOCALE.plants[0].city}
             </span>
             <span className="font-mono font-semibold text-[#0B2545]">FY-2026</span>
           </div>

@@ -281,7 +281,7 @@ CREATE OR REPLACE FUNCTION public.create_driver(
     p_request_id uuid,
     p_code text,
     p_name text,
-    p_iqama_number text,
+    p_national_id text,
     p_mobile text,
     p_license_number text,
     p_license_class text,
@@ -311,11 +311,11 @@ BEGIN
     END IF;
 
     INSERT INTO public.drivers (
-        id, code, name, iqama_number, mobile, license_number,
+        id, code, name, national_id, mobile, license_number,
         license_class, license_expiry, plant_code, status, safety_rating,
         total_trips_completed, total_distance_km, is_deleted, created_by, version
     ) VALUES (
-        v_driver_id, trim(p_code), trim(p_name), trim(p_iqama_number), trim(p_mobile),
+        v_driver_id, trim(p_code), trim(p_name), trim(p_national_id), trim(p_mobile),
         trim(p_license_number), p_license_class, p_license_expiry, p_plant_code,
         'available', COALESCE(p_safety_rating, 5.00), 0, 0.00,
         false, COALESCE(v_user_id::text, 'system'), 1

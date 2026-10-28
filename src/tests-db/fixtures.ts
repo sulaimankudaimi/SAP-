@@ -1,4 +1,6 @@
 import { PoolClient } from 'pg';
+import { LOCALE } from '../config/locale';
+import { formatPlate } from '../core/utils/format';
 
 export interface SeededFixtures {
   plants: string[];
@@ -26,35 +28,35 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
   // 1. Plants
   await client.query(`
     INSERT INTO public.plants (code, name, city, company_code, allows_negative_stock) VALUES
-    ('1100', 'محطة الرياض المركزية (Riyadh Central Depot)', 'الرياض', '1000', false),
-    ('1200', 'مستودع ينبع للمحروقات (Yanbu Fuel Terminal)', 'ينبع', '1000', false),
-    ('1300', 'مركز توزيع الجبيل الصناعي (Jubail Logistics Center)', 'الجبيل', '1000', false)
+    ('${LOCALE.plants[0].code}', '${LOCALE.plants[0].nameAr}', '${LOCALE.plants[0].city}', '1000', false),
+    ('${LOCALE.plants[1].code}', '${LOCALE.plants[1].nameAr}', '${LOCALE.plants[1].city}', '1000', false),
+    ('${LOCALE.plants[2].code}', '${LOCALE.plants[2].nameAr}', '${LOCALE.plants[2].city}', '1000', false)
     ON CONFLICT (code) DO NOTHING;
   `);
 
   // 2. Cost Centers
   await client.query(`
     INSERT INTO public.cost_centers (code, name, company_code, responsible_person) VALUES
-    ('CC-1100', 'إدارة تشغيل أسطول الرياض', '1000', 'أحمد الشمري'),
-    ('CC-1200', 'محطة التوزيع والشحن بينبع', '1000', 'خالد العنزي'),
-    ('CC-1300', 'ورشة الصيانة ومستودع الجبيل', '1000', 'طارق الزهراني')
+    ('CC-1100', 'إدارة تشغيل أسطول دمشق', '1000', '${LOCALE.namePools.firstNames[0]} ${LOCALE.namePools.lastNames[0]}'),
+    ('CC-1200', 'محطة التوزيع والشحن بحمص', '1000', '${LOCALE.namePools.firstNames[2]} ${LOCALE.namePools.lastNames[2]}'),
+    ('CC-1300', 'ورشة الصيانة ومستودع بانياس', '1000', '${LOCALE.namePools.firstNames[4]} ${LOCALE.namePools.lastNames[4]}')
     ON CONFLICT (code) DO NOTHING;
   `);
 
   // 3. GL Accounts (SAP Standard Chart of Accounts)
   await client.query(`
     INSERT INTO public.gl_accounts (account_number, name, category, currency) VALUES
-    ('101010', 'النقدية بالبنوك المحلية (Al Rajhi / SNB)', 'Asset', 'SAR'),
-    ('120010', 'مخزون وقود الديزل والمحروقات (Euro 5 Diesel)', 'Asset', 'SAR'),
-    ('120040', 'مخزون قطع غيار الشاحنات والمضخات', 'Asset', 'SAR'),
-    ('150020', 'أصول ثابتة - أسطول صهاريج نقل الوقود', 'Asset', 'SAR'),
-    ('201010', 'الذمم الدائنة التجارية (موردي قطع الغيار والوقود)', 'Liability', 'SAR'),
-    ('201020', 'مستحقات وسيطة GR/IR - مقاولي النقل واللوجستيات', 'Liability', 'SAR'),
-    ('202010', 'ضريبة القيمة المضافة المستحقة / المدخلات (ZATCA VAT)', 'Liability', 'SAR'),
-    ('501020', 'تكلفة قطع الغيار والمهمات المستهلكة (COGS Spare Parts)', 'Expense', 'SAR'),
-    ('601010', 'بدلات وانتدابات سائقي صهاريج الوقود', 'Expense', 'SAR'),
-    ('602010', 'مصروفات صيانة وإصلاح أسطول الصهاريج', 'Expense', 'SAR'),
-    ('603010', 'وقود تشغيل الشاحنات ومعدات النقل', 'Expense', 'SAR')
+    ('101010', 'النقدية بالبنوك المحلية (المصرف التجاري / التسليف)', 'Asset', 'SYP'),
+    ('120010', 'مخزون وقود الديزل والمحروقات (Euro 5 Diesel)', 'Asset', 'SYP'),
+    ('120040', 'مخزون قطع غيار الشاحنات والمضخات', 'Asset', 'SYP'),
+    ('150020', 'أصول ثابتة - أسطول صهاريج نقل الوقود', 'Asset', 'SYP'),
+    ('201010', 'الذمم الدائنة التجارية (موردي قطع الغيار والوقود)', 'Liability', 'SYP'),
+    ('201020', 'مستحقات وسيطة GR/IR - مقاولي النقل واللوجستيات', 'Liability', 'SYP'),
+    ('202010', 'ضريبة مبيعات مستحقة / تسويات ضريبية', 'Liability', 'SYP'),
+    ('501020', 'تكلفة قطع الغيار والمهمات المستهلكة (COGS Spare Parts)', 'Expense', 'SYP'),
+    ('601010', 'بدلات وانتدابات سائقي صهاريج الوقود', 'Expense', 'SYP'),
+    ('602010', 'مصروفات صيانة وإصلاح أسطول الصهاريج', 'Expense', 'SYP'),
+    ('603010', 'وقود تشغيل الشاحنات ومعدات النقل', 'Expense', 'SYP')
     ON CONFLICT (account_number) DO NOTHING;
   `);
 
@@ -85,12 +87,12 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
     END $$;
   `);
 
-  // 6. Materials
+  // 6. Materials (Rescaled by SAR_TO_SYP_FACTOR = 450)
   await client.query(`
     INSERT INTO public.materials (code, name, material_type, material_group, base_unit, moving_average_price, is_active) VALUES
-    ('MAT-FUEL-DIESEL', 'وقود ديزل نقل ثقيل (Euro 5 Diesel)', 'HAWA', 'FUEL', 'L', 1.15, true),
-    ('MAT-OIL-FILTER', 'فلتر زيت محرك ديزل أصلي (Actros Oil Filter)', 'ERSA', 'PARTS', 'PC', 150.00, true),
-    ('MAT-TIRE-HEAVY', 'إطار شاحنة ثقيلة ميشلان (315/80 R22.5)', 'ERSA', 'TIRES', 'PC', 1200.00, true)
+    ('MAT-FUEL-DIESEL', 'وقود ديزل نقل ثقيل (Euro 5 Diesel - تجريبي)', 'HAWA', 'FUEL', 'L', 520.00, true),
+    ('MAT-OIL-FILTER', 'فلتر زيت محرك ديزل أصلي (Actros Oil Filter)', 'ERSA', 'PARTS', 'PC', 68000.00, true),
+    ('MAT-TIRE-HEAVY', 'إطار شاحنة ثقيلة ميشلان (315/80 R22.5)', 'ERSA', 'TIRES', 'PC', 540000.00, true)
     ON CONFLICT (code) DO NOTHING;
   `);
 
@@ -98,8 +100,8 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
   // We seed 50 oil filters and exactly 1 heavy tire (for the "last unit" concurrency test)
   await client.query(`
     INSERT INTO public.stock_balances (id, material_code, plant_code, storage_location, unrestricted_qty, total_valuation, moving_average_price, unit, last_movement_date) VALUES
-    ('bal-MAT-OIL-FILTER-1100-SL01', 'MAT-OIL-FILTER', '1100', 'SL01', 50.000, 7500.00, 150.00, 'PC', current_date),
-    ('bal-MAT-TIRE-HEAVY-1100-SL01', 'MAT-TIRE-HEAVY', '1100', 'SL01', 1.000, 1200.00, 1200.00, 'PC', current_date)
+    ('bal-MAT-OIL-FILTER-1100-SL01', 'MAT-OIL-FILTER', '1100', 'SL01', 50.000, 3400000.00, 68000.00, 'PC', current_date),
+    ('bal-MAT-TIRE-HEAVY-1100-SL01', 'MAT-TIRE-HEAVY', '1100', 'SL01', 1.000, 540000.00, 540000.00, 'PC', current_date)
     ON CONFLICT (id) DO UPDATE SET
       unrestricted_qty = EXCLUDED.unrestricted_qty,
       total_valuation = EXCLUDED.total_valuation;
@@ -114,8 +116,8 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
       id, code, plate_number, type, make_model, vin, year, capacity_liters,
       current_odometer, fuel_type, plant_code, cost_center, status, insurance_expiry, registration_expiry
     ) VALUES
-    ($1, 'TRK-101', 'أ ب ج 1101', 'Tanker', 'Mercedes-Benz Actros 3340', 'WDB9634031L110101', 2023, 32000, 150000.00, 'Diesel', '1100', 'CC-1100', 'available', '2027-12-31', '2027-12-31'),
-    ($2, 'TRK-102', 'د هـ و 2201', 'Tanker', 'Volvo FH16 750', 'YV2RT40A1MB220202', 2024, 35000, 80000.00, 'Diesel', '1200', 'CC-1200', 'available', '2027-12-31', '2027-12-31')
+    ($1, 'TRK-101', '${formatPlate(LOCALE.governorates[0].nameAr, 110101)}', 'Tanker', 'Mercedes-Benz Actros 3340', 'WDB9634031L110101', 2023, 32000, 150000.00, 'Diesel', '1100', 'CC-1100', 'available', '2027-12-31', '2027-12-31'),
+    ($2, 'TRK-102', '${formatPlate(LOCALE.governorates[3].nameAr, 220102)}', 'Tanker', 'Volvo FH16 750', 'YV2RT40A1MB220202', 2024, 35000, 80000.00, 'Diesel', '1200', 'CC-1200', 'available', '2027-12-31', '2027-12-31')
     ON CONFLICT (id) DO UPDATE SET
       current_odometer = EXCLUDED.current_odometer,
       status = EXCLUDED.status;
@@ -128,11 +130,11 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
 
   await client.query(`
     INSERT INTO public.drivers (
-      id, code, name, iqama_number, mobile, license_number, license_class, license_expiry, plant_code, status, safety_rating
+      id, code, name, national_id, mobile, license_number, license_class, license_expiry, plant_code, status, safety_rating
     ) VALUES
-    ($1, 'DRV-101', 'أحمد السعيد', '2100998877', '+966501112233', 'LIC-101', 'نقل مواد خطرة (HazMat)', '2027-12-31', '1100', 'available', 4.95),
-    ($2, 'DRV-102', 'سالم الدوسري', '2211445566', '+966555112233', 'LIC-102', 'عمومي ثقيل', '2027-12-31', '1200', 'available', 5.00),
-    ($3, 'DRV-EXP', 'سائق منتهي الصلاحية', '2333444555', '+966599000111', 'LIC-EXP', 'عمومي ثقيل', '2024-01-01', '1100', 'available', 3.50)
+    ($1, 'DRV-101', '${LOCALE.namePools.firstNames[0]} ${LOCALE.namePools.lastNames[0]}', '01010998877', '+963931112233', 'LIC-101', 'نقل مواد خطرة (HazMat)', '2027-12-31', '1100', 'available', 4.95),
+    ($2, 'DRV-102', '${LOCALE.namePools.firstNames[1]} ${LOCALE.namePools.lastNames[1]}', '04011445566', '+963945112233', 'LIC-102', 'عمومي ثقيل', '2027-12-31', '1200', 'available', 5.00),
+    ($3, 'DRV-EXP', 'سائق منتهي الصلاحية', '01033444555', '+963999000111', 'LIC-EXP', 'عمومي ثقيل', '2024-01-01', '1100', 'available', 3.50)
     ON CONFLICT (id) DO UPDATE SET
       license_expiry = EXCLUDED.license_expiry,
       status = EXCLUDED.status;

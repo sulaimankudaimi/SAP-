@@ -1,6 +1,7 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { formatCurrency, formatNumber } from '../../../core/utils';
+import { formatCurrency } from '../../../core/utils';
+import { LOCALE } from '../../../config/locale';
 import type { SpendCategoryDistribution } from '../services/dashboardService';
 
 export interface SpendDistributionDonutProps {
@@ -31,7 +32,7 @@ export const SpendDistributionDonut: React.FC<SpendDistributionDonutProps> = ({
                   return (
                     <div className="bg-white border border-[#E5EAF2] rounded-xl p-2.5 shadow-lg text-start text-xs space-y-1">
                       <p className="font-bold text-[#0B2545]">{cat.name}</p>
-                      <p className="text-[#0FA37F] font-semibold">{formatCurrency(cat.amount, 'SAR')}</p>
+                      <p className="text-[#0FA37F] font-semibold">{formatCurrency(cat.amount)}</p>
                       <p className="text-[#64748B] text-[11px]">النسبة: {cat.percentage}%</p>
                     </div>
                   );
@@ -59,9 +60,9 @@ export const SpendDistributionDonut: React.FC<SpendDistributionDonutProps> = ({
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
           <span className="text-[10px] font-semibold text-[#64748B]">إجمالي المشتريات</span>
           <span className="text-base font-bold text-[#0B2545] font-sans">
-            {formatCurrency(total, 'SAR').split(' ')[0]}
+            {formatCurrency(total).split(' ')[0]}
           </span>
-          <span className="text-[9px] font-bold text-emerald-600">ريال سعودي</span>
+          <span className="text-[9px] font-bold text-emerald-600">{LOCALE.currency.symbolAr}</span>
         </div>
       </div>
 
@@ -74,7 +75,7 @@ export const SpendDistributionDonut: React.FC<SpendDistributionDonutProps> = ({
               <span className="text-[#0F172A] font-medium truncate">{cat.name}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-slate-500 font-mono text-[11px]">{formatCurrency(cat.amount, 'SAR')}</span>
+              <span className="text-slate-500 font-mono text-[11px]">{formatCurrency(cat.amount)}</span>
               <span className="px-1.5 py-0.2 rounded font-mono font-bold text-[10px] bg-slate-100 text-[#0B2545]">
                 {cat.percentage}%
               </span>

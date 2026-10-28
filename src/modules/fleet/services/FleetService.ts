@@ -8,6 +8,7 @@ import { isServerMode, useConnectivityStore } from '../../../core/gateway/connec
 import { dataGateway } from '../../../core/gateway/ServerGateway';
 import { OutboxEngine, OFFLINE_BLOCKED_ARABIC_EXPLANATION } from '../../../core/gateway/OutboxEngine';
 import { ConcurrencyError, ServerCommandUnavailableError } from '../../../core/errors';
+import { formatNumber } from '../../../core/utils/format';
 import type {
   Vehicle,
   VehicleType,
@@ -1403,7 +1404,7 @@ export class FleetService {
           status: 'due',
           isOverdue: true,
           alertReason: isOdoOverdue
-            ? `تجاوز العداد المحدد (${currentOdometer.toLocaleString()} / ${sched.nextDueOdometer.toLocaleString()} كم)`
+            ? `تجاوز العداد المحدد (${formatNumber(currentOdometer)} / ${formatNumber(sched.nextDueOdometer)} كم)`
             : `تجاوز موعد الصيانة الدوري (${sched.nextDueDate})`,
         });
       } else if (isOdoSoon || isDateSoon) {
@@ -1412,7 +1413,7 @@ export class FleetService {
           status: 'soon',
           isOverdue: false,
           alertReason: isOdoSoon
-            ? `اقتراب موعد الصيانة (${Math.max(0, sched.nextDueOdometer - currentOdometer).toLocaleString()} كم متبقية)`
+            ? `اقتراب موعد الصيانة (${formatNumber(Math.max(0, sched.nextDueOdometer - currentOdometer))} كم متبقية)`
             : `اقتراب تاريخ الاستحقاق (${sched.nextDueDate})`,
         });
       }

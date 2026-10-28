@@ -532,9 +532,9 @@ export class SupabaseGateway implements IDataGateway {
     const reqId = requestId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined);
     const { data, error } = await this.client.rpc('create_driver', {
       p_request_id: reqId,
-      p_code: driver.code || driver.iqamaNumber || 'DRV-NEW',
+      p_code: driver.code || driver.nationalId || 'DRV-NEW',
       p_name: driver.name,
-      p_iqama_number: driver.iqamaNumber,
+      p_national_id: driver.nationalId,
       p_mobile: driver.mobile,
       p_license_number: driver.licenseNumber,
       p_license_class: driver.licenseClass || 'Heavy',

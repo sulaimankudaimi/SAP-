@@ -31,6 +31,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export const AssetRegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -192,9 +194,10 @@ export const AssetRegisterPage: React.FC = () => {
               onChange={(e) => setSelectedPlant(e.target.value)}
               options={[
                 { value: '', label: 'كافة المحطات والمستودعات' },
-                { value: '1100', label: '1100 - محطة الرياض المركزية' },
-                { value: '1200', label: '1200 - محطة ومستودعات جدة' },
-                { value: '1300', label: '1300 - مستودع الدمام اللوجستي' },
+                ...LOCALE.plants.map((p) => ({
+                  value: p.code,
+                  label: `${p.code} - ${p.nameAr}`,
+                })),
               ]}
             />
           </div>
@@ -268,10 +271,10 @@ export const AssetRegisterPage: React.FC = () => {
                       {asset.custodian}
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-700">
-                      {asset.acquisitionCost.toLocaleString('en-US')} SAR
+                      {formatMoney(asset.acquisitionCost)}
                     </td>
                     <td className="py-3 px-3 font-mono font-bold text-emerald-800">
-                      {asset.netBookValue.toLocaleString('en-US')} SAR
+                      {formatMoney(asset.netBookValue)}
                     </td>
                     <td className="py-3 px-3 text-slate-600 text-[11px]">
                       {asset.depreciationMethod === 'StraightLine' ? 'قسط ثابت' : 'قسط متناقص'}
@@ -360,7 +363,7 @@ export const AssetRegisterPage: React.FC = () => {
 
         <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
           <span>إجمالي عدد السجلات المعروضة: <strong>{assets.length}</strong> أصل رأسمالي</span>
-          <span>العملة الافتراضية: <strong>ريال سعودي (SAR)</strong></span>
+          <span>العملة الافتراضية: <strong>{LOCALE.currency.symbolAr} ({LOCALE.currency.code})</strong></span>
         </div>
       </Card>
 

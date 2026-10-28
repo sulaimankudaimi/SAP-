@@ -27,6 +27,7 @@ import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { formatNumber } from '../../../core/utils';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const CostCentersListPage: React.FC = () => {
   const { showToast } = useToast();
@@ -259,7 +260,7 @@ export const CostCentersListPage: React.FC = () => {
         />
         <StatCard
           label="الشركات التابعة"
-          value="1 (شركة الخليج للطاقة)"
+          value={`1 (${LOCALE.brand.nameAr})`}
           icon={<Building className="w-6 h-6 text-blue" />}
         />
       </div>
@@ -269,7 +270,7 @@ export const CostCentersListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برمز مركز التكلفة، الاسم، أو المسؤول..."
-        exportFileName="مراكز_التكلفة_طاقة_الخليج"
+        exportFileName="مراكز_التكلفة_الشام_للطاقة"
       />
 
       {/* Create Modal */}

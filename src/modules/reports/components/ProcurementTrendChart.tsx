@@ -92,7 +92,7 @@ export const ProcurementTrendChart: React.FC<ProcurementTrendChartProps> = ({
                     >
                       <p className="font-bold text-[#0B2545]">{item.label}</p>
                       <p className="text-[#0FA37F] font-semibold">
-                        الإنفاق: {formatCurrency(item.amount, 'SAR')}
+                        الإنفاق: {formatCurrency(item.amount)}
                       </p>
                       <p className="text-[#64748B] text-[11px]">
                         عدد الأوامر: {formatNumber(item.orderCount)} أمر شراء

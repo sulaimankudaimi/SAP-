@@ -24,6 +24,8 @@ import {
   Building2,
 } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney, formatDate } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export const DepreciationManagementPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
@@ -98,7 +100,7 @@ export const DepreciationManagementPage: React.FC = () => {
 
       success(
         'تم ترحيل دورة الإهلاك بنجاح',
-        `تم إصدار مستند الإهلاك ${result.run.docNumber} وترحيل قيد الأستاذ العام ${result.je.docNumber} بقيمة إجمالية ${result.run.totalDepreciationAmount.toLocaleString('en-US')} ريال.`
+        `تم إصدار مستند الإهلاك ${result.run.docNumber} وترحيل قيد الأستاذ العام ${result.je.docNumber} بقيمة إجمالية ${formatMoney(result.run.totalDepreciationAmount)}.`
       );
 
       setPreviewItems([]);
@@ -169,7 +171,7 @@ export const DepreciationManagementPage: React.FC = () => {
             <Select
               value={companyCode}
               onChange={(e) => setCompanyCode(e.target.value)}
-              options={[{ value: '1000', label: '1000 - شركة الخليج للطاقة المحدودة' }]}
+              options={[{ value: '1000', label: `1000 - ${LOCALE.brand.nameAr}` }]}
             />
           </div>
 
@@ -192,7 +194,7 @@ export const DepreciationManagementPage: React.FC = () => {
               onChange={(e) => setPeriod(e.target.value)}
               options={Array.from({ length: 12 }, (_, i) => ({
                 value: String(i + 1),
-                label: `الفترة ${i + 1} (${new Date(2026, i).toLocaleString('ar-SA-u-ca-gregory-nu-latn', { month: 'long' })})`,
+                label: `الفترة ${i + 1} (${formatDate(new Date(Date.UTC(2026, i, 15)), { month: 'long' })})`,
               }))}
             />
           </div>
@@ -204,9 +206,10 @@ export const DepreciationManagementPage: React.FC = () => {
               onChange={(e) => setPlantCode(e.target.value)}
               options={[
                 { value: '', label: 'كافة المحطات والمنشآت' },
-                { value: '1100', label: '1100 - محطة الرياض المركزية' },
-                { value: '1200', label: '1200 - محطة ومستودعات جدة' },
-                { value: '1300', label: '1300 - مستودع الدمام' },
+                ...LOCALE.plants.map((p) => ({
+                  value: p.code,
+                  label: `${p.code} - ${p.nameAr}`,
+                })),
               ]}
             />
           </div>
@@ -235,7 +238,7 @@ export const DepreciationManagementPage: React.FC = () => {
                   نتائج محاكاة الإهلاك لدورة {period}/{fiscalYear}
                 </h4>
                 <p className="text-xs text-emerald-800">
-                  عدد الأصول المستحقة: <strong>{previewItems.length}</strong> أصل | إجمالي قسط الإهلاك المستحق: <strong>{totalPreviewAmount.toLocaleString('en-US')} SAR</strong>
+                  عدد الأصول المستحقة: <strong>{previewItems.length}</strong> أصل | إجمالي قسط الإهلاك المستحق: <strong>{formatMoney(totalPreviewAmount)}</strong>
                 </p>
               </div>
             </div>
@@ -276,9 +279,9 @@ export const DepreciationManagementPage: React.FC = () => {
                       <td className="py-2.5 px-3 font-semibold text-slate-800">{item.assetName}</td>
                       <td className="py-2.5 px-3 text-slate-600">{item.category}</td>
                       <td className="py-2.5 px-3 font-mono text-slate-600">{item.costCenter}</td>
-                      <td className="py-2.5 px-3 font-mono text-slate-700">{item.previousBookValue.toLocaleString('en-US')} SAR</td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-rose-600">{item.depreciationAmount.toLocaleString('en-US')} SAR</td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{item.newBookValue.toLocaleString('en-US')} SAR</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-700">{formatMoney(item.previousBookValue)}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-rose-600">{formatMoney(item.depreciationAmount)}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">{formatMoney(item.newBookValue)}</td>
                       <td className="py-2.5 px-3 text-slate-500 text-[11px]">{item.method}</td>
                     </tr>
                   ))}
@@ -332,7 +335,7 @@ export const DepreciationManagementPage: React.FC = () => {
                     <td className="py-3 px-3 font-semibold">فترة {run.period} / {run.fiscalYear}</td>
                     <td className="py-3 px-3 font-bold">{run.assetCount} أصل</td>
                     <td className="py-3 px-3 font-mono font-bold text-emerald-800">
-                      {run.totalDepreciationAmount.toLocaleString('en-US')} SAR
+                      {formatMoney(run.totalDepreciationAmount)}
                     </td>
                     <td className="py-3 px-3 font-mono text-blue-800 font-bold">
                       {run.journalEntryDocNumber || '—'}
@@ -369,7 +372,7 @@ export const DepreciationManagementPage: React.FC = () => {
         onClose={() => setSelectedRunToReverse(null)}
         onConfirm={handleConfirmReverse}
         title="تأكيد عكس دورة الإهلاك (Storno Reversal)"
-        message={`هل أنت متأكد من رغبتك في عكس وإلغاء دورة الإهلاك ${selectedRunToReverse?.docNumber} بقيمة ${selectedRunToReverse?.totalDepreciationAmount.toLocaleString('en-US')} ريال؟ سيتم إصدار قيد عكسي متوازن في الأستاذ العام واستعادة القيم الدفترية للأصول.`}
+        message={`هل أنت متأكد من رغبتك في عكس وإلغاء دورة الإهلاك ${selectedRunToReverse?.docNumber} بقيمة ${formatMoney(selectedRunToReverse?.totalDepreciationAmount || 0)}؟ سيتم إصدار قيد عكسي متوازن في الأستاذ العام واستعادة القيم الدفترية للأصول.`}
         confirmText="تأكيد العكس المحاسبي"
         cancelText="تراجع"
         variant="danger"

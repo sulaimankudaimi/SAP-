@@ -10,6 +10,7 @@ import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
+import { formatMoney } from '../../../core/utils/format';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -390,7 +391,7 @@ export const PhysicalInventoryModal: React.FC<PhysicalInventoryModalProps> = ({
                     totalVarianceValue >= 0 ? 'text-[#0FA37F]' : 'text-[#EF4444]'
                   }`}
                 >
-                  {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(totalVarianceValue)} ر.س
+                  {formatMoney(totalVarianceValue)}
                 </div>
               </div>
             </div>
@@ -424,14 +425,14 @@ export const PhysicalInventoryModal: React.FC<PhysicalInventoryModalProps> = ({
                         </span>
                       </td>
                       <td className="p-2.5 text-end font-mono text-[#64748B]">
-                        {new Intl.NumberFormat('en-US').format(item.unitPrice)} ر.س
+                        {formatMoney(item.unitPrice)}
                       </td>
                       <td
                         className={`p-2.5 text-end font-mono font-bold ${
                           item.varianceValue > 0 ? 'text-[#0FA37F]' : item.varianceValue < 0 ? 'text-[#EF4444]' : 'text-slate-400'
                         }`}
                       >
-                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(item.varianceValue)} ر.س
+                        {formatMoney(item.varianceValue)}
                       </td>
                       <td className="p-2.5 text-center">
                         {item.variance > 0 ? (

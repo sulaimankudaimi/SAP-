@@ -60,7 +60,7 @@ export class LocalDexieGateway implements IDataGateway {
 
   async createFuelLog(cmd: CreateFuelLogCommand): Promise<FuelLog> {
     const liters = cmd.liters ?? cmd.quantityLiters ?? 0;
-    const costPerLiter = cmd.costPerLiter ?? (liters > 0 && cmd.cost ? cmd.cost / liters : 1.15);
+    const costPerLiter = cmd.costPerLiter ?? (liters > 0 && cmd.cost ? cmd.cost / liters : 520);
     const odometer = cmd.odometer ?? cmd.currentOdometer ?? 0;
     const date = cmd.date ?? cmd.occurredAt ?? new Date().toISOString().split('T')[0];
     const stationName = cmd.stationName ?? cmd.stationLocation ?? cmd.vendorName ?? 'محطة المحروقات';

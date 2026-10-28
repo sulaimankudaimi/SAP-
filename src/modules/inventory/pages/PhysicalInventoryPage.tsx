@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { PhysicalInventoryModal } from '../components/PhysicalInventoryModal';
+import { formatMoney } from '../../../core/utils/format';
 import {
   ClipboardCheck,
   Plus,
@@ -154,10 +155,7 @@ export const PhysicalInventoryPage: React.FC = () => {
                           (doc.totalVarianceValue || 0) >= 0 ? 'text-[#0FA37F]' : 'text-[#EF4444]'
                         }
                       >
-                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(
-                          doc.totalVarianceValue || 0
-                        )}{' '}
-                        ر.س
+                        {formatMoney(doc.totalVarianceValue || 0)}
                       </span>
                     </td>
                     <td className="p-3 text-center">{getStatusBadge(doc.status)}</td>

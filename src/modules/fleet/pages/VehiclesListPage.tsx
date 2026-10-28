@@ -9,6 +9,8 @@ import { Modal } from '../../../components/ui/Modal';
 import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
 import { getErrorMessage } from '../../../core/utils';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { currentActorId } from '../../../core/security/SessionContext';
@@ -434,10 +436,10 @@ export const VehiclesListPage: React.FC = () => {
                     </td>
                     <td className="p-3 font-mono text-[#64748B]">{v.vin || '—'}</td>
                     <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                      {v.capacityLiters ? `${v.capacityLiters.toLocaleString()} لتر` : '—'}
+                      {v.capacityLiters ? `${formatNumber(v.capacityLiters)} لتر` : '—'}
                     </td>
                     <td className="p-3 text-center font-mono font-bold text-[#0F172A]">
-                      {v.currentOdometer.toLocaleString()} كم
+                      {formatNumber(v.currentOdometer)} كم
                     </td>
                     <td className="p-3 text-[#0F172A]">
                       {v.assignedDriverName || 'غير معين'}
@@ -493,7 +495,7 @@ export const VehiclesListPage: React.FC = () => {
             <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E5EAF2] space-y-1">
               <span className="text-sm font-bold text-[#0F172A]">{selectedCostReport.makeModel}</span>
               <p className="text-xs text-[#64748B]">
-                إجمالي المسافة التشغيلية المقطوعة: <strong className="font-mono text-[#0F172A]">{selectedCostReport.totalDistanceKm.toLocaleString()} كم</strong>
+                إجمالي المسافة التشغيلية المقطوعة: <strong className="font-mono text-[#0F172A]">{formatNumber(selectedCostReport.totalDistanceKm)} كم</strong>
               </p>
             </div>
 
@@ -501,7 +503,7 @@ export const VehiclesListPage: React.FC = () => {
             <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
               <span className="text-xs font-semibold text-[#0FA37F]">معدل التكلفة التشغيلية الإجمالية لكل كيلومتر:</span>
               <div className="text-3xl font-black font-mono text-[#0FA37F] mt-1">
-                {selectedCostReport.costPerKm} <span className="text-sm">ر.س / كم</span>
+                {selectedCostReport.costPerKm} <span className="text-sm">{LOCALE.currency.symbolAr} / كم</span>
               </div>
               <span className="text-[11px] text-[#64748B] block mt-1">
                 (يشمل الوقود، الصيانة، بدلات السائقين، واستهلاك الأصول)
@@ -521,7 +523,7 @@ export const VehiclesListPage: React.FC = () => {
                     <Fuel className="w-4 h-4 text-amber-500" /> تكلفة المحروقات والديزل (Fuel):
                   </span>
                   <span className="font-mono font-bold text-[#0F172A]">
-                    {selectedCostReport.fuelCostTotal.toLocaleString()} ر.س
+                    {formatMoney(selectedCostReport.fuelCostTotal)}
                   </span>
                 </div>
 
@@ -530,7 +532,7 @@ export const VehiclesListPage: React.FC = () => {
                     <Wrench className="w-4 h-4 text-blue-500" /> تكلفة الصيانة وقطع الغيار (Maintenance):
                   </span>
                   <span className="font-mono font-bold text-[#0F172A]">
-                    {selectedCostReport.maintenanceCostTotal.toLocaleString()} ر.س
+                    {formatMoney(selectedCostReport.maintenanceCostTotal)}
                   </span>
                 </div>
 
@@ -539,7 +541,7 @@ export const VehiclesListPage: React.FC = () => {
                     <Truck className="w-4 h-4 text-emerald-500" /> بدلات وانتدابات السائقين (Driver Allowance):
                   </span>
                   <span className="font-mono font-bold text-[#0F172A]">
-                    {selectedCostReport.driverAllowanceTotal.toLocaleString()} ر.س
+                    {formatMoney(selectedCostReport.driverAllowanceTotal)}
                   </span>
                 </div>
 
@@ -548,14 +550,14 @@ export const VehiclesListPage: React.FC = () => {
                     <DollarSign className="w-4 h-4 text-purple-500" /> استهلاك الأصل الرأسمالي السنوي (Depreciation):
                   </span>
                   <span className="font-mono font-bold text-[#0F172A]">
-                    {selectedCostReport.depreciationCostTotal.toLocaleString()} ر.س
+                    {formatMoney(selectedCostReport.depreciationCostTotal)}
                   </span>
                 </div>
 
                 <div className="p-3 bg-[#F8FAFC] flex justify-between items-center font-bold text-sm text-[#0F172A]">
                   <span>إجمالي التكلفة الكلية (Grand Total):</span>
                   <span className="font-mono text-[#0FA37F]">
-                    {selectedCostReport.grandTotalCost.toLocaleString()} ر.س
+                    {formatMoney(selectedCostReport.grandTotalCost)}
                   </span>
                 </div>
               </div>

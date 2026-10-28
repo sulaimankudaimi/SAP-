@@ -279,7 +279,7 @@ describe('Contract Reads: READ_SPECS, RowMappers, & Schema Invariants', () => {
       const first = mapped[0];
       expect(typeof first.id).toBe('string');
       expect(typeof first.name).toBe('string');
-      expect(typeof first.iqamaNumber).toBe('string');
+      expect(typeof first.nationalId).toBe('string');
       expect(typeof first.version).toBe('number');
       expect(first.isDeleted).toBe(false);
     });

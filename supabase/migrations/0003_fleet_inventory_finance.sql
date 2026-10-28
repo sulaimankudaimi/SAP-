@@ -54,15 +54,15 @@ CREATE TRIGGER trg_cost_centers_bump_version
 
 -- Seed Primary Strategic Energy Sites
 INSERT INTO public.plants (code, name, city, company_code, allows_negative_stock) VALUES
-('1100', 'محطة الرياض المركزية (Riyadh Central Depot)', 'الرياض', '1000', false),
-('1200', 'مستودع ينبع للمحروقات (Yanbu Fuel Terminal)', 'ينبع', '1000', false),
-('1300', 'مركز توزيع الجبيل الصناعي (Jubail Logistics Center)', 'الجبيل', '1000', false)
+('1100', 'المقر الرئيسي ومستودع دمشق المركزي (Damascus Central HQ & Depot)', 'دمشق', '1000', false),
+('1200', 'محطة ومستودعات حمص للمحروقات (Homs Fuel Terminal)', 'حمص', '1000', false),
+('1300', 'مجمع بانياس الساحلي للتخزين والإمداد (Baniyas Coastal Terminal)', 'بانياس', '1000', false)
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO public.cost_centers (code, name, company_code, responsible_person) VALUES
-('CC-1100', 'إدارة تشغيل أسطول الرياض', '1000', 'أحمد الشمري'),
-('CC-1200', 'محطة التوزيع والشحن بينبع', '1000', 'خالد العنزي'),
-('CC-1300', 'ورشة الصيانة ومستودع الجبيل', '1000', 'طارق الزهراني')
+('CC-1100', 'إدارة تشغيل أسطول دمشق', '1000', 'طارق الحلبي'),
+('CC-1200', 'محطة التوزيع والشحن بحمص', '1000', 'مازن الحموي'),
+('CC-1300', 'ورشة الصيانة ومستودع بانياس', '1000', 'غسان خوري')
 ON CONFLICT (code) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS public.drivers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code text NOT NULL UNIQUE,
     name text NOT NULL,
-    iqama_number text NOT NULL UNIQUE,
+    national_id text NOT NULL UNIQUE,
     mobile text NOT NULL,
     license_number text NOT NULL,
     license_class text NOT NULL,
@@ -337,24 +337,24 @@ CREATE TABLE IF NOT EXISTS public.gl_accounts (
     account_number text PRIMARY KEY,
     name text NOT NULL,
     category text NOT NULL, -- 'Asset', 'Liability', 'Equity', 'Revenue', 'Expense'
-    currency text NOT NULL DEFAULT 'SAR',
+    currency text NOT NULL DEFAULT 'SYP',
     is_active boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Seed Essential SAP Chart of Accounts for Fleet, Inventory, and Energy Logistics
 INSERT INTO public.gl_accounts (account_number, name, category, currency) VALUES
-('101010', 'النقدية بالبنوك المحلية (Al Rajhi / SNB)', 'Asset', 'SAR'),
-('120010', 'مخزون وقود الديزل والمحروقات (Euro 5 Diesel)', 'Asset', 'SAR'),
-('120040', 'مخزون قطع غيار الشاحنات والمضخات', 'Asset', 'SAR'),
-('150020', 'أصول ثابتة - أسطول صهاريج نقل الوقود', 'Asset', 'SAR'),
-('201010', 'الذمم الدائنة التجارية (موردي قطع الغيار والوقود)', 'Liability', 'SAR'),
-('201020', 'مستحقات وسيطة GR/IR - مقاولي النقل واللوجستيات', 'Liability', 'SAR'),
-('202010', 'ضريبة القيمة المضافة المستحقة / المدخلات (ZATCA VAT)', 'Liability', 'SAR'),
-('501020', 'تكلفة قطع الغيار والمهمات المستهلكة (COGS Spare Parts)', 'Expense', 'SAR'),
-('601010', 'بدلات وانتدابات سائقي صهاريج الوقود', 'Expense', 'SAR'),
-('602010', 'مصروفات صيانة وإصلاح أسطول الصهاريج', 'Expense', 'SAR'),
-('603010', 'وقود تشغيل الشاحنات ومعدات النقل', 'Expense', 'SAR')
+('101010', 'النقدية بالبنوك المحلية (المصرف التجاري / التسليف)', 'Asset', 'SYP'),
+('120010', 'مخزون وقود الديزل والمحروقات (Euro 5 Diesel)', 'Asset', 'SYP'),
+('120040', 'مخزون قطع غيار الشاحنات والمضخات', 'Asset', 'SYP'),
+('150020', 'أصول ثابتة - أسطول صهاريج نقل الوقود', 'Asset', 'SYP'),
+('201010', 'الذمم الدائنة التجارية (موردي قطع الغيار والوقود)', 'Liability', 'SYP'),
+('201020', 'مستحقات وسيطة GR/IR - مقاولي النقل واللوجستيات', 'Liability', 'SYP'),
+('202010', 'ضريبة مبيعات مستحقة / تسويات ضريبية', 'Liability', 'SYP'),
+('501020', 'تكلفة قطع الغيار والمهمات المستهلكة (COGS Spare Parts)', 'Expense', 'SYP'),
+('601010', 'بدلات وانتدابات سائقي صهاريج الوقود', 'Expense', 'SYP'),
+('602010', 'مصروفات صيانة وإصلاح أسطول الصهاريج', 'Expense', 'SYP'),
+('603010', 'وقود تشغيل الشاحنات ومعدات النقل', 'Expense', 'SYP')
 ON CONFLICT (account_number) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.account_determination (

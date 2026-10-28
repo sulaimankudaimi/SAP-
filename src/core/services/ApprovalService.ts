@@ -8,6 +8,8 @@ import type {
   WorkflowDocumentType,
 } from '../../types/models';
 import { SYSTEM_ROLES } from './RbacService';
+import { LOCALE } from '../../config/locale';
+import { formatMoney } from '../utils/format';
 
 export class ApprovalService {
   /**
@@ -34,8 +36,8 @@ export class ApprovalService {
       ];
     }
 
-    // SAP Purchase Order / Requisition Release Strategy
-    if (amount <= 50000) {
+    // SAP Purchase Order / Requisition Release Strategy (Rescaled * 450 to SYP: 22.5M / 112.5M)
+    if (amount <= 22500000) {
       return [
         {
           stepNumber: 1,
@@ -44,7 +46,7 @@ export class ApprovalService {
           status: 'pending',
         },
       ];
-    } else if (amount <= 250000) {
+    } else if (amount <= 112500000) {
       return [
         {
           stepNumber: 1,
@@ -111,7 +113,7 @@ export class ApprovalService {
       documentId: options.documentId,
       documentNumber: options.documentNumber,
       amount: options.amount,
-      currency: options.currency || 'SAR',
+      currency: options.currency || LOCALE.currency.code,
       requesterUserId: options.requester.id,
       requesterUserName: options.requester.fullName,
       currentStep: 1,
@@ -133,7 +135,7 @@ export class ApprovalService {
         id: `notif-${Date.now()}`,
         userId: steps[0].roleCode, // Broadcast to role
         title: `طلب اعتماد جديد: ${options.documentNumber}`,
-        message: `يتطلب المستند ${options.documentNumber} بقيمة ${options.amount} ${options.currency || 'SAR'} موافقتك.`,
+        message: `يتطلب المستند ${options.documentNumber} بقيمة ${formatMoney(options.amount, options.currency || LOCALE.currency.code)} موافقتك.`,
         type: 'approval',
         isRead: false,
         createdAt: new Date().toISOString(),

@@ -37,6 +37,8 @@ import {
 } from 'recharts';
 import type { Asset, AssetClass, AssetStatus } from '../../../types/models';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 
 export const AssetDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -149,15 +151,15 @@ export const AssetDashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="إجمالي القيمة الدفترية للأصول"
-          value={`${(kpis?.totalNetBookValue || 0).toLocaleString('en-US')} SAR`}
-          subtitle={`من تكلفة تاريخية ${(kpis?.totalAcquisitionCost || 0).toLocaleString('en-US')} ريال`}
+          value={formatMoney(kpis?.totalNetBookValue || 0)}
+          subtitle={`من تكلفة تاريخية ${formatMoney(kpis?.totalAcquisitionCost || 0)}`}
           icon={<Building2 className="w-5 h-5 text-emerald-600" />}
         />
 
         <StatCard
           label="أصول قيد الإهلاك النشط"
           value={kpis?.inDepreciationCount || 0}
-          subtitle={`مجمع إهلاك متراكم ${(kpis?.totalAccumulatedDepreciation || 0).toLocaleString('en-US')} ريال`}
+          subtitle={`مجمع إهلاك متراكم ${formatMoney(kpis?.totalAccumulatedDepreciation || 0)}`}
           icon={<TrendingDown className="w-5 h-5 text-blue-600" />}
         />
 
@@ -190,7 +192,7 @@ export const AssetDashboardPage: React.FC = () => {
               </p>
             </div>
             <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded-md">
-              ريال سعودي
+              {LOCALE.currency.symbolAr} ({LOCALE.currency.code})
             </span>
           </div>
 
@@ -200,7 +202,7 @@ export const AssetDashboardPage: React.FC = () => {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} interval={0} angle={-15} textAnchor="end" />
                 <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
-                  formatter={(val: number | string | readonly (number | string)[] | undefined) => [`${Number(val || 0).toLocaleString('en-US')} SAR`, 'القيمة الدفترية']}
+                  formatter={(val: number | string | readonly (number | string)[] | undefined) => [formatMoney(Number(val || 0)), 'القيمة الدفترية']}
                   contentStyle={{ backgroundColor: '#0B2545', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                 />
                 <Bar dataKey="totalValue" fill="#0FA37F" radius={[6, 6, 0, 0]} />
@@ -313,10 +315,10 @@ export const AssetDashboardPage: React.FC = () => {
                     {asset.custodian}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-slate-700">
-                    {asset.acquisitionCost.toLocaleString('en-US')} ريال
+                    {formatMoney(asset.acquisitionCost)}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-bold text-emerald-800">
-                    {asset.netBookValue.toLocaleString('en-US')} ريال
+                    {formatMoney(asset.netBookValue)}
                   </td>
                   <td className="py-2.5 px-3">
                     <Badge

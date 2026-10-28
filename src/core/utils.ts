@@ -1,43 +1,76 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { format } from 'date-fns';
+import { LOCALE } from '../config/locale';
+import {
+  formatMoney,
+  formatMoneyCompact,
+  formatNumber as formatNumberCore,
+  formatDate as formatDateCore,
+  formatDateTime as formatDateTimeCore,
+  formatTime as formatTimeCore,
+  formatPhone as formatPhoneCore,
+  formatPlate as formatPlateCore,
+  toWesternDigits,
+} from './utils/format';
+import { downloadCsvFile } from './utils/fileDownloader';
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-// Fixed Western digits formatter (0-9) as mandated by PROJECT_RULES.md
-const westernNumberFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
+export {
+  formatMoney,
+  formatMoneyCompact,
+  toWesternDigits,
+};
 
-const westernCurrencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'decimal',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-export function formatNumber(value: number): string {
-  if (isNaN(value)) return '0';
-  return westernNumberFormatter.format(value);
+export function formatNumber(
+  value: number,
+  options?: number | { minimumFractionDigits?: number; maximumFractionDigits?: number },
+  locale?: string
+): string {
+  return formatNumberCore(value, options, locale);
 }
 
-export function formatCurrency(value: number, currency: string = 'SAR'): string {
-  if (isNaN(value)) return `0.00 ${currency}`;
-  return `${westernCurrencyFormatter.format(value)} ${currency}`;
+export function formatCurrency(
+  value: number,
+  currency: string = LOCALE.currency.code,
+  options?: { decimals?: number }
+): string {
+  return formatMoney(value, currency, options);
 }
 
-export function formatDate(date: string | Date, pattern: string = 'yyyy-MM-dd'): string {
-  try {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return format(d, pattern);
-  } catch {
-    return String(date);
-  }
+export function formatDate(
+  date: string | Date | number,
+  patternOrOptions?: Intl.DateTimeFormatOptions | string
+): string {
+  return formatDateCore(date, patternOrOptions);
 }
 
-import { downloadCsvFile } from './utils/fileDownloader';
+export function formatDateTime(
+  date: string | Date | number,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  return formatDateTimeCore(date, options);
+}
+
+export function formatTime(
+  date: string | Date | number,
+  options?: { includeSeconds?: boolean }
+): string {
+  return formatTimeCore(date, options);
+}
+
+export function formatPhone(phone: string): string {
+  return formatPhoneCore(phone);
+}
+
+export function formatPlate(
+  plate: string | { governorate: string; number: string | number },
+  plateNumber?: string | number
+): string {
+  return formatPlateCore(plate, plateNumber);
+}
 
 export function exportToCSV<T extends Record<string, unknown>>(data: T[], filename: string): void {
   exportToCsv(filename, data);

@@ -317,6 +317,9 @@ export interface PurchaseOrderItem {
   unitPrice: number;
   totalPrice: number;
   storageLocation: string;
+  taxCode?: 'EXEMPT' | 'SALES';
+  taxRate?: number;
+  taxAmount?: number;
 }
 
 export interface PurchaseOrder extends TransactionDocument {
@@ -327,6 +330,8 @@ export interface PurchaseOrder extends TransactionDocument {
   orderDate: string;
   deliveryDate: string;
   totalAmount: number;
+  taxCode?: 'EXEMPT' | 'SALES';
+  taxAmount?: number;
   currency: string;
   paymentTerms: string;
   items: PurchaseOrderItem[];
@@ -562,7 +567,7 @@ export interface Driver {
   id: string;
   code: string;
   name: string;
-  iqamaNumber: string;
+  nationalId: string;
   licenseNumber: string;
   licenseClass: 'عمومي ثقيل' | 'نقل مواد خطرة (HazMat)' | 'عمومي متوسط' | 'خصوصي';
   licenseExpiry: string;
@@ -928,12 +933,24 @@ export interface AccountDeterminationRule {
   description: string;
 }
 
+export type TaxCodeId = 'EXEMPT' | 'SALES';
+
+export interface TaxCodeConfig {
+  readonly code: TaxCodeId;
+  readonly nameAr: string;
+  readonly nameEn: string;
+  readonly rate: number;
+}
+
 export interface VendorInvoiceItem {
   lineItem: number;
   description: string;
   quantity?: number;
   unitPrice?: number;
   amount: number;
+  taxCode?: TaxCodeId;
+  taxRate?: number;
+  taxAmount?: number;
   vatRate: number;
   vatAmount: number;
   totalWithVat: number;
@@ -956,6 +973,7 @@ export interface VendorInvoice extends TransactionDocument {
   postingDate: string;
   dueDate: string;
   totalAmount: number;
+  taxCode?: 'EXEMPT' | 'SALES';
   vatAmount: number;
   netAmount: number;
   paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
@@ -994,6 +1012,9 @@ export interface CustomerInvoiceItem {
   quantity?: number;
   unitPrice?: number;
   amount: number;
+  taxCode?: TaxCodeId;
+  taxRate?: number;
+  taxAmount?: number;
   vatRate: number;
   vatAmount: number;
   totalWithVat: number;
@@ -1006,6 +1027,7 @@ export interface CustomerInvoice extends TransactionDocument {
   postingDate: string;
   dueDate: string;
   totalAmount: number;
+  taxCode?: 'EXEMPT' | 'SALES';
   vatAmount: number;
   netAmount: number;
   paymentStatus: 'Unpaid' | 'PartiallyPaid' | 'Paid';
@@ -1159,10 +1181,11 @@ export interface Setting {
   id: string;
   key: string;
   value: string;
-  category: 'general' | 'numbering' | 'security' | 'workflow' | 'system';
+  category: 'general' | 'numbering' | 'security' | 'workflow' | 'system' | 'Finance';
   description: string;
+  createdAt?: string;
   updatedAt: string;
-  isDeleted: boolean;
+  isDeleted?: boolean;
 }
 
 // ---------------------------------------------------------------------------

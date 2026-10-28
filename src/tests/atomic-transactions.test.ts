@@ -39,7 +39,7 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
         vehicleId: vehicle.id,
         driverId: driver.id,
         originPlant: '1100',
-        destinationLocation: 'Dammam Depot',
+        destinationLocation: 'مستودع دمشق',
         cargoType: 'Diesel',
         cargoVolumeLiters: 30000,
         scheduledDeparture: '2026-03-20 08:00',
@@ -69,7 +69,7 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
       vehicleId: vehicle.id,
       driverId: driver.id,
       originPlant: '1100',
-      destinationLocation: 'Dammam Depot',
+      destinationLocation: 'مستودع دمشق',
       cargoType: 'Diesel',
       cargoVolumeLiters: 30000,
       scheduledDeparture: '2026-03-20 08:00',
@@ -124,8 +124,8 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
         date: '2026-03-21',
         odometer: vehicle.currentOdometer + 500,
         quantityLiters: 150,
-        costPerLiter: 2.18,
-        stationName: 'محطة أرامكو الدائري',
+        costPerLiter: 520.00,
+        stationName: 'محطة وقود حمص المركزية (تجريبي)',
       })
     ).rejects.toThrow('Injected error on audit log');
 
@@ -488,7 +488,7 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
           },
         ],
         paymentDate: '2026-03-21',
-        bankAccount: '110020 - مصرف الراجحي الرئيسي',
+        bankAccount: '110020 - المصرف التجاري السوري الرئيسي',
         createdBy: 'admin',
       })
     ).rejects.toThrow('Injected error on invoice update during payment');
@@ -554,8 +554,8 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
           assetId: asset.id,
           toPlant: '1200',
           toCostCenter: 'CC-1002',
-          toCustodian: 'سعيد القحطاني',
-          reason: 'نقل لمشروع محطة رأس تنورة',
+          toCustodian: 'فراس الحموي',
+          reason: 'نقل لمشروع محطة بانياس',
         },
         { id: 'admin', fullName: 'مدير النظام' }
       )
@@ -647,10 +647,10 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
           vendorName: 'الشركة العربية لخدمات الحقول',
           invoiceDate: '2026-03-22',
           dueDate: '2026-04-22',
-          totalAmount: 11500,
+          totalAmount: 10000,
           netAmount: 10000,
-          vatAmount: 1500,
-          currency: 'SAR',
+          vatAmount: 0,
+          currency: 'SYP',
           companyCode: '1000',
           items: [
             {
@@ -659,9 +659,9 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
               quantity: 1,
               unitPrice: 10000,
               amount: 10000,
-              vatRate: 15,
-              vatAmount: 1500,
-              totalWithVat: 11500,
+              vatRate: 0,
+              vatAmount: 0,
+              totalWithVat: 10000,
             },
           ],
         },
@@ -697,7 +697,7 @@ describe('Atomic Transactions & Failure-Injection Verification Suite', () => {
           category: 'Machinery',
           plantCode: '1100',
           costCenter: 'CC-1001',
-          custodian: 'سعيد القحطاني',
+          custodian: 'فراس الحموي',
           usefulLifeMonths: 120,
           depreciationMethod: 'StraightLine',
           acquisitionCost: 85000,

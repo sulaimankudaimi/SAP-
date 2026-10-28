@@ -39,7 +39,7 @@ export const KPIMetricsCard: React.FC<KPIMetricsCardProps> = ({ kpis }) => {
       target: 85,
       color: 'amber' as const,
       icon: <Users className="w-4 h-4 text-[#F59E0B]" />,
-      desc: 'متوسط درجات الجودة والامتثال لموردي أرامكو والشركاء',
+      desc: 'متوسط درجات الجودة والامتثال للموردين المعتمدين والشركاء',
     },
   ];
 

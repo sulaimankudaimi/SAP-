@@ -8,7 +8,9 @@ import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AutomaticPostingEngine } from '../services/AutomaticPostingEngine';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type { Customer, CustomerInvoice, CustomerReceipt } from '../../../types/models';
-import { CheckCircle2, DollarSign } from 'lucide-react';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney } from '../../../core/utils/format';
+import { DollarSign } from 'lucide-react';
 
 interface CustomerReceiptModalProps {
   isOpen: boolean;
@@ -28,7 +30,7 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [amount, setAmount] = useState('');
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
-  const [bankAccount, setBankAccount] = useState('101010 - مصرف الراجحي (حساب التحصيلات الرئيسي)');
+  const [bankAccount, setBankAccount] = useState('101010 - المصرف التجاري السوري (حساب التحصيلات الرئيسي)');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -171,7 +173,7 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
               ) : (
                 invoices.map((inv) => (
                   <option key={inv.id} value={inv.id}>
-                    {inv.docNumber} - مبلغ {inv.totalAmount.toLocaleString('en-US')} ر.س (استحقاق: {inv.dueDate})
+                    {inv.docNumber} - مبلغ {formatMoney(inv.totalAmount)} (استحقاق: {inv.dueDate})
                   </option>
                 ))
               )}
@@ -180,7 +182,7 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-slate-600 font-bold block mb-1">مبلغ التحصيل (ر.س) *</label>
+              <label className="text-slate-600 font-bold block mb-1">مبلغ التحصيل ({LOCALE.currency.symbolAr}) *</label>
               <Input
                 type="number"
                 step="0.01"
@@ -203,11 +205,11 @@ export const CustomerReceiptModal: React.FC<CustomerReceiptModalProps> = ({
               onChange={(e) => setBankAccount(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold"
             >
-              <option value="101010 - مصرف الراجحي (حساب التحصيلات الرئيسي)">
-                101010 - مصرف الراجحي (حساب التحصيلات الرئيسي - SAR)
+              <option value="101010 - المصرف التجاري السوري (حساب التحصيلات الرئيسي)">
+                101010 - المصرف التجاري السوري (حساب التحصيلات الرئيسي - {LOCALE.currency.code})
               </option>
-              <option value="101020 - البنك الأهلي السعودي (حساب العمليات)">
-                101020 - البنك الأهلي السعودي (حساب العمليات - SAR)
+              <option value="101020 - مصرف التسليف الشعبي (حساب العمليات)">
+                101020 - مصرف التسليف الشعبي (حساب العمليات - {LOCALE.currency.code})
               </option>
             </select>
           </div>

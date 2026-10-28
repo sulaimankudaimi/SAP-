@@ -3,6 +3,7 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { PredictiveAnalyticsService } from '../services/PredictiveAnalyticsService';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { ForecastResult, AnomalyItem } from '../../../types/models';
 import {
   ResponsiveContainer,
@@ -214,7 +215,7 @@ export const PredictiveAnalyticsView: React.FC = () => {
                 <Card className="p-4 border border-slate-200 bg-white space-y-1">
                   <span className="text-[11px] text-slate-500 font-bold block">نقطة إعادة الطلب المقترحة (ROP)</span>
                   <div className="text-xl font-black text-blue-700 font-sans">
-                    {materialForecast.suggestedReorderPoint?.toLocaleString('en-US')} وحدة
+                    {materialForecast.suggestedReorderPoint !== undefined ? formatNumber(materialForecast.suggestedReorderPoint) : '0'} وحدة
                   </div>
                   <span className="text-[10px] text-slate-400">
                     تشمل فترة التوريد (14 يوماً) + مخزون الأمان
@@ -224,7 +225,7 @@ export const PredictiveAnalyticsView: React.FC = () => {
                 <Card className="p-4 border border-slate-200 bg-white space-y-1">
                   <span className="text-[11px] text-slate-500 font-bold block">حجم الطلبية الاقتصادي (EOQ)</span>
                   <div className="text-xl font-black text-[#0B2545] font-sans">
-                    {materialForecast.economicOrderQuantity?.toLocaleString('en-US')} وحدة
+                    {materialForecast.economicOrderQuantity !== undefined ? formatNumber(materialForecast.economicOrderQuantity) : '0'} وحدة
                   </div>
                   <span className="text-[10px] text-slate-400">
                     يوازن تكاليف الإصدار مع مصاريف الاحتفاظ
@@ -273,11 +274,11 @@ export const PredictiveAnalyticsView: React.FC = () => {
                                 الفترة: {label} {data.isProjected ? '(توقع مستقبلي)' : '(فعلي مسجل)'}
                               </div>
                               {data.actual !== undefined && (
-                                <div>الاستهلاك الفعلي: <span className="font-mono font-bold">{data.actual.toLocaleString('en-US')}</span> وحدة</div>
+                                <div>الاستهلاك الفعلي: <span className="font-mono font-bold">{formatNumber(data.actual)}</span> وحدة</div>
                               )}
-                              <div>التنبؤ الخوارزمي: <span className="font-mono font-bold text-blue-300">{data.forecast.toLocaleString('en-US')}</span> وحدة</div>
+                              <div>التنبؤ الخوارزمي: <span className="font-mono font-bold text-blue-300">{formatNumber(data.forecast)}</span> وحدة</div>
                               <div className="text-[10px] text-slate-300">
-                                نطاق الثقة: {data.lowerBound.toLocaleString('en-US')} إلى {data.upperBound.toLocaleString('en-US')} وحدة
+                                نطاق الثقة: {formatNumber(data.lowerBound)} إلى {formatNumber(data.upperBound)} وحدة
                               </div>
                             </div>
                           );
@@ -406,7 +407,7 @@ export const PredictiveAnalyticsView: React.FC = () => {
                     <XAxis dataKey="period" tick={{ fill: '#64748B', fontSize: 11 }} />
                     <YAxis
                       tick={{ fill: '#64748B', fontSize: 11 }}
-                      tickFormatter={(v) => `${(v / 1000).toLocaleString('en-US')}k`}
+                      tickFormatter={(v) => `${formatNumber(v / 1000)}k`}
                     />
                     <Tooltip
                       content={({ active, payload, label }) => {
@@ -418,9 +419,9 @@ export const PredictiveAnalyticsView: React.FC = () => {
                               الفترة: {label} {data.isProjected ? '(توقع مستقبلي)' : '(فعلي)'}
                             </div>
                             {data.actual !== undefined && (
-                              <div>المصروف الفعلي: <span className="font-mono font-bold">{data.actual.toLocaleString('en-US')}</span> ر.س</div>
+                              <div>المصروف الفعلي: <span className="font-mono font-bold">{formatMoney(data.actual)}</span></div>
                             )}
-                            <div>التوقع الخوارزمي: <span className="font-mono font-bold text-blue-300">{data.forecast.toLocaleString('en-US')}</span> ر.س</div>
+                            <div>التوقع الخوارزمي: <span className="font-mono font-bold text-blue-300">{formatMoney(data.forecast)}</span></div>
                           </div>
                         );
                       }}
@@ -547,12 +548,12 @@ export const PredictiveAnalyticsView: React.FC = () => {
                   <div className="flex items-center justify-between text-slate-600">
                     <span>القيمة المسجلة الفعلية:</span>
                     <span className="font-mono font-bold text-rose-700">
-                      {anom.actualValue.toLocaleString('en-US')}
+                      {formatNumber(anom.actualValue)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-500 text-[11px]">
                     <span>المتوسط المتوقع (Mean):</span>
-                    <span className="font-mono">{anom.expectedMean.toLocaleString('en-US')}</span>
+                    <span className="font-mono">{formatNumber(anom.expectedMean)}</span>
                   </div>
                   <div className="flex items-center justify-between text-slate-500 text-[11px] pt-1 border-t border-slate-200/60">
                     <span>مؤشر الشذوذ (Z-Score):</span>

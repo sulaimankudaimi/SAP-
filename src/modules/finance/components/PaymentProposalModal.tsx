@@ -6,7 +6,9 @@ import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { AccountsPayableService, PaymentProposalItem } from '../services/AccountsPayableService';
 import { currentActorId } from '../../../core/security/SessionContext';
-import { Send, DollarSign, Calendar, CheckSquare, Square, Building } from 'lucide-react';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney } from '../../../core/utils/format';
+import { Send, DollarSign, CheckSquare, Square } from 'lucide-react';
 
 interface PaymentProposalModalProps {
   isOpen: boolean;
@@ -23,7 +25,7 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
   const [cutoffDate, setCutoffDate] = useState(
     new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [bankAccount, setBankAccount] = useState('101010 - البنك الأهلي السعودي (حساب المدفوعات الرئيسي)');
+  const [bankAccount, setBankAccount] = useState('101010 - المصرف التجاري السوري (حساب المدفوعات الرئيسي)');
   const [items, setItems] = useState<PaymentProposalItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -81,7 +83,7 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
       });
 
       showToast(
-        `تم بنجاح إصدار ${res.successfulPayments.length} سند صرف وترحيلها للأستاذ العام بإجمالي ${res.totalPaid.toLocaleString('en-US')} ر.س`,
+        `تم بنجاح إصدار ${res.successfulPayments.length} سند صرف وترحيلها للأستاذ العام بإجمالي ${formatMoney(res.totalPaid)}`,
         'success'
       );
       onSuccess();
@@ -119,14 +121,14 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
               onChange={(e) => setBankAccount(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="101010 - البنك الأهلي السعودي (حساب المدفوعات الرئيسي)">
-                101010 - البنك الأهلي السعودي (حساب المدفوعات الرئيسي - SAR)
+              <option value="101010 - المصرف التجاري السوري (حساب المدفوعات الرئيسي)">
+                101010 - المصرف التجاري السوري (حساب المدفوعات الرئيسي - {LOCALE.currency.code})
               </option>
-              <option value="101020 - مصرف الراجحي (حساب العمليات التجارية)">
-                101020 - مصرف الراجحي (حساب العمليات التجارية - SAR)
+              <option value="101020 - مصرف التسليف الشعبي (حساب العمليات التجارية)">
+                101020 - مصرف التسليف الشعبي (حساب العمليات التجارية - {LOCALE.currency.code})
               </option>
-              <option value="101030 - بنك الرياض (حساب المشروعات والطاقة)">
-                101030 - بنك الرياض (حساب المشروعات والطاقة - SAR)
+              <option value="101030 - المصرف الصناعي بدمشق (حساب المشروعات والطاقة)">
+                101030 - المصرف الصناعي بدمشق (حساب المشروعات والطاقة - {LOCALE.currency.code})
               </option>
             </select>
           </div>
@@ -144,11 +146,11 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
           <div className="flex items-center gap-6 text-xs">
             <div>
               <span className="text-slate-500 font-sans text-[11px] block">خصم تعجيل الدفع المكتسب:</span>
-              <span className="font-bold text-emerald-700">{totalDiscounts.toLocaleString('en-US')} ر.س</span>
+              <span className="font-bold text-emerald-700">{formatMoney(totalDiscounts)}</span>
             </div>
             <div>
               <span className="text-slate-500 font-sans text-[11px] block">صافي المبلغ المسدد للبنك:</span>
-              <span className="font-black text-sm text-slate-900">{totalNetPayment.toLocaleString('en-US')} ر.س</span>
+              <span className="font-black text-sm text-slate-900">{formatMoney(totalNetPayment)}</span>
             </div>
           </div>
         </div>
@@ -209,13 +211,13 @@ export const PaymentProposalModal: React.FC<PaymentProposalModalProps> = ({
                       <td className="py-2 px-3 font-semibold text-slate-800">{it.vendorName}</td>
                       <td className="py-2 px-3 font-mono text-slate-600">{it.dueDate}</td>
                       <td className="py-2 px-3 font-mono text-end font-semibold">
-                        {it.totalAmount.toLocaleString('en-US')} ر.س
+                        {formatMoney(it.totalAmount)}
                       </td>
                       <td className="py-2 px-3 font-mono text-end text-emerald-700">
-                        {it.cashDiscountAmount > 0 ? `${it.cashDiscountAmount.toLocaleString('en-US')} ر.س` : '—'}
+                        {it.cashDiscountAmount > 0 ? formatMoney(it.cashDiscountAmount) : '—'}
                       </td>
                       <td className="py-2 px-3 font-mono font-bold text-end text-slate-900">
-                        {it.netPaymentAmount.toLocaleString('en-US')} ر.س
+                        {formatMoney(it.netPaymentAmount)}
                       </td>
                       <td className="py-2 px-3 text-center">
                         {it.isBlocked ? (

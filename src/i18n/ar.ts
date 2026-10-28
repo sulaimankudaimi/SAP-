@@ -1,9 +1,11 @@
+import { LOCALE } from '../config/locale';
+
 export const ar = {
   // Brand & Shell
-  app_name: 'شركة الخليج للطاقة',
-  app_title: 'Gulf Energy ERP',
+  app_name: LOCALE.brand.nameAr,
+  app_title: LOCALE.brand.productName,
   app_subtitle: 'نظام إدارة موارد الطاقة واللوجستيات',
-  branch_main: 'المركز اللوجستي الموحد - الرياض',
+  branch_main: `المركز اللوجستي الموحد - ${LOCALE.hqCity}`,
   offline_mode: 'وضع العمل بدون اتصال (مستقر)',
 
   // Context Switcher (Company / Plant / Fiscal Year)
@@ -262,7 +264,7 @@ export const ar = {
 
   // Login
   login_title: 'بوابة الدخول للنظام المكتبي',
-  login_subtitle: 'تسجيل الدخول الآمن لنظام الخليج لإدارة الموارد',
+  login_subtitle: `تسجيل الدخول الآمن لنظام ${LOCALE.brand.nameAr} لإدارة الموارد`,
   login_username: 'اسم المستخدم أو الرقم الوظيفي',
   login_password: 'كلمة المرور',
   login_remember: 'تذكر جلسة العمل على هذا الجهاز',

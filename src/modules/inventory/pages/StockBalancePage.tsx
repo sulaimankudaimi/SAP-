@@ -11,6 +11,8 @@ import { WarehouseIsometricView } from '../components/WarehouseIsometricView';
 import { GoodsReceiptModal } from '../components/GoodsReceiptModal';
 import { GoodsIssueModal } from '../components/GoodsIssueModal';
 import { exportToCsv } from '../../../core/utils/importExport';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import {
   Boxes,
   Search,
@@ -120,13 +122,13 @@ export const StockBalancePage: React.FC = () => {
         'تحت الفحص QI': b.qualityInspectionQty,
         'الوحدة': b.unit,
         'سعر التكلفة (MAP)': b.movingAveragePrice || mat?.standardPrice || 0,
-        'إجمالي التقييم (SAR)': b.totalValuation,
+        [`إجمالي التقييم (${LOCALE.currency.code})`]: b.totalValuation,
         'فئة ABC': mat?.abcClass || 'C',
         'آخر حركة': b.lastMovementDate,
       };
     });
 
-    exportToCsv(dataToExport, `Gulf_Energy_Stock_Balance_${new Date().toISOString().split('T')[0]}`);
+    exportToCsv(dataToExport, `Sham_Energy_Stock_Balance_${new Date().toISOString().split('T')[0]}`);
     success('تم التصدير بنجاح', 'تم تنزيل ملف CSV لأرصدة المخزون.');
   };
 
@@ -185,16 +187,14 @@ export const StockBalancePage: React.FC = () => {
 
         <StatCard
           label="إجمالي الكميات المتاحة (Units)"
-          value={new Intl.NumberFormat('en-US').format(totalQuantity)}
+          value={formatNumber(totalQuantity)}
           subtitle="في كافة المستودعات المحددة"
           icon={<Warehouse className="w-5 h-5 text-[#0FA37F]" />}
         />
 
         <StatCard
-          label="إجمالي القيمة التقديرية (SAR)"
-          value={`${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
-            totalValuation
-          )} ر.س`}
+          label={`إجمالي القيمة التقديرية (${LOCALE.currency.code})`}
+          value={formatMoney(totalValuation, undefined, { decimals: 0 })}
           subtitle="وفق المتوسط المرجح المتحرك"
           icon={<CheckCircle2 className="w-5 h-5 text-[#0FA37F]" />}
         />
@@ -289,7 +289,7 @@ export const StockBalancePage: React.FC = () => {
                         <span className="text-[10px] text-[#64748B] block">فرع {b.plantCode}</span>
                       </td>
                       <td className="p-3 text-center font-mono font-bold text-[#0FA37F]">
-                        {new Intl.NumberFormat('en-US').format(b.unrestrictedQty)} {b.unit}
+                        {formatNumber(b.unrestrictedQty)} {b.unit}
                       </td>
                       <td className="p-3 text-center font-mono text-[#64748B]">
                         {b.qualityInspectionQty > 0 ? (
@@ -301,13 +301,10 @@ export const StockBalancePage: React.FC = () => {
                         )}
                       </td>
                       <td className="p-3 text-end font-mono text-[#0F172A]">
-                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(mapPrice)} ر.س
+                        {formatMoney(mapPrice)}
                       </td>
                       <td className="p-3 text-end font-mono font-bold text-[#0B2545]">
-                        {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(
-                          b.totalValuation
-                        )}{' '}
-                        ر.س
+                        {formatMoney(b.totalValuation)}
                       </td>
                       <td className="p-3 text-center">
                         <Badge

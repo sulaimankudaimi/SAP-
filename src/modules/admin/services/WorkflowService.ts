@@ -16,17 +16,17 @@ export class WorkflowService {
   private static getDefaultRules(): ApprovalRule[] {
     const now = new Date().toISOString();
     return [
-      // 1. Purchase Orders (PO)
+      // 1. Purchase Orders (PO) — rescaled * 450 (22,500,000 / 112,500,000 SYP)
       {
         id: 'rule-po-1',
         documentType: 'PO',
         minAmount: 0,
-        maxAmount: 50000,
+        maxAmount: 22500000,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
         ],
         isActive: true,
-        description: 'أوامر الشراء حتى 50,000 ريال (اعتماد مدير المشتريات)',
+        description: 'أوامر الشراء حتى 22,500,000 ل.س (اعتماد مدير المشتريات)',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -34,14 +34,14 @@ export class WorkflowService {
       {
         id: 'rule-po-2',
         documentType: 'PO',
-        minAmount: 50000.01,
-        maxAmount: 250000,
+        minAmount: 22500000.01,
+        maxAmount: 112500000,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
         ],
         isActive: true,
-        description: 'أوامر الشراء من 50,000 إلى 250,000 ريال (مدير المشتريات + المدير المالي)',
+        description: 'أوامر الشراء من 22,500,000 إلى 112,500,000 ل.س (مدير المشتريات + المدير المالي)',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -49,31 +49,31 @@ export class WorkflowService {
       {
         id: 'rule-po-3',
         documentType: 'PO',
-        minAmount: 250000.01,
-        maxAmount: 999999999,
+        minAmount: 112500000.01,
+        maxAmount: 999999999999,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
           { stepNumber: 3, roleCode: SYSTEM_ROLES.ADMIN, roleName: 'المدير العام (مدير النظام)' },
         ],
         isActive: true,
-        description: 'أوامر الشراء الكبرى أعلى من 250,000 ريال (مشتريات + مالي + مدير عام)',
+        description: 'أوامر الشراء الكبرى أعلى من 112,500,000 ل.س (مشتريات + مالي + مدير عام)',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
       },
 
-      // 2. Purchase Requisitions (PR)
+      // 2. Purchase Requisitions (PR) — rescaled * 450 (45,000,000 SYP)
       {
         id: 'rule-pr-1',
         documentType: 'PR',
         minAmount: 0,
-        maxAmount: 100000,
+        maxAmount: 45000000,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
         ],
         isActive: true,
-        description: 'طلبات الشراء حتى 100,000 ريال',
+        description: 'طلبات الشراء حتى 45,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -81,31 +81,31 @@ export class WorkflowService {
       {
         id: 'rule-pr-2',
         documentType: 'PR',
-        minAmount: 100000.01,
-        maxAmount: 999999999,
+        minAmount: 45000000.01,
+        maxAmount: 999999999999,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
         ],
         isActive: true,
-        description: 'طلبات الشراء أعلى من 100,000 ريال',
+        description: 'طلبات الشراء أعلى من 45,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
       },
 
-      // 3. Contracts
+      // 3. Contracts — rescaled * 450 (225,000,000 SYP)
       {
         id: 'rule-cnt-1',
         documentType: 'CONTRACT',
         minAmount: 0,
-        maxAmount: 500000,
+        maxAmount: 225000000,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
         ],
         isActive: true,
-        description: 'عقود التوريد العامة حتى 500,000 ريال',
+        description: 'عقود التوريد العامة حتى 225,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -113,15 +113,15 @@ export class WorkflowService {
       {
         id: 'rule-cnt-2',
         documentType: 'CONTRACT',
-        minAmount: 500000.01,
-        maxAmount: 999999999,
+        minAmount: 225000000.01,
+        maxAmount: 999999999999,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.PROCUREMENT_MANAGER, roleName: 'مدير المشتريات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
           { stepNumber: 3, roleCode: SYSTEM_ROLES.ADMIN, roleName: 'الرئيس التنفيذي / المدير العام' },
         ],
         isActive: true,
-        description: 'عقود التوريد الاستراتيجية أعلى من 500,000 ريال',
+        description: 'عقود التوريد الاستراتيجية أعلى من 225,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -132,7 +132,7 @@ export class WorkflowService {
         id: 'rule-disp-1',
         documentType: 'DISPOSAL',
         minAmount: 0,
-        maxAmount: 999999999,
+        maxAmount: 999999999999,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.ASSET_MANAGER, roleName: 'مدير الأصول والمعدات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
@@ -144,18 +144,18 @@ export class WorkflowService {
         isDeleted: false,
       },
 
-      // 5. Payments
+      // 5. Payments — rescaled * 450 (90,000,000 SYP)
       {
         id: 'rule-pay-1',
         documentType: 'PAYMENT',
         minAmount: 0,
-        maxAmount: 200000,
+        maxAmount: 90000000,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.ACCOUNTANT, roleName: 'محاسب المدفوعات' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
         ],
         isActive: true,
-        description: 'أوامر وسندات الصرف حتى 200,000 ريال',
+        description: 'أوامر وسندات الصرف حتى 90,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -163,14 +163,14 @@ export class WorkflowService {
       {
         id: 'rule-pay-2',
         documentType: 'PAYMENT',
-        minAmount: 200000.01,
-        maxAmount: 999999999,
+        minAmount: 90000000.01,
+        maxAmount: 999999999999,
         steps: [
           { stepNumber: 1, roleCode: SYSTEM_ROLES.FINANCE_MANAGER, roleName: 'المدير المالي' },
           { stepNumber: 2, roleCode: SYSTEM_ROLES.ADMIN, roleName: 'المدير العام' },
         ],
         isActive: true,
-        description: 'أوامر وسندات الصرف الكبرى أعلى من 200,000 ريال',
+        description: 'أوامر وسندات الصرف الكبرى أعلى من 90,000,000 ل.س',
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
@@ -205,7 +205,7 @@ export class WorkflowService {
 
     // 1. First rule must start at 0
     if (sorted[0].minAmount > 0) {
-      errors.push(`القاعدة الأولى يجب أن تبدأ من الصفر (0 ريال)، ولكنها تبدأ من ${sorted[0].minAmount} ريال.`);
+      errors.push(`القاعدة الأولى يجب أن تبدأ من الصفر (0 ل.س)، ولكنها تبدأ من ${sorted[0].minAmount} ل.س.`);
     }
 
     for (let i = 0; i < sorted.length; i++) {
@@ -236,7 +236,7 @@ export class WorkflowService {
         // Gap: next.minAmount > current.maxAmount + 1
         if (next.minAmount > current.maxAmount + 1) {
           errors.push(
-            `فجوة غير مغطاة (Gap): توجد فجوة مالية بين ${current.maxAmount} و ${next.minAmount} ريال غير مشمولة بأي تسلسل اعتماد.`
+            `فجوة غير مغطاة (Gap): توجد فجوة مالية بين ${current.maxAmount} و ${next.minAmount} ل.س غير مشمولة بأي تسلسل اعتماد.`
           );
         }
       }

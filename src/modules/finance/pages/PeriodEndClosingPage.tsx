@@ -10,6 +10,7 @@ import { t } from '../../../i18n/ar';
 import { db } from '../../../core/db';
 import { FinanceService } from '../services/FinanceService';
 import { FinancialStatementsService, GrIrClearingItem } from '../services/FinancialStatementsService';
+import { formatMoney } from '../../../core/utils/format';
 import type { FiscalPeriod } from '../../../types/models';
 import { currentActorId } from '../../../core/security/SessionContext';
 import {
@@ -137,7 +138,7 @@ export const PeriodEndClosingPage: React.FC = () => {
         />
         <StatCard
           label="رصيد وسيط GR/IR المفتوح"
-          value={`${grIrData.netOpenBalance.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(grIrData.netOpenBalance)}
           subtitle="بضاعة واردة لم تفوّتر بعد"
           icon={<Layers className="w-5 h-5 text-amber-600" />}
         />
@@ -272,7 +273,7 @@ export const PeriodEndClosingPage: React.FC = () => {
               </span>
             </div>
             <span className="text-xs font-mono font-bold">
-              صافي الفارق المفتوح: {grIrData.netOpenBalance.toLocaleString('en-US')} ر.س
+              صافي الفارق المفتوح: {formatMoney(grIrData.netOpenBalance)}
             </span>
           </div>
 
@@ -300,17 +301,17 @@ export const PeriodEndClosingPage: React.FC = () => {
                     <td className="py-2.5 px-3 font-mono font-bold text-blue-900">{it.referenceDoc}</td>
                     <td className="py-2.5 px-3 font-mono text-slate-600">{it.postingDate}</td>
                     <td className="py-2.5 px-3 font-mono text-end font-semibold text-slate-800">
-                      {it.grAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(it.grAmount)}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-end font-semibold text-slate-800">
-                      {it.irAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(it.irAmount)}
                     </td>
                     <td
                       className={`py-2.5 px-3 font-mono font-bold text-end ${
                         it.openBalance === 0 ? 'text-emerald-700' : 'text-amber-700'
                       }`}
                     >
-                      {it.openBalance.toLocaleString('en-US')} ر.س
+                      {formatMoney(it.openBalance)}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       {it.status === 'Matched' ? (

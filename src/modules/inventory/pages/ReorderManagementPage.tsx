@@ -12,6 +12,8 @@ import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { GoodsIssueModal } from '../components/GoodsIssueModal';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
+import { formatMoney, formatNumber, formatDate } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import {
   RefreshCw,
   AlertTriangle,
@@ -96,7 +98,7 @@ export const ReorderManagementPage: React.FC = () => {
       );
       success(
         'تم إنشاء طلب الشراء بنجاح (PR Created)',
-        `رقم مستند طلب الشراء: ${pr.docNumber} بمبلغ تقديري ${pr.totalEstimatedAmount.toLocaleString()} ر.س`
+        `رقم مستند طلب الشراء: ${pr.docNumber} بمبلغ تقديري ${formatMoney(pr.totalEstimatedAmount)}`
       );
       loadAllData();
     } catch (err) {
@@ -181,10 +183,8 @@ export const ReorderManagementPage: React.FC = () => {
         />
 
         <StatCard
-          label="رأس المال المجمد في الرواكد (SAR)"
-          value={`${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
-            totalCapitalTiedUp
-          )} ر.س`}
+          label={`رأس المال المجمد في الرواكد (${LOCALE.currency.code})`}
+          value={formatMoney(totalCapitalTiedUp, undefined, { decimals: 0 })}
           subtitle="قابل للتحصيل عبر المزاد أو التخريد"
           icon={<Gavel className="w-5 h-5 text-[#2563EB]" />}
         />
@@ -287,7 +287,7 @@ export const ReorderManagementPage: React.FC = () => {
                         {alt.suggestedReorderQty} {alt.unit}
                       </td>
                       <td className="p-3 text-[11px] text-[#64748B]">
-                        {new Date(alt.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
+                        {formatDate(alt.createdAt)}
                       </td>
                       <td className="p-3 text-center">
                         {alt.status === 'converted_to_pr' ? (
@@ -353,7 +353,7 @@ export const ReorderManagementPage: React.FC = () => {
                   <th className="p-2.5 text-start">رمز واسم الصنف</th>
                   <th className="p-2.5 text-center">الرصيد المتاح</th>
                   <th className="p-2.5 text-end">سعر التكلفة (MAP)</th>
-                  <th className="p-2.5 text-end">إجمالي التقييم (SAR)</th>
+                  <th className="p-2.5 text-end">إجمالي التقييم ({LOCALE.currency.code})</th>
                   <th className="p-2.5 text-center">النسبة التراكمية</th>
                   <th className="p-2.5 text-center">فئة ABC</th>
                   <th className="p-2.5 text-center">فئة XYZ</th>
@@ -368,13 +368,13 @@ export const ReorderManagementPage: React.FC = () => {
                       <div className="font-mono text-[10px] text-[#64748B]">{item.materialCode}</div>
                     </td>
                     <td className="p-2.5 text-center font-mono font-bold text-[#0F172A]">
-                      {new Intl.NumberFormat('en-US').format(item.currentStock)}
+                      {formatNumber(item.currentStock)}
                     </td>
                     <td className="p-2.5 text-end font-mono text-[#64748B]">
-                      {new Intl.NumberFormat('en-US').format(item.unitPrice)} ر.س
+                      {formatMoney(item.unitPrice)}
                     </td>
                     <td className="p-2.5 text-end font-mono font-bold text-[#0B2545]">
-                      {new Intl.NumberFormat('en-US').format(item.totalValuation)} ر.س
+                      {formatMoney(item.totalValuation, undefined, { decimals: 0 })}
                     </td>
                     <td className="p-2.5 text-center font-mono text-[#64748B]">{item.cumulativeValuePercent}%</td>
                     <td className="p-2.5 text-center">
@@ -458,7 +458,7 @@ export const ReorderManagementPage: React.FC = () => {
                         </td>
                         <td className="p-3 font-mono text-[#64748B]">{item.lastMovementDate}</td>
                         <td className="p-3 text-end font-mono font-bold text-[#0B2545]">
-                          {new Intl.NumberFormat('en-US').format(item.totalValuation)} ر.س
+                          {formatMoney(item.totalValuation, undefined, { decimals: 0 })}
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
@@ -541,10 +541,10 @@ export const ReorderManagementPage: React.FC = () => {
                         {auc.quantity} {auc.unit}
                       </td>
                       <td className="p-3 text-end font-mono text-[#0FA37F] font-bold">
-                        {new Intl.NumberFormat('en-US').format(auc.startingPrice)} ر.س
+                        {formatMoney(auc.startingPrice, undefined, { decimals: 0 })}
                       </td>
                       <td className="p-3 text-end font-mono text-[#2563EB] font-bold">
-                        {new Intl.NumberFormat('en-US').format(auc.reservePrice)} ر.س
+                        {formatMoney(auc.reservePrice, undefined, { decimals: 0 })}
                       </td>
                       <td className="p-3 text-center">
                         <Badge variant="neutral">
@@ -584,13 +584,13 @@ export const ReorderManagementPage: React.FC = () => {
               <span className="font-bold text-[#0F172A] text-sm">{selectedAuctionItem.materialName}</span>
               <div className="flex justify-between text-[#64748B]">
                 <span>الكمية المعروضة: {selectedAuctionItem.currentStock} وحدة</span>
-                <span>تكلفة الدفتر: {selectedAuctionItem.unitPrice} ر.س / وحدة</span>
+                <span>تكلفة الدفتر: {formatMoney(selectedAuctionItem.unitPrice)} / وحدة</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="سعر الافتتاح (Starting Bid SAR):"
+                label={`سعر الافتتاح (Starting Bid ${LOCALE.currency.code}):`}
                 type="number"
                 min="1"
                 value={auctionStartingPrice}

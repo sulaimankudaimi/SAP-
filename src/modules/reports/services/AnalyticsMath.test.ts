@@ -62,7 +62,7 @@ async function runTests() {
   assert(rop === 33000, 'ROP calculation matches standard formula (33,000 units)');
 
   // EOQ = sqrt((2 * D * S) / H)
-  // D = 10,000, S = 500 SAR, H = 5 SAR -> sqrt(10,000,000 / 5) = sqrt(2,000,000) ≈ 1414.21
+  // D = 10,000, S = 500 SYP, H = 5 SYP -> sqrt(10,000,000 / 5) = sqrt(2,000,000) ≈ 1414.21
   const eoq = Math.round(Math.sqrt((2 * 10000 * 500) / 5));
   assertClose(eoq, 1414, 2, 'EOQ matches economic formula (≈ 1,414 units)');
 

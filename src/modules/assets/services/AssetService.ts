@@ -9,6 +9,7 @@ import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
 import { ConcurrencyError } from '../../../core/errors';
+import { LOCALE } from '../../../config/locale';
 import type {
   Asset,
   AssetClass,
@@ -728,7 +729,7 @@ export class AssetService {
         postingDate: input.disposalDate,
         documentDate: input.disposalDate,
         documentType: 'SA',
-        headerText: `${input.disposalType === 'Scrap' ? 'تخريد واستبعاد' : 'بيع واستبعاد'} الأصل ${asset.assetNumber} - صافي الأثر: ${gainLoss} ريال`,
+        headerText: `${input.disposalType === 'Scrap' ? 'تخريد واستبعاد' : 'بيع واستبعاد'} الأصل ${asset.assetNumber} - صافي الأثر: ${gainLoss} ${LOCALE.currency.symbolAr}`,
         totalDebit: Math.round(totalDebit * 100) / 100,
         totalCredit: Math.round(totalCredit * 100) / 100,
         lines,

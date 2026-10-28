@@ -9,6 +9,8 @@ import { useToast } from '../../../components/ui/Toast';
 import { FleetService } from '../services/FleetService';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { currentActorId } from '../../../core/security/SessionContext';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import type { Vehicle, Driver, Trip } from '../../../types/models';
 import {
   Truck,
@@ -65,8 +67,8 @@ export const TripModal: React.FC<TripModalProps> = ({
   // Create Mode Fields
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('');
-  const [originPlant, setOriginPlant] = useState('1100 - مركز الرياض اللوجستي المركزي');
-  const [destinationLocation, setDestinationLocation] = useState('حقل الغوار - محطة الضخ 4');
+  const [originPlant, setOriginPlant] = useState(`${LOCALE.plants[0].code} - ${LOCALE.plants[0].nameAr}`);
+  const [destinationLocation, setDestinationLocation] = useState(LOCALE.sites[0].nameAr);
   const [cargoType, setCargoType] = useState('ديزل صناعي عالي الجودة');
   const [cargoVolumeLiters, setCargoVolumeLiters] = useState(36000);
   const [scheduledDeparture, setScheduledDeparture] = useState('');
@@ -229,7 +231,7 @@ export const TripModal: React.FC<TripModalProps> = ({
               endOdometer,
               actualArrival,
               fuelLitersConsumed: fuelConsumedLiters,
-              fuelCost: Math.round(fuelConsumedLiters * 1.15),
+              fuelCost: Math.round(fuelConsumedLiters * 520),
               driverAllowanceCost: driverAllowance,
             },
             currentActorId(),
@@ -242,7 +244,7 @@ export const TripModal: React.FC<TripModalProps> = ({
 
       success(
         'تم إغلاق الرحلة',
-        `تم تسجيل وصول الرحلة ${trip.docNumber} وترحيل تكاليفها (${trip.totalTripCost?.toLocaleString()} ر.س)`
+        `تم تسجيل وصول الرحلة ${trip.docNumber} وترحيل تكاليفها (${formatMoney(trip.totalTripCost ?? 0)})`
       );
       onSuccess();
       onClose();
@@ -323,7 +325,7 @@ export const TripModal: React.FC<TripModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
-              label="بدل إعاشة وانتداب السائق (ر.س):"
+              label={`بدل إعاشة وانتداب السائق (${LOCALE.currency.symbolAr}):`}
               type="number"
               min="0"
               value={driverAllowance}
@@ -331,9 +333,9 @@ export const TripModal: React.FC<TripModalProps> = ({
               required
             />
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col justify-center">
-              <span className="text-[11px] text-[#0FA37F] font-semibold">إجمالي تكلفة الرحلة التقديرية:</span>
+              <span className="text-[11px] text-[#0FA37F] font-semibold">إجمالي تكلفة الرحلة التقديرية ({LOCALE.demoFx.label}):</span>
               <span className="text-base font-bold font-mono text-[#0FA37F]">
-                {(Math.round(fuelConsumedLiters * 1.15) + driverAllowance).toLocaleString()} ر.س
+                {formatMoney(Math.round(fuelConsumedLiters * 520) + driverAllowance)}
               </span>
             </div>
           </div>
@@ -361,7 +363,7 @@ export const TripModal: React.FC<TripModalProps> = ({
               value={selectedVehicleId}
               onChange={(e) => handleVehicleChange(e.target.value)}
               options={vehicles.map((v) => ({
-                label: `${v.code} - ${v.plateNumber} (${v.type} - سعة ${v.capacityLiters.toLocaleString()} لتر)`,
+                label: `${v.code} - ${v.plateNumber} (${v.type} - سعة ${formatNumber(v.capacityLiters)} لتر)`,
                 value: v.id,
               }))}
             />
@@ -383,11 +385,16 @@ export const TripModal: React.FC<TripModalProps> = ({
               value={originPlant}
               onChange={(e) => setOriginPlant(e.target.value)}
               options={[
-                { label: '1100 - مركز الرياض اللوجستي المركزي', value: '1100 - مركز الرياض اللوجستي المركزي' },
-                { label: '1200 - مصفاة ومحطة ينبع البترولية', value: '1200 - مصفاة ومحطة ينبع البترولية' },
-                { label: '1300 - مجمع الدمام ورأس تنورة', value: '1300 - مجمع الدمام ورأس تنورة' },
-                { label: 'حقل الغوار - محطة المعالجة الشمالية', value: 'حقل الغوار - محطة المعالجة الشمالية' },
-                { label: 'حقل خريص - منشأة الضخ المركزية', value: 'حقل خريص - منشأة الضخ المركزية' },
+                ...LOCALE.plants.map((p) => ({
+                  label: `${p.code} - ${p.nameAr}`,
+                  value: `${p.code} - ${p.nameAr}`,
+                })),
+                ...LOCALE.sites
+                  .filter((s) => s.type === 'FIELD' || s.type === 'REFINERY')
+                  .map((s) => ({
+                    label: s.nameAr,
+                    value: s.nameAr,
+                  })),
               ]}
             />
 
@@ -396,11 +403,14 @@ export const TripModal: React.FC<TripModalProps> = ({
               value={destinationLocation}
               onChange={(e) => setDestinationLocation(e.target.value)}
               options={[
-                { label: 'حقل الغوار - محطة الضخ 4', value: 'حقل الغوار - محطة الضخ 4' },
-                { label: 'مطار الملك خالد الدولي - وقود الطيران', value: 'مطار الملك خالد الدولي - وقود الطيران' },
-                { label: 'محطة كهرباء ينبع البخارية', value: 'محطة كهرباء ينبع البخارية' },
-                { label: 'مجمع الجبيل الصناعي للبتروكيماويات', value: 'مجمع الجبيل الصناعي للبتروكيماويات' },
-                { label: 'مصفاة وميناء جازان الاقتصادي', value: 'مصفاة وميناء جازان الاقتصادي' },
+                ...LOCALE.sites.map((s) => ({
+                  label: s.nameAr,
+                  value: s.nameAr,
+                })),
+                ...LOCALE.customerNamePool.slice(0, 3).map((c) => ({
+                  label: c,
+                  value: c,
+                })),
               ]}
             />
           </div>
@@ -412,10 +422,10 @@ export const TripModal: React.FC<TripModalProps> = ({
               onChange={(e) => setCargoType(e.target.value)}
               options={[
                 { label: 'ديزل صناعي فائق الجودة (Euro 5)', value: 'ديزل صناعي فائق الجودة (Euro 5)' },
-                { label: 'بنزين 95 سوبر عالي الأوكتان', value: 'بنزين 95 سوبر عالي الأوكتان' },
-                { label: 'بنزين 91 ممتاز', value: 'بنزين 91 ممتاز' },
+                { label: 'بنزين 95 أوكتان', value: 'بنزين 95 أوكتان' },
+                { label: 'بنزين 91 عادي', value: 'بنزين 91 عادي' },
                 { label: 'وقود طائرات نفاثة (Jet A-1)', value: 'وقود طائرات نفاثة (Jet A-1)' },
-                { label: 'زيت خام عربي خفيف (Arab Light)', value: 'زيت خام عربي خفيف (Arab Light)' },
+                { label: 'نفط خام سوري خفيف (Syrian Light)', value: 'نفط خام سوري خفيف (Syrian Light)' },
               ]}
             />
 

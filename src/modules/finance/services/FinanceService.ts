@@ -9,6 +9,8 @@ import { NumberRangeService } from '../../../core/services/NumberRangeService';
 import { AuditService } from '../../../core/services/AuditService';
 import { requirePermission } from '../../../core/security/SessionContext';
 import { ConcurrencyError } from '../../../core/errors';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import { SEED_ACTOR_ID } from '../../../seed';
 import type {
   JournalEntry,
@@ -177,7 +179,7 @@ export class FinanceService {
     if (!input.isParked) {
       const diff = Math.abs(totalDebit - totalCredit);
       if (diff > 0.01) {
-        throw new Error(`القيد غير متوازن: إجمالي المدين (${totalDebit.toLocaleString('en-US')} ر.س) لا يساوي إجمالي الدائن (${totalCredit.toLocaleString('en-US')} ر.س). الفارق: ${diff.toFixed(2)} ر.س`);
+        throw new Error(`القيد غير متوازن: إجمالي المدين (${formatMoney(totalDebit)}) لا يساوي إجمالي الدائن (${formatMoney(totalCredit)}). الفارق: ${formatMoney(diff)}`);
       }
     }
 
@@ -264,7 +266,7 @@ export class FinanceService {
     // Validate balance
     const diff = Math.abs(entry.totalDebit - entry.totalCredit);
     if (diff > 0.01) {
-      throw new Error(`لا يمكن ترحيل المستند: القيد غير متوازن بفارق ${diff.toFixed(2)} ر.س`);
+      throw new Error(`لا يمكن ترحيل المستند: القيد غير متوازن بفارق ${formatMoney(diff)}`);
     }
 
     const before = { ...entry };
@@ -461,8 +463,10 @@ export class FinanceService {
 
   /**
    * Seeds realistic SAP FI/CO dataset if journal entries are not yet populated.
+   * All amounts rescaled by 450 (SAR -> SYP).
    */
   static async seedFinanceIfEmpty(): Promise<void> {
+    const F = 450; // SAR_TO_USD (3.75) * DEMO_FX_SYP_PER_USD (120) = 450
     await this.initFiscalPeriods('2026');
 
     // Import AutomaticPostingEngine dynamically or assume initialized
@@ -471,8 +475,12 @@ export class FinanceService {
 
     const now = new Date().toISOString();
     const jes: JournalEntry[] = [];
+    const vendor0 = LOCALE.vendorNamePool[0];
+    const vendor1 = LOCALE.vendorNamePool[1];
+    const cust0 = LOCALE.customerNamePool[0];
+    const cust1 = LOCALE.customerNamePool[1];
 
-    // 1. Opening Balance Journal Entry (Strictly Zero-Sum Balanced: 13,300,000 SAR)
+    // 1. Opening Balance Journal Entry (Strictly Zero-Sum Balanced: 13,300,000 * 450 SYP)
     jes.push({
       id: 'je-2026-000001',
       docNumber: 'JE-2026-000001',
@@ -485,21 +493,21 @@ export class FinanceService {
       documentType: 'SA',
       headerText: 'قيد افتتاح الأرصدة الافتتاحية للميزانية العمومية للعام المالي 2026',
       reference: 'OPEN-2026',
-      totalDebit: 13300000,
-      totalCredit: 13300000,
+      totalDebit: 13300000 * F,
+      totalCredit: 13300000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (الراجحي / الأهلي)', debit: 4500000, credit: 0, lineText: 'رصيد الحسابات الجارية البنكية' },
-        { lineNumber: 2, postingKey: '40', accountNumber: '101020', accountName: 'صندوق العهد النقدية المؤقتة', debit: 150000, credit: 0, lineText: 'صندوق العهدة النقدية' },
-        { lineNumber: 3, postingKey: '40', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 850000, credit: 0, lineText: 'مديونيات عملاء محطات الطاقة' },
-        { lineNumber: 4, postingKey: '40', accountNumber: '120010', accountName: 'مخزون وقود الديزل (Euro 5)', debit: 1200000, credit: 0, lineText: 'مخزون ديزل استراتيجي 500,000 لتر' },
-        { lineNumber: 5, postingKey: '40', accountNumber: '120020', accountName: 'مخزون البنزين 95 أوكتان', debit: 600000, credit: 0, lineText: 'مخزون بنزين ممتاز' },
-        { lineNumber: 6, postingKey: '40', accountNumber: '150010', accountName: 'أصول ثابتة - خزانات ومحطات الضخ', debit: 3200000, credit: 0, lineText: 'خزانات ومضخات ومحطات' },
-        { lineNumber: 7, postingKey: '40', accountNumber: '150020', accountName: 'أصول ثابتة - أسطول الشاحنات والصهاريج', debit: 2800000, credit: 0, lineText: 'شاحنات نقل الوقود أكرتوس' },
-        { lineNumber: 8, postingKey: '50', accountNumber: '150090', accountName: 'مجمع استهلاك الأصول الثابتة', debit: 0, credit: 950000, lineText: 'مجمع استهلاك تاريخي' },
-        { lineNumber: 9, postingKey: '50', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 1150000, lineText: 'أرصدة مستحقة لموردي أرامكو' },
-        { lineNumber: 10, postingKey: '50', accountNumber: '202010', accountName: 'ضريبة القيمة المضافة المستحقة (ZATCA)', debit: 0, credit: 150000, lineText: 'مستحقات ضريبية مرحلة' },
-        { lineNumber: 11, postingKey: '50', accountNumber: '301010', accountName: 'رأس المال المدفوع', debit: 0, credit: 8000000, lineText: 'رأس مال الشركة المصرح به والمدفوع' },
-        { lineNumber: 12, postingKey: '50', accountNumber: '303010', accountName: 'الأرباح المبقاة', debit: 0, credit: 3050000, lineText: 'أرباح مدورة من الأعوام السابقة' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (المصرف التجاري / مصرف التسليف)', debit: 4500000 * F, credit: 0, lineText: 'رصيد الحسابات الجارية البنكية' },
+        { lineNumber: 2, postingKey: '40', accountNumber: '101020', accountName: 'صندوق العهد النقدية المؤقتة', debit: 150000 * F, credit: 0, lineText: 'صندوق العهدة النقدية' },
+        { lineNumber: 3, postingKey: '40', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 850000 * F, credit: 0, lineText: 'مديونيات عملاء محطات الطاقة' },
+        { lineNumber: 4, postingKey: '40', accountNumber: '120010', accountName: 'مخزون وقود الديزل (Euro 5)', debit: 1200000 * F, credit: 0, lineText: 'مخزون ديزل استراتيجي 500,000 لتر' },
+        { lineNumber: 5, postingKey: '40', accountNumber: '120020', accountName: 'مخزون البنزين 95 أوكتان', debit: 600000 * F, credit: 0, lineText: 'مخزون بنزين ممتاز' },
+        { lineNumber: 6, postingKey: '40', accountNumber: '150010', accountName: 'أصول ثابتة - خزانات ومحطات الضخ', debit: 3200000 * F, credit: 0, lineText: 'خزانات ومضخات ومحطات' },
+        { lineNumber: 7, postingKey: '40', accountNumber: '150020', accountName: 'أصول ثابتة - أسطول الشاحنات والصهاريج', debit: 2800000 * F, credit: 0, lineText: 'شاحنات نقل الوقود أكتروس' },
+        { lineNumber: 8, postingKey: '50', accountNumber: '150090', accountName: 'مجمع استهلاك الأصول الثابتة', debit: 0, credit: 950000 * F, lineText: 'مجمع استهلاك تاريخي' },
+        { lineNumber: 9, postingKey: '50', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 1150000 * F, lineText: `أرصدة مستحقة لموردي ${vendor0}` },
+        { lineNumber: 10, postingKey: '50', accountNumber: '202010', accountName: 'ضريبة مبيعات مستحقة', debit: 0, credit: 150000 * F, lineText: 'مستحقات ضريبية مرحلة' },
+        { lineNumber: 11, postingKey: '50', accountNumber: '301010', accountName: 'رأس المال المدفوع', debit: 0, credit: 8000000 * F, lineText: 'رأس مال الشركة المصرح به والمدفوع' },
+        { lineNumber: 12, postingKey: '50', accountNumber: '303010', accountName: 'الأرباح المبقاة', debit: 0, credit: 3050000 * F, lineText: 'أرباح مدورة من الأعوام السابقة' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -509,7 +517,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 2. Goods Receipt Entry (WE: Dr Inventory / Cr GR-IR: 420,000 SAR)
+    // 2. Goods Receipt Entry (WE: Dr Inventory / Cr GR-IR: 420,000 * 450 SYP)
     jes.push({
       id: 'je-2026-000002',
       docNumber: 'JE-2026-000002',
@@ -522,11 +530,11 @@ export class FinanceService {
       documentType: 'WE',
       headerText: 'استلام بضائع مخزني ضد أمر الشراء PO-2026-000001 (شحنة ديزل كبرى)',
       reference: 'GR-2026-000001',
-      totalDebit: 420000,
-      totalCredit: 420000,
+      totalDebit: 420000 * F,
+      totalCredit: 420000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '120010', accountName: 'مخزون وقود الديزل (Euro 5)', debit: 420000, credit: 0, lineText: 'استلام وقود ديزل بالمستودع الرئيسي' },
-        { lineNumber: 2, postingKey: '50', accountNumber: '201020', accountName: 'حساب وسيط البضاعة الواردة والفواتير غير المستلمة (GR/IR)', debit: 0, credit: 420000, lineText: 'مقاصة وسيط GR/IR لشحنة أغسطس' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '120010', accountName: 'مخزون وقود الديزل (Euro 5)', debit: 420000 * F, credit: 0, lineText: 'استلام وقود ديزل بالمستودع الرئيسي' },
+        { lineNumber: 2, postingKey: '50', accountNumber: '201020', accountName: 'حساب وسيط البضاعة الواردة والفواتير غير المستلمة (GR/IR)', debit: 0, credit: 420000 * F, lineText: 'مقاصة وسيط GR/IR لشحنة آب' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -536,7 +544,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 3. Vendor Invoice Receipt (RE: Dr GR-IR 420,000 / Dr VAT 63,000 / Cr AP 483,000 SAR)
+    // 3. Vendor Invoice Receipt (RE: Dr GR-IR 420,000*F / Dr Sales Tax 63,000*F / Cr AP 483,000*F SYP)
     jes.push({
       id: 'je-2026-000003',
       docNumber: 'JE-2026-000003',
@@ -547,14 +555,14 @@ export class FinanceService {
       postingDate: '2026-08-20',
       documentDate: '2026-08-18',
       documentType: 'RE',
-      headerText: 'إثبات فاتورة المورد شركة مصفاة ينبع الوطنية رقم VINV-1001-44',
+      headerText: `إثبات فاتورة المورد ${vendor1} رقم VINV-1001-44`,
       reference: 'INV-2026-000001',
-      totalDebit: 483000,
-      totalCredit: 483000,
+      totalDebit: 483000 * F,
+      totalCredit: 483000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '201020', accountName: 'حساب وسيط البضاعة الواردة والفواتير غير المستلمة (GR/IR)', debit: 420000, credit: 0, lineText: 'إقفال وسيط GR/IR' },
-        { lineNumber: 2, postingKey: '40', accountNumber: '202010', accountName: 'ضريبة القيمة المضافة المستحقة (ZATCA)', debit: 63000, credit: 0, lineText: 'ضريبة مدخلات مشتريات 15%' },
-        { lineNumber: 3, postingKey: '31', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 483000, lineText: 'مستحقات مصفاة ينبع' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '201020', accountName: 'حساب وسيط البضاعة الواردة والفواتير غير المستلمة (GR/IR)', debit: 420000 * F, credit: 0, lineText: 'إقفال وسيط GR/IR' },
+        { lineNumber: 2, postingKey: '40', accountNumber: '202010', accountName: 'ضريبة مبيعات مستحقة', debit: 63000 * F, credit: 0, lineText: 'ضريبة مدخلات مشتريات' },
+        { lineNumber: 3, postingKey: '31', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 483000 * F, lineText: `مستحقات ${vendor1}` },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -564,7 +572,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 4. Vendor Payment with Cash Discount (KZ: Dr AP 483,000 / Cr Bank 473,340 / Cr Discount 9,660 SAR)
+    // 4. Vendor Payment with Cash Discount (KZ: Dr AP 483,000*F / Cr Bank 473,340*F / Cr Discount 9,660*F SYP)
     jes.push({
       id: 'je-2026-000004',
       docNumber: 'JE-2026-000004',
@@ -575,14 +583,14 @@ export class FinanceService {
       postingDate: '2026-08-25',
       documentDate: '2026-08-25',
       documentType: 'KZ',
-      headerText: 'سداد مستحقات مصفاة ينبع مع خصم تعجيل دفع 2%',
+      headerText: `سداد مستحقات ${vendor1} مع خصم تعجيل دفع 2%`,
       reference: 'PAY-2026-000001',
-      totalDebit: 483000,
-      totalCredit: 483000,
+      totalDebit: 483000 * F,
+      totalCredit: 483000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '21', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 483000, credit: 0, lineText: 'سداد كامل الفاتورة' },
-        { lineNumber: 2, postingKey: '50', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (الراجحي / الأهلي)', debit: 0, credit: 473340, lineText: 'تحويل بنكي صادر عبر سداد' },
-        { lineNumber: 3, postingKey: '50', accountNumber: '403010', accountName: 'إيرادات عقود الصيانة والخدمات الفنية (خصم تعجيل الدفع)', debit: 0, credit: 9660, lineText: 'خصم تعجيل دفع مكتسب 2%' },
+        { lineNumber: 1, postingKey: '21', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 483000 * F, credit: 0, lineText: 'سداد كامل الفاتورة' },
+        { lineNumber: 2, postingKey: '50', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (المصرف التجاري / مصرف التسليف)', debit: 0, credit: 473340 * F, lineText: 'تحويل بنكي صادر عبر المصرف التجاري السوري' },
+        { lineNumber: 3, postingKey: '50', accountNumber: '403010', accountName: 'إيرادات عقود الصيانة والخدمات الفنية (خصم تعجيل الدفع)', debit: 0, credit: 9660 * F, lineText: 'خصم تعجيل دفع مكتسب 2%' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -592,7 +600,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 5. Fleet Operating & Maintenance Expenses (SA: Dr Fuel 85,000 / Dr Maint 45,000 / Cr Bank 130,000 SAR)
+    // 5. Fleet Operating & Maintenance Expenses (SA: Dr Fuel 85,000*F / Dr Maint 45,000*F / Cr Bank 130,000*F SYP)
     jes.push({
       id: 'je-2026-000005',
       docNumber: 'JE-2026-000005',
@@ -605,12 +613,12 @@ export class FinanceService {
       documentType: 'SA',
       headerText: 'تحميل تكاليف وقود وصيانة شاحنات الأسطول لمركز التكلفة CC-1002',
       reference: 'TRIP-EXP-09',
-      totalDebit: 130000,
-      totalCredit: 130000,
+      totalDebit: 130000 * F,
+      totalCredit: 130000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '603010', accountName: 'وقود تشغيل الشاحنات ومعدات النقل', debit: 85000, credit: 0, costCenter: 'CC-1002', lineText: 'استهلاك وقود شاحنات نقل المنطقة الغربية' },
-        { lineNumber: 2, postingKey: '40', accountNumber: '602010', accountName: 'مصروفات صيانة وإصلاح أسطول الصهاريج', debit: 45000, credit: 0, costCenter: 'CC-1002', lineText: 'صيانة دورية للمضخات والصهاريج' },
-        { lineNumber: 3, postingKey: '50', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (الراجحي / الأهلي)', debit: 0, credit: 130000, lineText: 'مدفوعات مصرفية لنفقات العمليات' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '603010', accountName: 'وقود تشغيل الشاحنات ومعدات النقل', debit: 85000 * F, credit: 0, costCenter: 'CC-1002', lineText: `استهلاك وقود شاحنات نقل ${LOCALE.plants[1].city}` },
+        { lineNumber: 2, postingKey: '40', accountNumber: '602010', accountName: 'مصروفات صيانة وإصلاح أسطول الصهاريج', debit: 45000 * F, credit: 0, costCenter: 'CC-1002', lineText: 'صيانة دورية للمضخات والصهاريج' },
+        { lineNumber: 3, postingKey: '50', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (المصرف التجاري / مصرف التسليف)', debit: 0, credit: 130000 * F, lineText: 'مدفوعات مصرفية لنفقات العمليات' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -620,7 +628,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 6. Monthly Fixed Assets Depreciation Run (SA: Dr Dep Exp 185,400 / Cr AccDep 185,400 SAR)
+    // 6. Monthly Fixed Assets Depreciation Run (SA: Dr Dep Exp 185,400*F / Cr AccDep 185,400*F SYP)
     jes.push({
       id: 'je-2026-000006',
       docNumber: 'JE-2026-000006',
@@ -631,14 +639,14 @@ export class FinanceService {
       postingDate: '2026-09-30',
       documentDate: '2026-09-30',
       documentType: 'SA',
-      headerText: 'ترحيل قيد استهلاك الأصول الرأسمالية والمعدات لدورة سبتمبر 2026 (AFAB)',
+      headerText: 'ترحيل قيد استهلاك الأصول الرأسمالية والمعدات لدورة أيلول 2026 (AFAB)',
       reference: 'DEP-2026-000001',
-      totalDebit: 185400,
-      totalCredit: 185400,
+      totalDebit: 185400 * F,
+      totalCredit: 185400 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '701010', accountName: 'استهلاك صهاريج وشاحنات الأسطول', debit: 110400, credit: 0, costCenter: 'CC-1001', lineText: 'استهلاك الشاحنات والصهاريج' },
-        { lineNumber: 2, postingKey: '40', accountNumber: '701020', accountName: 'استهلاك خزانات الوقود والمضخات', debit: 75000, credit: 0, costCenter: 'CC-1003', lineText: 'استهلاك الخزانات ومحطات الضخ' },
-        { lineNumber: 3, postingKey: '50', accountNumber: '150090', accountName: 'مجمع استهلاك الأصول الثابتة', debit: 0, credit: 185400, lineText: 'إضافة لمجمع الاستهلاك التراكمي' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '701010', accountName: 'استهلاك صهاريج وشاحنات الأسطول', debit: 110400 * F, credit: 0, costCenter: 'CC-1001', lineText: 'استهلاك الشاحنات والصهاريج' },
+        { lineNumber: 2, postingKey: '40', accountNumber: '701020', accountName: 'استهلاك خزانات الوقود والمضخات', debit: 75000 * F, credit: 0, costCenter: 'CC-1003', lineText: 'استهلاك الخزانات ومحطات الضخ' },
+        { lineNumber: 3, postingKey: '50', accountNumber: '150090', accountName: 'مجمع استهلاك الأصول الثابتة', debit: 0, credit: 185400 * F, lineText: 'إضافة لمجمع الاستهلاك التراكمي' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -648,7 +656,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 7. Energy Sales Revenue Invoice (DR: Dr AR 920,000 / Cr Revenue 800,000 / Cr VAT 120,000 SAR)
+    // 7. Energy Sales Revenue Invoice (DR: Dr AR 920,000*F / Cr Revenue 800,000*F / Cr Tax 120,000*F SYP)
     jes.push({
       id: 'je-2026-000007',
       docNumber: 'JE-2026-000007',
@@ -659,14 +667,14 @@ export class FinanceService {
       postingDate: '2026-09-18',
       documentDate: '2026-09-18',
       documentType: 'DR',
-      headerText: 'إصدار فاتورة مبيعات وقود ديزل لشركة كهرباء المنطقة الوسطى (ARINV-00001)',
+      headerText: `إصدار فاتورة مبيعات وقود ديزل إلى ${cust0} (ARINV-00001)`,
       reference: 'ARINV-2026-000001',
-      totalDebit: 920000,
-      totalCredit: 920000,
+      totalDebit: 920000 * F,
+      totalCredit: 920000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '01', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 920000, credit: 0, lineText: 'استحقاق مبيعات وقود ديزل' },
-        { lineNumber: 2, postingKey: '50', accountNumber: '401010', accountName: 'إيرادات مبيعات وقود الديزل الصناعي', debit: 0, credit: 800000, lineText: 'إيرادات مبيعات طاقة' },
-        { lineNumber: 3, postingKey: '50', accountNumber: '202010', accountName: 'ضريبة القيمة المضافة المستحقة (ZATCA)', debit: 0, credit: 120000, lineText: 'ضريبة مخرجات مبيعات 15%' },
+        { lineNumber: 1, postingKey: '01', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 920000 * F, credit: 0, lineText: 'استحقاق مبيعات وقود ديزل' },
+        { lineNumber: 2, postingKey: '50', accountNumber: '401010', accountName: 'إيرادات مبيعات وقود الديزل الصناعي', debit: 0, credit: 800000 * F, lineText: 'إيرادات مبيعات طاقة' },
+        { lineNumber: 3, postingKey: '50', accountNumber: '202010', accountName: 'ضريبة مبيعات مستحقة', debit: 0, credit: 120000 * F, lineText: 'ضريبة مخرجات مبيعات' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -676,7 +684,7 @@ export class FinanceService {
       isDeleted: false,
     });
 
-    // 8. Customer Collection Receipt (DZ: Dr Bank 650,000 / Cr AR 650,000 SAR)
+    // 8. Customer Collection Receipt (DZ: Dr Bank 650,000*F / Cr AR 650,000*F SYP)
     jes.push({
       id: 'je-2026-000008',
       docNumber: 'JE-2026-000008',
@@ -687,13 +695,13 @@ export class FinanceService {
       postingDate: '2026-09-28',
       documentDate: '2026-09-28',
       documentType: 'DZ',
-      headerText: 'تحصيل دفعة بنكية من شركة كهرباء المنطقة الوسطى بموجب تحويل سريع',
+      headerText: `تحصيل دفعة بنكية من ${cust0} بموجب حوالة مصرفية`,
       reference: 'ARPAY-2026-000001',
-      totalDebit: 650000,
-      totalCredit: 650000,
+      totalDebit: 650000 * F,
+      totalCredit: 650000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (الراجحي / الأهلي)', debit: 650000, credit: 0, lineText: 'إيداع بنكي متحصلات عملاء' },
-        { lineNumber: 2, postingKey: '15', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 0, credit: 650000, lineText: 'تخفيض ذمة العميل' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '101010', accountName: 'النقدية بالبنوك المحلية (المصرف التجاري / مصرف التسليف)', debit: 650000 * F, credit: 0, lineText: 'إيداع بنكي متحصلات عملاء' },
+        { lineNumber: 2, postingKey: '15', accountNumber: '110010', accountName: 'الذمم المدينة التجارية (عملاء الطاقة)', debit: 0, credit: 650000 * F, lineText: 'تخفيض ذمة العميل' },
       ],
       createdBy: SEED_ACTOR_ID,
       createdAt: now,
@@ -716,11 +724,11 @@ export class FinanceService {
       documentType: 'SA',
       headerText: 'مسودة قيد تسوية نفقات تسويق وتوسعة المحطات (قيد المراجعة والاعتماد)',
       reference: 'PARK-OCT-01',
-      totalDebit: 45000,
-      totalCredit: 45000,
+      totalDebit: 45000 * F,
+      totalCredit: 45000 * F,
       lines: [
-        { lineNumber: 1, postingKey: '40', accountNumber: '600001', accountName: 'مصاريف تسويق وترويج', debit: 45000, credit: 0, costCenter: 'CC-1004', lineText: 'حملة تسويقية لمحطات الوقود' },
-        { lineNumber: 2, postingKey: '50', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 45000, lineText: 'مستحقات وكالة الدعاية' },
+        { lineNumber: 1, postingKey: '40', accountNumber: '600001', accountName: 'مصاريف تسويق وترويج', debit: 45000 * F, credit: 0, costCenter: 'CC-1004', lineText: 'حملة تسويقية لمحطات الوقود' },
+        { lineNumber: 2, postingKey: '50', accountNumber: '201010', accountName: 'الذمم الدائنة التجارية (موردي الوقود والمعدات)', debit: 0, credit: 45000 * F, lineText: 'مستحقات وكالة الدعاية' },
       ],
       isParked: true,
       parkedBy: SEED_ACTOR_ID,
@@ -743,15 +751,15 @@ export class FinanceService {
         docNumber: 'ARINV-2026-000001',
         status: 'approved',
         customerCode: 'CUST-001',
-        customerName: 'شركة كهرباء المنطقة الوسطى',
+        customerName: cust0,
         invoiceDate: '2026-09-18',
         postingDate: '2026-09-18',
         dueDate: '2026-10-18',
-        totalAmount: 920000,
-        vatAmount: 120000,
-        netAmount: 800000,
+        totalAmount: 920000 * F,
+        vatAmount: 120000 * F,
+        netAmount: 800000 * F,
         paymentStatus: 'PartiallyPaid',
-        items: [{ lineItem: 1, description: 'توريد وقود ديزل صناعي لمحطة التوليد 500,000L', amount: 800000, vatRate: 0.15, vatAmount: 120000, totalWithVat: 920000 }],
+        items: [{ lineItem: 1, description: 'توريد وقود ديزل صناعي لمحطة التوليد 500,000L', amount: 800000 * F, taxCode: 'SALES', vatRate: LOCALE.tax.defaultRate, vatAmount: 120000 * F, totalWithVat: 920000 * F }],
         jeDocNumber: 'JE-2026-000007',
         createdBy: SEED_ACTOR_ID,
         createdAt: now,
@@ -766,15 +774,15 @@ export class FinanceService {
         docNumber: 'ARINV-2026-000002',
         status: 'approved',
         customerCode: 'CUST-002',
-        customerName: 'مؤسسة النقل والتوزيع الوطنية',
+        customerName: cust1,
         invoiceDate: '2026-09-25',
         postingDate: '2026-09-25',
         dueDate: '2026-10-25',
-        totalAmount: 345000,
-        vatAmount: 45000,
-        netAmount: 300000,
+        totalAmount: 345000 * F,
+        vatAmount: 45000 * F,
+        netAmount: 300000 * F,
         paymentStatus: 'Unpaid',
-        items: [{ lineItem: 1, description: 'خدمات شحن ونقل مواد بترولية', amount: 300000, vatRate: 0.15, vatAmount: 45000, totalWithVat: 345000 }],
+        items: [{ lineItem: 1, description: 'خدمات شحن ونقل مواد بترولية', amount: 300000 * F, taxCode: 'SALES', vatRate: LOCALE.tax.defaultRate, vatAmount: 45000 * F, totalWithVat: 345000 * F }],
         createdBy: SEED_ACTOR_ID,
         createdAt: now,
         updatedBy: SEED_ACTOR_ID,
@@ -791,10 +799,10 @@ export class FinanceService {
         invoiceId: 'cinv-1',
         invoiceDocNumber: 'ARINV-2026-000001',
         customerCode: 'CUST-001',
-        customerName: 'شركة كهرباء المنطقة الوسطى',
-        amount: 650000,
+        customerName: cust0,
+        amount: 650000 * F,
         receiptDate: '2026-09-28',
-        bankAccount: '101010 - مصرف الراجحي',
+        bankAccount: '101010 - المصرف التجاري السوري',
         referenceNumber: 'REC-TRX-893011',
         paymentMethod: 'BankTransfer',
         jeDocNumber: 'JE-2026-000008',

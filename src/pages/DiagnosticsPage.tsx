@@ -22,6 +22,7 @@ import { StatCard } from '../components/ui/StatCard';
 import { useToast } from '../components/ui/Toast';
 
 import { downloadJsonFile } from '../core/utils/fileDownloader';
+import { formatNumber, formatTime } from '../core/utils/format';
 
 export const DiagnosticsPage: React.FC = () => {
   const { success, info } = useToast();
@@ -150,7 +151,7 @@ export const DiagnosticsPage: React.FC = () => {
         />
         <StatCard
           label="إجمالي السجلات المفهرسة"
-          value={totalRecords.toLocaleString('en-US')}
+          value={formatNumber(totalRecords)}
           icon={<Database className="w-5 h-5 text-[#F59E0B]" />}
           subtitle="بيانات تشغيلية ومالية ومواد"
         />
@@ -180,7 +181,7 @@ export const DiagnosticsPage: React.FC = () => {
               <div className="space-y-0.5">
                 <span className="text-[11px] font-mono text-[#64748B]">{item.name}</span>
                 <div className="text-sm font-bold text-[#0F172A] font-mono">
-                  {item.count.toLocaleString('en-US')}
+                  {formatNumber(item.count)}
                 </div>
               </div>
               <div className="w-2.5 h-2.5 rounded-full bg-[#0FA37F]" title="نشط وسليم" />
@@ -257,7 +258,7 @@ export const DiagnosticsPage: React.FC = () => {
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-[#0F172A]">{entry.message}</span>
                     <span className="text-[10px] text-[#64748B] font-mono shrink-0">
-                      {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false })}
+                      {formatTime(entry.timestamp)}
                     </span>
                   </div>
 

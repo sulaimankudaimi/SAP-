@@ -14,6 +14,8 @@ import {
   IncomeStatementData,
   CashFlowData,
 } from '../services/FinancialStatementsService';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import {
   Printer,
   Download,
@@ -87,14 +89,14 @@ export const FinancialStatementsPage: React.FC = () => {
         csvContent += `"${it.accountNumber}","${it.accountName}","${it.category}",${it.periodDebit},${it.periodCredit},${it.closingDebit},${it.closingCredit}\n`;
       });
     } else if (activeTab === 'balance-sheet' && balanceSheet) {
-      csvContent += 'البند,رقم الحساب,المبلغ (ر.س)\n';
+      csvContent += `البند,رقم الحساب,المبلغ (${LOCALE.currency.symbolAr})\n`;
       csvContent += 'الأصول المتداولة\n';
       balanceSheet.currentAssets.forEach((a) => {
         csvContent += `"${a.name}","${a.accountNumber}",${a.amount}\n`;
       });
       csvContent += `إجمالي الأصول,,"${balanceSheet.totalAssets}"\n`;
     } else if (activeTab === 'income-statement' && incomeStatement) {
-      csvContent += 'البند,رقم الحساب,المبلغ (ر.س)\n';
+      csvContent += `البند,رقم الحساب,المبلغ (${LOCALE.currency.symbolAr})\n`;
       incomeStatement.revenues.forEach((r) => {
         csvContent += `"${r.name}","${r.accountNumber}",${r.amount}\n`;
       });
@@ -233,16 +235,16 @@ export const FinancialStatementsPage: React.FC = () => {
                   <td className="py-2.5 px-3 font-semibold text-slate-800">{it.accountName}</td>
                   <td className="py-2.5 px-3 text-slate-500">{it.category}</td>
                   <td className="py-2.5 px-3 font-mono font-semibold text-end text-emerald-800">
-                    {it.periodDebit > 0 ? it.periodDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                    {it.periodDebit > 0 ? formatNumber(it.periodDebit, 2) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-semibold text-end text-blue-800">
-                    {it.periodCredit > 0 ? it.periodCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                    {it.periodCredit > 0 ? formatNumber(it.periodCredit, 2) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-900">
-                    {it.closingDebit > 0 ? it.closingDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                    {it.closingDebit > 0 ? formatNumber(it.closingDebit, 2) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-900">
-                    {it.closingCredit > 0 ? it.closingCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                    {it.closingCredit > 0 ? formatNumber(it.closingCredit, 2) : '—'}
                   </td>
                 </tr>
               ))}
@@ -253,16 +255,16 @@ export const FinancialStatementsPage: React.FC = () => {
                   المجموع العام المتوازن (Total Zero-Sum):
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-emerald-900 text-sm">
-                  {trialBalance.totalPeriodDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(trialBalance.totalPeriodDebit)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-blue-900 text-sm">
-                  {trialBalance.totalPeriodCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(trialBalance.totalPeriodCredit)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-emerald-900 text-sm">
-                  {trialBalance.totalClosingDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(trialBalance.totalClosingDebit)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-blue-900 text-sm">
-                  {trialBalance.totalClosingCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(trialBalance.totalClosingCredit)}
                 </td>
               </tr>
             </tfoot>
@@ -281,7 +283,7 @@ export const FinancialStatementsPage: React.FC = () => {
                 الأصول (Assets)
               </h3>
               <span className="font-mono font-bold text-sm text-emerald-800">
-                {balanceSheet.totalAssets.toLocaleString('en-US')} ر.س
+                {formatMoney(balanceSheet.totalAssets)}
               </span>
             </div>
 
@@ -292,7 +294,7 @@ export const FinancialStatementsPage: React.FC = () => {
                   {balanceSheet.currentAssets.map((a) => (
                     <div key={a.accountNumber} className="py-2 px-3 flex justify-between">
                       <span className="text-slate-800">{a.name} ({a.accountNumber})</span>
-                      <span className="font-mono font-bold text-slate-900">{a.amount.toLocaleString('en-US')} ر.س</span>
+                      <span className="font-mono font-bold text-slate-900">{formatMoney(a.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -304,7 +306,7 @@ export const FinancialStatementsPage: React.FC = () => {
                   {balanceSheet.fixedAssets.map((a) => (
                     <div key={a.accountNumber} className="py-2 px-3 flex justify-between">
                       <span className="text-slate-800">{a.name} ({a.accountNumber})</span>
-                      <span className="font-mono font-bold text-slate-900">{a.amount.toLocaleString('en-US')} ر.س</span>
+                      <span className="font-mono font-bold text-slate-900">{formatMoney(a.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -313,7 +315,7 @@ export const FinancialStatementsPage: React.FC = () => {
 
             <div className="pt-3 border-t flex justify-between font-bold text-sm bg-emerald-50/70 p-3 rounded-xl border-emerald-200 text-emerald-950 font-mono">
               <span className="font-sans">إجمالي الأصول الموحدة:</span>
-              <span>{balanceSheet.totalAssets.toLocaleString('en-US')} ر.س</span>
+              <span>{formatMoney(balanceSheet.totalAssets)}</span>
             </div>
           </Card>
 
@@ -325,7 +327,7 @@ export const FinancialStatementsPage: React.FC = () => {
                 الالتزامات وحقوق الملكية (Liabilities & Equity)
               </h3>
               <span className="font-mono font-bold text-sm text-blue-800">
-                {balanceSheet.totalLiabilitiesAndEquity.toLocaleString('en-US')} ر.س
+                {formatMoney(balanceSheet.totalLiabilitiesAndEquity)}
               </span>
             </div>
 
@@ -336,7 +338,7 @@ export const FinancialStatementsPage: React.FC = () => {
                   {balanceSheet.currentLiabilities.map((l) => (
                     <div key={l.accountNumber} className="py-2 px-3 flex justify-between">
                       <span className="text-slate-800">{l.name} ({l.accountNumber})</span>
-                      <span className="font-mono font-bold text-slate-900">{l.amount.toLocaleString('en-US')} ر.س</span>
+                      <span className="font-mono font-bold text-slate-900">{formatMoney(l.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -348,13 +350,13 @@ export const FinancialStatementsPage: React.FC = () => {
                   {balanceSheet.equity.map((e) => (
                     <div key={e.accountNumber} className="py-2 px-3 flex justify-between">
                       <span className="text-slate-800">{e.name} ({e.accountNumber})</span>
-                      <span className="font-mono font-bold text-slate-900">{e.amount.toLocaleString('en-US')} ر.س</span>
+                      <span className="font-mono font-bold text-slate-900">{formatMoney(e.amount)}</span>
                     </div>
                   ))}
                   <div className="py-2 px-3 flex justify-between bg-blue-50/50">
                     <span className="font-bold text-blue-900">صافي ربح الفترة الحالية (Net Income YTD)</span>
                     <span className="font-mono font-bold text-blue-900">
-                      {balanceSheet.currentPeriodNetIncome.toLocaleString('en-US')} ر.س
+                      {formatMoney(balanceSheet.currentPeriodNetIncome)}
                     </span>
                   </div>
                 </div>
@@ -363,7 +365,7 @@ export const FinancialStatementsPage: React.FC = () => {
 
             <div className="pt-3 border-t flex justify-between font-bold text-sm bg-blue-50/70 p-3 rounded-xl border-blue-200 text-blue-950 font-mono">
               <span className="font-sans">إجمالي الالتزامات وحقوق الملكية:</span>
-              <span>{balanceSheet.totalLiabilitiesAndEquity.toLocaleString('en-US')} ر.س</span>
+              <span>{formatMoney(balanceSheet.totalLiabilitiesAndEquity)}</span>
             </div>
           </Card>
         </div>
@@ -385,12 +387,12 @@ export const FinancialStatementsPage: React.FC = () => {
                 {incomeStatement.revenues.map((r) => (
                   <div key={r.accountNumber} className="flex justify-between py-1 border-b border-slate-200/60">
                     <span>{r.name}</span>
-                    <span className="font-mono font-bold text-emerald-800">{r.amount.toLocaleString('en-US')} ر.س</span>
+                    <span className="font-mono font-bold text-emerald-800">{formatMoney(r.amount)}</span>
                   </div>
                 ))}
                 <div className="flex justify-between pt-2 font-bold text-emerald-900">
                   <span>إجمالي الإيرادات التشغيلية:</span>
-                  <span className="font-mono text-sm">{incomeStatement.totalRevenue.toLocaleString('en-US')} ر.س</span>
+                  <span className="font-mono text-sm">{formatMoney(incomeStatement.totalRevenue)}</span>
                 </div>
               </div>
             </div>
@@ -402,12 +404,12 @@ export const FinancialStatementsPage: React.FC = () => {
                 {incomeStatement.cogs.map((c) => (
                   <div key={c.accountNumber} className="flex justify-between py-1 border-b border-slate-200/60">
                     <span>{c.name}</span>
-                    <span className="font-mono font-bold text-slate-800">({c.amount.toLocaleString('en-US')}) ر.س</span>
+                    <span className="font-mono font-bold text-slate-800">({formatNumber(c.amount)}) {LOCALE.currency.symbolAr}</span>
                   </div>
                 ))}
                 <div className="flex justify-between pt-2 font-bold text-slate-800">
                   <span>إجمالي تكلفة المبيعات:</span>
-                  <span className="font-mono">({incomeStatement.totalCogs.toLocaleString('en-US')}) ر.س</span>
+                  <span className="font-mono">({formatNumber(incomeStatement.totalCogs)}) {LOCALE.currency.symbolAr}</span>
                 </div>
               </div>
             </div>
@@ -415,7 +417,7 @@ export const FinancialStatementsPage: React.FC = () => {
             {/* Gross Profit */}
             <div className="flex justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-200 font-bold text-sm text-emerald-950 font-mono">
               <span className="font-sans">إجمالي الربح (مجمل الربح Gross Profit):</span>
-              <span>{incomeStatement.grossProfit.toLocaleString('en-US')} ر.س</span>
+              <span>{formatMoney(incomeStatement.grossProfit)}</span>
             </div>
 
             {/* Operating Expenses */}
@@ -425,13 +427,13 @@ export const FinancialStatementsPage: React.FC = () => {
                 {incomeStatement.operatingExpenses.map((o) => (
                   <div key={o.accountNumber} className="flex justify-between py-1 border-b border-slate-200/60">
                     <span>{o.name}</span>
-                    <span className="font-mono font-bold text-slate-700">({o.amount.toLocaleString('en-US')}) ر.س</span>
+                    <span className="font-mono font-bold text-slate-700">({formatNumber(o.amount)}) {LOCALE.currency.symbolAr}</span>
                   </div>
                 ))}
                 {incomeStatement.depreciationExpenses.map((d) => (
                   <div key={d.accountNumber} className="flex justify-between py-1 border-b border-slate-200/60">
                     <span>{d.name} (استهلاك أصول)</span>
-                    <span className="font-mono font-bold text-slate-700">({d.amount.toLocaleString('en-US')}) ر.س</span>
+                    <span className="font-mono font-bold text-slate-700">({formatNumber(d.amount)}) {LOCALE.currency.symbolAr}</span>
                   </div>
                 ))}
               </div>
@@ -440,7 +442,7 @@ export const FinancialStatementsPage: React.FC = () => {
             {/* Net Income */}
             <div className="flex justify-between p-4 bg-[#0B2545] text-white rounded-2xl font-bold text-base font-mono shadow-md">
               <span className="font-sans">صافي الدخل التشغيلي للفترة (Net Income):</span>
-              <span className="text-emerald-400">{incomeStatement.netIncome.toLocaleString('en-US')} ر.س</span>
+              <span className="text-emerald-400">{formatMoney(incomeStatement.netIncome)}</span>
             </div>
           </div>
         </Card>
@@ -460,12 +462,12 @@ export const FinancialStatementsPage: React.FC = () => {
               {cashFlow.operatingCashFlow.map((item, idx) => (
                 <div key={idx} className="flex justify-between py-1 border-b border-slate-200/60">
                   <span>{item.item}</span>
-                  <span className="font-mono font-bold text-slate-800">{item.amount.toLocaleString('en-US')} ر.س</span>
+                  <span className="font-mono font-bold text-slate-800">{formatMoney(item.amount)}</span>
                 </div>
               ))}
               <div className="flex justify-between pt-1 font-bold text-emerald-800">
                 <span>صافي النقد من التشغيل:</span>
-                <span className="font-mono">{cashFlow.totalOperating.toLocaleString('en-US')} ر.س</span>
+                <span className="font-mono">{formatMoney(cashFlow.totalOperating)}</span>
               </div>
             </div>
 
@@ -474,7 +476,7 @@ export const FinancialStatementsPage: React.FC = () => {
               {cashFlow.investingCashFlow.map((item, idx) => (
                 <div key={idx} className="flex justify-between py-1 border-b border-slate-200/60">
                   <span>{item.item}</span>
-                  <span className="font-mono font-bold text-slate-800">({Math.abs(item.amount).toLocaleString('en-US')}) ر.س</span>
+                  <span className="font-mono font-bold text-slate-800">({formatNumber(Math.abs(item.amount))}) {LOCALE.currency.symbolAr}</span>
                 </div>
               ))}
             </div>
@@ -482,15 +484,15 @@ export const FinancialStatementsPage: React.FC = () => {
             <div className="p-4 bg-slate-100 rounded-xl space-y-2 font-mono text-xs">
               <div className="flex justify-between">
                 <span className="font-sans font-bold">رصيد النقدية في بداية الفترة:</span>
-                <span className="font-bold">{cashFlow.beginningCash.toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold">{formatMoney(cashFlow.beginningCash)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-sans font-bold">صافي التغير في النقدية خلال الفترة:</span>
-                <span className="font-bold text-emerald-700">{cashFlow.netCashFlow.toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold text-emerald-700">{formatMoney(cashFlow.netCashFlow)}</span>
               </div>
               <div className="flex justify-between pt-2 border-t font-black text-sm text-blue-900">
                 <span className="font-sans">رصيد النقدية بالبنوك في نهاية الفترة:</span>
-                <span>{cashFlow.endingCash.toLocaleString('en-US')} ر.س</span>
+                <span>{formatMoney(cashFlow.endingCash)}</span>
               </div>
             </div>
           </div>

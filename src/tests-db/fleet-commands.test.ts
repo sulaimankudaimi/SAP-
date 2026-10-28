@@ -129,7 +129,7 @@ describe('Fleet Server Commands & Domain Invariants', () => {
           fixtures.vehicles.riyadhTankerId,
           fixtures.drivers.validDriver1Id,
           '1100',
-          'Dammam Port',
+          'مرفأ طرطوس',
           'Diesel',
           25000,
           new Date().toISOString(),
@@ -261,7 +261,7 @@ describe('Fleet Server Commands & Domain Invariants', () => {
           moDocNumber,
           currentDateString(),
           4.0, // 4 hours labor
-          80.00, // 80 SAR/hr
+          36000.00, // 36,000 SYP/hr
           2.0, // 2 hours downtime
           null,
           null,

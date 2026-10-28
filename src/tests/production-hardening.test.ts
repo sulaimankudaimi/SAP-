@@ -23,9 +23,9 @@ describe('Production Hardening Acceptance Tests', () => {
   // 2. Moving-Average Valuation (MAP / V-Price)
   describe('2. Moving-Average Price (MAP) Inventory Valuation', () => {
     it('calculates weighted average price accurately upon goods receipts', () => {
-      // Step 1: Initial stock 1,000 units @ 100 SAR/unit (Total = 100,000 SAR)
-      // Receipt of 500 units @ 130 SAR/unit (New incoming = 65,000 SAR)
-      // Expected new stock = 1,500 units, total value = 165,000 SAR, new MAP = 110 SAR
+      // Step 1: Initial stock 1,000 units @ 100 SYP/unit (Total = 100,000 SYP)
+      // Receipt of 500 units @ 130 SYP/unit (New incoming = 65,000 SYP)
+      // Expected new stock = 1,500 units, total value = 165,000 SYP, new MAP = 110 SYP
       const res1 = ValuationService.calculateMapOnReceipt(1000, 100, 500, 130);
       expect(res1.newStock).toBe(1500);
       expect(res1.newMap).toBe(110);
@@ -51,7 +51,7 @@ describe('Production Hardening Acceptance Tests', () => {
         depreciationMethod: 'StraightLine' as const,
       };
 
-      // Monthly: (120,000 - 12,000) / 60 = 1,800 SAR/mo
+      // Monthly: (120,000 - 12,000) / 60 = 1,800 SYP/mo
       const monthly = DepreciationEngine.calculatePeriodicDepreciation(asset, 'Monthly');
       expect(monthly.depreciationAmount).toBe(1800);
       expect(monthly.newBookValue).toBe(118200);
@@ -127,19 +127,19 @@ describe('Production Hardening Acceptance Tests', () => {
   // 5. Approval Thresholds (DOA Matrix)
   describe('5. Delegation of Authority Approval Thresholds', () => {
     it('assigns sequential approval steps based on transaction amounts', () => {
-      // Tier 1: <= 50,000 SAR -> Procurement Manager only
-      const tier1 = ApprovalService.determineSteps('PO', 45000);
+      // Tier 1: <= 22,500,000 SYP -> Procurement Manager only
+      const tier1 = ApprovalService.determineSteps('PO', 20250000);
       expect(tier1).toHaveLength(1);
       expect(tier1[0].roleCode).toBe(SYSTEM_ROLES.PROCUREMENT_MANAGER);
 
-      // Tier 2: 50,001 to 250,000 SAR -> Procurement Manager + Finance Manager
-      const tier2 = ApprovalService.determineSteps('PO', 180000);
+      // Tier 2: 22,500,001 to 112,500,000 SYP -> Procurement Manager + Finance Manager
+      const tier2 = ApprovalService.determineSteps('PO', 81000000);
       expect(tier2).toHaveLength(2);
       expect(tier2[0].roleCode).toBe(SYSTEM_ROLES.PROCUREMENT_MANAGER);
       expect(tier2[1].roleCode).toBe(SYSTEM_ROLES.FINANCE_MANAGER);
 
-      // Tier 3: > 250,000 SAR -> Procurement Manager + Finance Manager + Admin (General Manager)
-      const tier3 = ApprovalService.determineSteps('PO', 750000);
+      // Tier 3: > 112,500,000 SYP -> Procurement Manager + Finance Manager + Admin (General Manager)
+      const tier3 = ApprovalService.determineSteps('PO', 337500000);
       expect(tier3).toHaveLength(3);
       expect(tier3[0].roleCode).toBe(SYSTEM_ROLES.PROCUREMENT_MANAGER);
       expect(tier3[1].roleCode).toBe(SYSTEM_ROLES.FINANCE_MANAGER);
@@ -152,7 +152,7 @@ describe('Production Hardening Acceptance Tests', () => {
     it('verifies that complex journal entries are strictly balanced (Debit == Credit)', () => {
       const journalLines = [
         { account: '120010', debit: 250000, credit: 0 },    // Inventory
-        { account: '202010', debit: 37500, credit: 0 },     // Input VAT (15%)
+        { account: '202010', debit: 37500, credit: 0 },     // Tax line
         { account: '201010', debit: 0, credit: 287500 },    // Vendor Payable
       ];
 

@@ -5,15 +5,25 @@ import { Input } from '../../../components/ui/Input';
 import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { NumberRangeService } from '../../../core/services/NumberRangeService';
+import { CurrencyPolicy } from '../../../core/services/CurrencyPolicy';
+import { formatMoney } from '../../../core/utils/format';
 import { AutomaticPostingEngine } from '../services/AutomaticPostingEngine';
 import { currentActorId } from '../../../core/security/SessionContext';
-import type { Customer, CustomerInvoice } from '../../../types/models';
+import type { Customer, CustomerInvoice, TaxCodeConfig, TaxCodeId } from '../../../types/models';
 import { FilePlus, Plus, Trash2 } from 'lucide-react';
 
 interface CustomerInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface InvoiceLineDraft {
+  lineItem: number;
+  description: string;
+  amount: number;
+  taxCode: TaxCodeId;
+  vatRate: number;
 }
 
 export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
@@ -23,43 +33,70 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
 }) => {
   const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [taxCodes, setTaxCodes] = useState<TaxCodeConfig[]>([
+    { code: 'EXEMPT', nameAr: 'معفى من الضريبة', nameEn: 'Tax Exempt', rate: 0 },
+    { code: 'SALES', nameAr: 'ضريبة المبيعات', nameEn: 'Sales Tax', rate: 0 },
+  ]);
   const [customerCode, setCustomerCode] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [items, setItems] = useState([
-    { lineItem: 1, description: 'توريد وقود ديزل صناعي لمحطة توزيع', amount: 50000, vatRate: 0.15 },
+  const [items, setItems] = useState<InvoiceLineDraft[]>([
+    { lineItem: 1, description: 'توريد وقود ديزل صناعي لمحطة توزيع', amount: 50000, taxCode: 'SALES', vatRate: 0 },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    async function loadCustomers() {
-      const data = await db.customers.filter((c) => !c.isDeleted).toArray();
+    async function loadInitialData() {
+      const [data, codes] = await Promise.all([
+        db.customers.filter((c) => !c.isDeleted).toArray(),
+        CurrencyPolicy.getTaxCodes(),
+      ]);
       setCustomers(data);
+      setTaxCodes(codes);
       if (data.length > 0 && !customerCode) {
         setCustomerCode(data[0].customerCode);
       }
+      const salesRate = codes.find((c) => c.code === 'SALES')?.rate ?? 0;
+      setItems((prev) =>
+        prev.map((it) => ({
+          ...it,
+          vatRate: it.taxCode === 'EXEMPT' ? 0 : salesRate,
+        }))
+      );
     }
     if (isOpen) {
-      loadCustomers();
+      loadInitialData();
     }
-  }, [isOpen]);
+  }, [isOpen, customerCode]);
 
-  const updateItem = (index: number, field: string, val: string | number) => {
+  const updateItem = (index: number, field: keyof InvoiceLineDraft, val: string | number) => {
     const updated = [...items];
-    updated[index] = { ...updated[index], [field]: val };
+    if (field === 'taxCode') {
+      const code = val as TaxCodeId;
+      const matched = taxCodes.find((tc) => tc.code === code);
+      updated[index] = {
+        ...updated[index],
+        taxCode: code,
+        vatRate: matched ? matched.rate : 0,
+      };
+    } else {
+      updated[index] = { ...updated[index], [field]: val };
+    }
     setItems(updated);
   };
 
   const addItem = () => {
+    const salesRate = taxCodes.find((tc) => tc.code === 'SALES')?.rate ?? 0;
     setItems([
       ...items,
       {
         lineItem: items.length + 1,
         description: 'بند مبيعات طاقة وخدمات لوجستية',
         amount: 25000,
-        vatRate: 0.15,
+        taxCode: 'SALES',
+        vatRate: salesRate,
       },
     ]);
   };
@@ -70,8 +107,10 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
   };
 
   const netAmount = items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
-  const vatAmount = Math.round(netAmount * 0.15 * 100) / 100;
-  const totalAmount = netAmount + vatAmount;
+  const vatAmount = Math.round(
+    items.reduce((acc, it) => acc + (Number(it.amount) || 0) * (Number(it.vatRate) || 0), 0) * 100
+  ) / 100;
+  const totalAmount = Math.round((netAmount + vatAmount) * 100) / 100;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,14 +127,20 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
       const docNumber = await NumberRangeService.getNextNumber('ARINV', fiscalYear);
       const now = new Date().toISOString();
 
-      const formattedItems = items.map((it, idx) => ({
-        lineItem: idx + 1,
-        description: it.description,
-        amount: Number(it.amount) || 0,
-        vatRate: it.vatRate,
-        vatAmount: Math.round((Number(it.amount) || 0) * it.vatRate * 100) / 100,
-        totalWithVat: Math.round((Number(it.amount) || 0) * (1 + it.vatRate) * 100) / 100,
-      }));
+      const formattedItems = items.map((it, idx) => {
+        const lineAmt = Number(it.amount) || 0;
+        const rate = Number(it.vatRate) || 0;
+        const lineTax = Math.round(lineAmt * rate * 100) / 100;
+        return {
+          lineItem: idx + 1,
+          description: it.description,
+          amount: lineAmt,
+          taxCode: it.taxCode,
+          vatRate: rate,
+          vatAmount: lineTax,
+          totalWithVat: Math.round((lineAmt + lineTax) * 100) / 100,
+        };
+      });
 
       const invoice: CustomerInvoice = {
         id: `cinv-${docNumber}`,
@@ -190,7 +235,8 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
               <tr>
                 <th className="py-2 px-3">الوصف</th>
                 <th className="py-2 px-3 w-36 text-end">المبلغ قبل الضريبة</th>
-                <th className="py-2 px-3 w-28 text-center">الضريبة (15%)</th>
+                <th className="py-2 px-3 w-36 text-center">رمز الضريبة</th>
+                <th className="py-2 px-3 w-28 text-center">الضريبة</th>
                 <th className="py-2 px-2 text-center w-8"></th>
               </tr>
             </thead>
@@ -214,8 +260,21 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
                       required
                     />
                   </td>
+                  <td className="py-2 px-3">
+                    <select
+                      value={it.taxCode}
+                      onChange={(e) => updateItem(idx, 'taxCode', e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold h-8"
+                    >
+                      {taxCodes.map((tc) => (
+                        <option key={tc.code} value={tc.code}>
+                          {tc.nameAr} ({Math.round(tc.rate * 100)}%)
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="py-2 px-3 text-center font-mono text-slate-600">
-                    {((it.amount || 0) * 0.15).toLocaleString('en-US')} ر.س
+                    {formatMoney((Number(it.amount) || 0) * (Number(it.vatRate) || 0))}
                   </td>
                   <td className="py-2 px-2 text-center">
                     <button type="button" onClick={() => removeItem(idx)} className="text-slate-400 hover:text-rose-600">
@@ -230,9 +289,9 @@ export const CustomerInvoiceModal: React.FC<CustomerInvoiceModalProps> = ({
 
         {/* Totals Box */}
         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between font-mono text-xs">
-          <span>المبلغ قبل الضريبة: <strong className="font-bold">{netAmount.toLocaleString('en-US')} ر.س</strong></span>
-          <span>ضريبة القيمة المضافة: <strong className="font-bold text-amber-700">{vatAmount.toLocaleString('en-US')} ر.س</strong></span>
-          <span>إجمالي الفاتورة: <strong className="font-black text-sm text-emerald-700">{totalAmount.toLocaleString('en-US')} ر.س</strong></span>
+          <span>المبلغ قبل الضريبة: <strong className="font-bold">{formatMoney(netAmount)}</strong></span>
+          <span>الضريبة: <strong className="font-bold text-amber-700">{formatMoney(vatAmount)}</strong></span>
+          <span>إجمالي الفاتورة: <strong className="font-black text-sm text-emerald-700">{formatMoney(totalAmount)}</strong></span>
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

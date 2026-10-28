@@ -30,13 +30,13 @@ function isBalanced(lines: MockLine[]): boolean {
 
 function runTests() {
   // Test 1: Full Cycle PR -> PO -> GR -> Invoice -> Payment Balanced Entries
-  // 1a. PO is created for 100,000 SAR (Commitment, no GL entry yet)
+  // 1a. PO is created for 100,000 SYP (Commitment, no GL entry yet)
   const poAmount = 100000;
   const initialBudget = 500000;
   let committed = poAmount;
   let actual = 0;
   let available = initialBudget - committed - actual;
-  assert(available === 400000, `Budget commitment reduces availability from 500,000 to 400,000 SAR`);
+  assert(available === 400000, `Budget commitment reduces availability from 500,000 to 400,000 SYP`);
 
   // 1b. Goods Receipt (MIGO 101): Dr Inventory 120010 / Cr GR-IR 201020
   const grLines: MockLine[] = [
@@ -50,23 +50,24 @@ function runTests() {
   available = initialBudget - committed - actual;
   assert(available === 400000, `Post-GR budget availability remains 400,000 with 100,000 moved to actual`);
 
-  // 1c. Vendor Invoice Receipt (MIRO): Dr GR-IR 201020 / Dr VAT 202010 / Cr Vendor 201010
-  const vatAmount = poAmount * 0.15; // 15,000 SAR
-  const totalInvoice = poAmount + vatAmount; // 115,000 SAR
+  // 1c. Vendor Invoice Receipt (MIRO): Dr GR-IR 201020 / Dr Tax 202010 / Cr Vendor 201010
+  const configuredTaxRate = 0.0; // Syria configurable tax default 0%
+  const taxAmount = poAmount * configuredTaxRate; // 0 SYP
+  const totalInvoice = poAmount + taxAmount; // 100,000 SYP
   const invoiceLines: MockLine[] = [
     { debit: poAmount, credit: 0, account: '201020' },
-    { debit: vatAmount, credit: 0, account: '202010' },
+    { debit: taxAmount, credit: 0, account: '202010' },
     { debit: 0, credit: totalInvoice, account: '201010' },
   ];
-  assert(isBalanced(invoiceLines), `Vendor Invoice entry is strictly balanced (115,000 == 115,000)`);
+  assert(isBalanced(invoiceLines), `Vendor Invoice entry is strictly balanced (100,000 == 100,000)`);
 
   // Verify GR/IR clearing net balance is now ZERO
   const grIrNet = grLines.find(l => l.account === '201020')!.credit - invoiceLines.find(l => l.account === '201020')!.debit;
-  assert(grIrNet === 0, `GR/IR clearing account balance is 0 SAR after invoice receipt`);
+  assert(grIrNet === 0, `GR/IR clearing account balance is 0 SYP after invoice receipt`);
 
   // 1d. Vendor Payment with 2% Early Cash Discount:
-  // Discount = 115,000 * 2% = 2,300 SAR
-  // Net Bank = 112,700 SAR
+  // Discount = 100,000 * 2% = 2,000 SYP
+  // Net Bank = 98,000 SYP
   const discount = Math.round(totalInvoice * 0.02 * 100) / 100;
   const netPaid = totalInvoice - discount;
   const paymentLines: MockLine[] = [
@@ -74,9 +75,9 @@ function runTests() {
     { debit: 0, credit: netPaid, account: '101010' },
     { debit: 0, credit: discount, account: '403010' },
   ];
-  assert(isBalanced(paymentLines), `Vendor Payment entry with cash discount is strictly balanced (115,000 == 115,000)`);
-  assert(discount === 2300, `Cash discount correctly calculated as 2,300 SAR`);
-  assert(netPaid === 112700, `Net bank transfer correctly calculated as 112,700 SAR`);
+  assert(isBalanced(paymentLines), `Vendor Payment entry with cash discount is strictly balanced (100,000 == 100,000)`);
+  assert(discount === 2000, `Cash discount correctly calculated as 2,000 SYP`);
+  assert(netPaid === 98000, `Net bank transfer correctly calculated as 98,000 SYP`);
 
   // Test 2: Trial Balance Always Zero-Sum
   const allLines = [...grLines, ...invoiceLines, ...paymentLines];
@@ -119,11 +120,11 @@ function runTests() {
   }
 
   const check1 = checkBudget(500000, 100000, 200000, 150000); // Available: 200,000, Req: 150,000
-  assert(check1.isAllowed === true, `Budget check allows 150,000 SAR when 200,000 SAR is available`);
+  assert(check1.isAllowed === true, `Budget check allows 150,000 SYP when 200,000 SYP is available`);
 
   const check2 = checkBudget(500000, 100000, 200000, 250000); // Available: 200,000, Req: 250,000
-  assert(check2.isAllowed === false, `Budget check strictly blocks 250,000 SAR when only 200,000 SAR is available`);
-  assert(check2.remaining === -50000, `Budget deficit accurately computed as -50,000 SAR`);
+  assert(check2.isAllowed === false, `Budget check strictly blocks 250,000 SYP when only 200,000 SYP is available`);
+  assert(check2.remaining === -50000, `Budget deficit accurately computed as -50,000 SYP`);
 
   // Test 5: Period Close Prevents Backdated Posting
   interface Period {

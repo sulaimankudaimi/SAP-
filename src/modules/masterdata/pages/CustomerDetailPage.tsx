@@ -32,6 +32,8 @@ import { formatCurrency } from '../../../core/utils';
 import { AttachmentManager } from '../components/AttachmentManager';
 import { AuditHistoryTab } from '../components/AuditHistoryTab';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
+import { validateTaxNumber, validateSyrianPhone, FIELD_LABELS } from '../../../core/utils/validators';
 
 export const CustomerDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +74,20 @@ export const CustomerDetailPage: React.FC = () => {
 
   const handleSaveEdit = async () => {
     if (!customer || !id) return;
+    if (editForm.taxNumber) {
+      const taxCheck = validateTaxNumber(editForm.taxNumber);
+      if (!taxCheck.valid) {
+        showToast({ title: 'خطأ في الرقم الضريبي', message: taxCheck.error || '', type: 'error' });
+        return;
+      }
+    }
+    if (editForm.phone) {
+      const phoneCheck = validateSyrianPhone(editForm.phone);
+      if (!phoneCheck.valid) {
+        showToast({ title: 'خطأ في رقم الهاتف', message: phoneCheck.error || '', type: 'error' });
+        return;
+      }
+    }
     try {
       setIsSaving(true);
       await customerRepository.update(
@@ -204,13 +220,13 @@ export const CustomerDetailPage: React.FC = () => {
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               />
               <Input
-                label="الرقم الضريبي *"
+                label={`${FIELD_LABELS.taxNumber} *`}
                 value={editForm.taxNumber || ''}
                 onChange={(e) => setEditForm({ ...editForm, taxNumber: e.target.value })}
               />
               <Input
                 type="number"
-                label="الحد الائتماني (ريال)"
+                label={`الحد الائتماني (${LOCALE.currency.symbolAr})`}
                 value={editForm.creditLimit || ''}
                 onChange={(e) => setEditForm({ ...editForm, creditLimit: Number(e.target.value) })}
               />
@@ -227,13 +243,13 @@ export const CustomerDetailPage: React.FC = () => {
                 <span className="font-mono text-sm font-bold text-navy">{customer.customerCode}</span>
               </div>
               <div>
-                <span className="text-slate-400 block mb-1">الرقم الضريبي</span>
+                <span className="text-slate-400 block mb-1">{FIELD_LABELS.taxNumber}</span>
                 <span className="font-mono text-sm font-semibold text-navy">{customer.taxNumber}</span>
               </div>
               <div>
                 <span className="text-slate-400 block mb-1">سقف الائتمان المعتمد</span>
                 <span className="text-sm font-bold text-emerald-700">
-                  {formatCurrency(customer.creditLimit, 'SAR')}
+                  {formatCurrency(customer.creditLimit)}
                 </span>
               </div>
               <div>
@@ -253,15 +269,15 @@ export const CustomerDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-slate-400 block mb-1">المدينة</span>
-              <span className="font-semibold text-navy">{customer.city || 'الرياض'}</span>
+              <span className="font-semibold text-navy">{customer.city || LOCALE.hqCity}</span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-slate-400 block mb-1">رقم الهاتف</span>
-              <span className="font-mono font-semibold text-navy">{customer.phone || '011-5829100'}</span>
+              <span className="font-mono font-semibold text-navy">{customer.phone || '+963-11-2233445'}</span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-slate-400 block mb-1">البريد الإلكتروني</span>
-              <span className="font-mono font-semibold text-navy">{customer.email || 'info@customer.sa'}</span>
+              <span className="font-mono font-semibold text-navy">{customer.email || 'info@customer.sy'}</span>
             </div>
           </div>
         </Card>

@@ -18,6 +18,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { formatMoney } from '../../../core/utils/format';
 
 export const AssetDisposalsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -79,21 +80,21 @@ export const AssetDisposalsPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="إجمالي تكلفة الأصول المستبعدة"
-          value={`${totalCost.toLocaleString('en-US')} SAR`}
+          value={formatMoney(totalCost)}
           subtitle={`عدد الأصول المكهنة: ${disposedAssets.length} أصل`}
           icon={<Trash2 className="w-5 h-5 text-rose-600" />}
         />
 
         <StatCard
           label="متحصلات البيع المحققة"
-          value={`${totalProceeds.toLocaleString('en-US')} SAR`}
+          value={formatMoney(totalProceeds)}
           subtitle="متحصلات مبيعات خردة ومعدات خارج الخدمة"
           icon={<DollarSign className="w-5 h-5 text-blue-600" />}
         />
 
         <StatCard
           label="صافي الأرباح / (الخسائر) الرأسمالية"
-          value={`${netGainLoss.toLocaleString('en-US')} SAR`}
+          value={formatMoney(netGainLoss)}
           subtitle={netGainLoss >= 0 ? 'أرباح رأسمالية مرحلة للأستاذ العام' : 'خسائر استبعاد مرحلة للأستاذ العام'}
           icon={netGainLoss >= 0 ? <TrendingUp className="w-5 h-5 text-emerald-600" /> : <TrendingDown className="w-5 h-5 text-rose-600" />}
         />
@@ -168,17 +169,17 @@ export const AssetDisposalsPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-700">
-                        {asset.acquisitionCost.toLocaleString('en-US')} SAR
+                        {formatMoney(asset.acquisitionCost)}
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-700">
-                        {asset.accumulatedDepreciation.toLocaleString('en-US')} SAR
+                        {formatMoney(asset.accumulatedDepreciation)}
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-800 font-bold">
-                        {(asset.disposalProceeds || 0).toLocaleString('en-US')} SAR
+                        {formatMoney(asset.disposalProceeds || 0)}
                       </td>
                       <td className="py-3 px-3 font-mono font-bold">
                         <span className={gainLoss > 0 ? 'text-emerald-700' : gainLoss < 0 ? 'text-rose-600' : 'text-slate-600'}>
-                          {gainLoss > 0 ? `+${gainLoss.toLocaleString('en-US')}` : gainLoss.toLocaleString('en-US')} SAR
+                          {gainLoss > 0 ? `+${formatMoney(gainLoss)}` : formatMoney(gainLoss)}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-blue-800">

@@ -688,10 +688,10 @@ export class InventoryService {
       status: 'in_review',
       title: `طلب شراء إعادة تموين مخزني - صنف ${alert.materialName}`,
       department: 'إدارة سلاسل الإمداد والمستودعات',
-      costCenter: 'CC-1009', // مستودعات الرياض المركزية
+      costCenter: 'CC-1009', // المستودعات المركزية
       plantCode: alert.plantCode || '1100',
       totalEstimatedAmount,
-      currency: 'SAR',
+      currency: await (await import('../../../core/services/CurrencyPolicy')).CurrencyPolicy.getBaseCurrency(),
       items: [
         {
           lineItem: 10,
@@ -866,7 +866,7 @@ export class InventoryService {
       startingPrice: params.startingPrice,
       reservePrice: params.reservePrice,
       currentBid: params.startingPrice,
-      currency: 'SAR',
+      currency: await (await import('../../../core/services/CurrencyPolicy')).CurrencyPolicy.getBaseCurrency(),
       condition: params.condition,
       auctionReference: `AUC-REF-${num}`,
       status: 'published',
@@ -1125,7 +1125,7 @@ export class InventoryService {
         deviceName: 'ماسح صهاريج وقود RFID (Long-Range UHF)',
         deviceType: 'RFID',
         plantCode: '1200',
-        location: 'رصيف تعبئة ينبع SL01',
+        location: 'رصيف تعبئة حمص SL01',
         ipAddress: '192.168.20.12',
         batteryLevel: 92,
         status: 'online',

@@ -9,6 +9,7 @@ import { db } from '../../../core/db';
 import { InventoryService } from '../services/InventoryService';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
 import { currentActorId } from '../../../core/security/SessionContext';
+import { formatMoney } from '../../../core/utils/format';
 import {
   ArrowUpRight,
   ArrowRightLeft,
@@ -376,7 +377,7 @@ export const GoodsIssueModal: React.FC<GoodsIssueModalProps> = ({
               </div>
             </div>
             <span className="font-mono font-bold text-sm">
-              {selectedMaterial ? `${(selectedMaterial.standardPrice * quantity).toLocaleString()} ر.س` : ''}
+              {selectedMaterial ? formatMoney(selectedMaterial.standardPrice * quantity) : ''}
             </span>
           </div>
 

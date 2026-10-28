@@ -38,6 +38,7 @@ import { formatNumber, formatCurrency, formatDate } from '../../../core/utils';
 import { BarcodeModal } from '../components/BarcodeModal';
 import { ImportCsvModal, TargetFieldDef } from '../components/ImportCsvModal';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const MaterialsListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export const MaterialsListPage: React.FC = () => {
     reorderPoint: '1000',
     safetyStock: '500',
     standardPrice: '10',
-    currency: 'SAR',
+    currency: LOCALE.currency.code,
     valuationMethod: 'MovingAverage' as 'MovingAverage' | 'Standard',
     valuationClass: '3000',
     purchasingGroup: '001',
@@ -175,7 +176,7 @@ export const MaterialsListPage: React.FC = () => {
         reorderPoint: '1000',
         safetyStock: '500',
         standardPrice: '10',
-        currency: 'SAR',
+        currency: LOCALE.currency.code,
         valuationMethod: 'MovingAverage',
         valuationClass: '3000',
         purchasingGroup: '001',
@@ -319,7 +320,7 @@ export const MaterialsListPage: React.FC = () => {
         header: 'السعر المعياري',
         cell: ({ row }) => (
           <span className="font-semibold text-navy">
-            {formatCurrency(row.original.standardPrice, row.original.currency || 'SAR')}
+            {formatCurrency(row.original.standardPrice, row.original.currency || LOCALE.currency.code)}
           </span>
         ),
       },
@@ -486,7 +487,7 @@ export const MaterialsListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برمز الصنف، الاسم، المجموعة، أو الوحدة..."
-        exportFileName="سجل_المواد_طاقة_الخليج"
+        exportFileName="سجل_المواد_الشام_للطاقة"
         onRowClick={(row) => navigate(`/master-data/materials/${row.id}`)}
       />
 

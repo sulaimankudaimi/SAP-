@@ -1,5 +1,6 @@
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { db } from '../../../core/db';
+import { LOCALE } from '../../../config/locale';
 import type { KPIResult, ReportCategory } from '../../../types/models';
 
 export interface KPIRegistryItem {
@@ -198,7 +199,7 @@ export class KPIRegistryService {
         category: 'fleet',
         formula: '(تكاليف الوقود + تكاليف الصيانة الدورية وقطع الغيار) ÷ إجمالي الكيلومترات المقطوعة',
         description: 'مؤشر الكفاءة الاقتصادية للأسطول لحساب متوسط التكلفة التشغيلية الإجمالية لكل كيلومتر تقطعه الشاحنة.',
-        unit: 'ر.س/كم',
+        unit: `${LOCALE.currency.symbolAr}/كم`,
         targetValue: 3.2,
         warningValue: 4.5,
         higherIsBetter: false,
@@ -208,7 +209,7 @@ export class KPIRegistryService {
           const val = 2.85;
           return {
             value: val,
-            formattedValue: `${val} ر.س / كم`,
+            formattedValue: `${val} ${LOCALE.currency.symbolAr} / كم`,
             trend: -0.22,
             status: val <= 3.2 ? 'healthy' : val <= 4.5 ? 'warning' : 'critical',
           };

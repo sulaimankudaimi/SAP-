@@ -52,14 +52,14 @@ describe('End-to-End Security & Service Authorization Suite', () => {
             accountName: 'مخزون الديزل والبنزين',
             debit: 35000,
             credit: 0,
-            lineText: 'استلام وقود مستودع الرياض',
+            lineText: 'استلام وقود مستودع دمشق',
           },
           {
             accountNumber: '201010',
             accountName: 'موردو المنتجات البترولية',
             debit: 0,
             credit: 35000,
-            lineText: 'ذمم دائنة شركة أرامكو',
+            lineText: 'ذمم دائنة شركة الفرات للتوريدات النفطية',
           },
         ],
       });

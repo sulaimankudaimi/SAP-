@@ -7,7 +7,8 @@ import { db } from '../../../core/db';
 import { BudgetService } from '../services/BudgetService';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type { CostCenter } from '../../../types/models';
-import { CheckCircle2, DollarSign } from 'lucide-react';
+import { LOCALE } from '../../../config/locale';
+import { CheckCircle2 } from 'lucide-react';
 
 interface BudgetModalProps {
   isOpen: boolean;
@@ -103,7 +104,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-slate-600 font-bold block mb-1">المبلغ المعتمد (ر.س) *</label>
+              <label className="text-slate-600 font-bold block mb-1">المبلغ المعتمد ({LOCALE.currency.symbolAr}) *</label>
               <Input
                 type="number"
                 step="1000"

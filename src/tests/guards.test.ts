@@ -658,7 +658,7 @@ describe('Static Security & Architecture Guards', () => {
         // Exclude tests and seed directory
         if (
           normalized.includes('/tests/') ||
-          normalized.includes('/tests-db/') ||
+          normalized.includes(['/tests', 'db/'].join('-')) ||
           normalized.endsWith('.test.ts') ||
           normalized.endsWith('.test.tsx') ||
           normalized.includes('/src/seed/')

@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.role_permissions (
     activity text NOT NULL,         -- 'view', 'create', 'change', 'post', 'approve', 'reverse', 'delete', '*'
     plant_limit text[],             -- Optional array of permitted plants (e.g. ARRAY['1100', '1200'])
     cost_center_limit text[],       -- Optional array of permitted cost centers
-    amount_limit numeric(18,2),     -- Optional financial threshold (SAR)
+    amount_limit numeric(18,2),     -- Optional financial threshold (SYP)
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_role_module_activity UNIQUE(role_code, module, activity)
 );
@@ -47,10 +47,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role_code);
 
--- 5. Seed System Roles (Al-Khobar, Yanbu, Jubail Corporate Roles)
+-- 5. Seed System Roles (Damascus, Homs, Baniyas Corporate Roles)
 INSERT INTO public.roles (code, name, description, is_system) VALUES
 ('ADMIN', 'مدير النظام (System Administrator)', 'كامل الصلاحيات الفنية والتشغيلية لكافة الوحدات والتهيئة العامة', true),
-('PROCUREMENT_MANAGER', 'مدير المشتريات (Procurement Manager)', 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 250 ألف ر.س', true),
+('PROCUREMENT_MANAGER', 'مدير المشتريات (Procurement Manager)', 'إدارة عقود التوريد واعتماد أوامر الشراء حتى 112.5 مليون ل.س', true),
 ('PROCUREMENT_OFFICER', 'موظف مشتريات (Procurement Officer)', 'إنشاء طلبات عروض الأسعار وإصدار أوامر الشراء المبدئية', true),
 ('WAREHOUSE_CLERK', 'أمين مستودع (Warehouse Clerk)', 'استلام المواد MIGO، صرف المواد، والجرد الفعلي بالمحطات', true),
 ('FLEET_MANAGER', 'مدير الأسطول واللوجستيات (Fleet & Logistics Manager)', 'إدارة أسطول صهاريج نقل الوقود ومتابعة الصيانة والسائقين وحركات الصرف 261', true),
@@ -85,21 +85,21 @@ INSERT INTO public.role_permissions (role_code, module, activity, amount_limit) 
 
 -- Procurement Manager (MM + MD + FI View)
 ('PROCUREMENT_MANAGER', 'MM', 'view', NULL),
-('PROCUREMENT_MANAGER', 'MM', 'create', 250000.00),
-('PROCUREMENT_MANAGER', 'MM', 'change', 250000.00),
-('PROCUREMENT_MANAGER', 'MM', 'approve', 250000.00),
+('PROCUREMENT_MANAGER', 'MM', 'create', 112500000.00),
+('PROCUREMENT_MANAGER', 'MM', 'change', 112500000.00),
+('PROCUREMENT_MANAGER', 'MM', 'approve', 112500000.00),
 ('PROCUREMENT_MANAGER', 'MD', 'view', NULL),
 ('PROCUREMENT_MANAGER', 'FI', 'view', NULL),
 
 -- Procurement Officer (MM + MD)
 ('PROCUREMENT_OFFICER', 'MM', 'view', NULL),
-('PROCUREMENT_OFFICER', 'MM', 'create', 50000.00),
-('PROCUREMENT_OFFICER', 'MM', 'change', 50000.00),
+('PROCUREMENT_OFFICER', 'MM', 'create', 22500000.00),
+('PROCUREMENT_OFFICER', 'MM', 'change', 22500000.00),
 ('PROCUREMENT_OFFICER', 'MD', 'view', NULL),
 
 -- Accountant (FI + MM + WM + MD)
 ('ACCOUNTANT', 'FI', 'view', NULL),
-('ACCOUNTANT', 'FI', 'post', 100000.00),
+('ACCOUNTANT', 'FI', 'post', 45000000.00),
 ('ACCOUNTANT', 'MM', 'view', NULL),
 ('ACCOUNTANT', 'WM', 'view', NULL),
 ('ACCOUNTANT', 'MD', 'view', NULL),
@@ -125,7 +125,7 @@ INSERT INTO public.role_permissions (role_code, module, activity, amount_limit) 
 -- Asset Manager (AM + MD)
 ('ASSET_MANAGER', 'AM', 'view', NULL),
 ('ASSET_MANAGER', 'AM', 'create', NULL),
-('ASSET_MANAGER', 'AM', 'post', 500000.00),
+('ASSET_MANAGER', 'AM', 'post', 225000000.00),
 ('ASSET_MANAGER', 'MD', 'view', NULL),
 
 -- Viewer (Read-only view)

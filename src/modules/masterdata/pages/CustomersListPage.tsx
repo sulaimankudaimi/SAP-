@@ -32,6 +32,8 @@ import { currentActorId } from '../../../core/security/SessionContext';
 import { formatCurrency, formatNumber } from '../../../core/utils';
 import { ImportCsvModal, TargetFieldDef } from '../components/ImportCsvModal';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
+import { validateTaxNumber, validateSyrianPhone, FIELD_LABELS } from '../../../core/utils/validators';
 
 export const CustomersListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +55,7 @@ export const CustomersListPage: React.FC = () => {
     name: '',
     taxNumber: '',
     creditLimit: '500000',
-    city: 'الرياض',
+    city: LOCALE.hqCity as string,
     phone: '',
     email: '',
     contactPerson: '',
@@ -84,7 +86,12 @@ export const CustomersListPage: React.FC = () => {
 
     if (!formData.customerCode.trim()) errors.customerCode = 'رمز العميل مطلوب';
     if (!formData.name.trim()) errors.name = 'اسم العميل مطلوب';
-    if (!formData.taxNumber.trim()) errors.taxNumber = 'الرقم الضريبي مطلوب';
+    const taxValidation = validateTaxNumber(formData.taxNumber);
+    if (!taxValidation.valid) errors.taxNumber = taxValidation.error || 'الرقم الضريبي مطلوب';
+    if (formData.phone.trim()) {
+      const phoneValidation = validateSyrianPhone(formData.phone);
+      if (!phoneValidation.valid) errors.phone = phoneValidation.error || 'رقم الهاتف غير صالح';
+    }
 
     if (formData.customerCode.trim()) {
       const isUnique = await MasterDataService.isCodeUnique('customers', 'customerCode', formData.customerCode.trim());
@@ -127,7 +134,7 @@ export const CustomersListPage: React.FC = () => {
         name: '',
         taxNumber: '',
         creditLimit: '500000',
-        city: 'الرياض',
+        city: LOCALE.hqCity,
         phone: '',
         email: '',
         contactPerson: '',
@@ -194,10 +201,10 @@ export const CustomersListPage: React.FC = () => {
 
   const importTargetFields: TargetFieldDef[] = [
     { key: 'customerCode', label: 'رمز العميل (Customer Code)', required: true, example: 'CUST-001' },
-    { key: 'name', label: 'اسم العميل / الشركة', required: true, example: 'شركة نقل الطاقة الوطنية' },
-    { key: 'taxNumber', label: 'الرقم الضريبي', required: true, example: '300987654300003' },
-    { key: 'creditLimit', label: 'الحد الائتماني (ر.س)', example: '500000' },
-    { key: 'city', label: 'المدينة', example: 'الرياض' },
+    { key: 'name', label: 'اسم العميل / الشركة', required: true, example: 'شركة الشام لتوزيع الوقود' },
+    { key: 'taxNumber', label: FIELD_LABELS.taxNumber, required: true, example: 'TAX-SY-100293' },
+    { key: 'creditLimit', label: `الحد الائتماني (${LOCALE.currency.symbolAr})`, example: '500000' },
+    { key: 'city', label: 'المدينة', example: LOCALE.hqCity },
     { key: 'paymentTerms', label: 'شروط الدفع', example: 'آجل 30 يوماً' },
   ];
 
@@ -232,7 +239,7 @@ export const CustomersListPage: React.FC = () => {
         header: 'سقف الائتمان الممنوح',
         cell: ({ row }) => (
           <span className="font-bold text-navy">
-            {formatCurrency(row.original.creditLimit, 'SAR')}
+            {formatCurrency(row.original.creditLimit)}
           </span>
         ),
       },
@@ -316,8 +323,7 @@ export const CustomersListPage: React.FC = () => {
         <StatCard
           label="إجمالي السقوف الائتمانية"
           value={formatCurrency(
-            customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0),
-            'SAR'
+            customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0)
           )}
           icon={<CreditCard className="w-6 h-6 text-blue" />}
         />
@@ -333,7 +339,7 @@ export const CustomersListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برمز العميل، الاسم، أو المدينة..."
-        exportFileName="دليل_العملاء_طاقة_الخليج"
+        exportFileName="دليل_العملاء_الشام_للطاقة"
         onRowClick={(row) => navigate(`/master-data/customers/${row.id}`)}
       />
 
@@ -364,15 +370,15 @@ export const CustomersListPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
-              label="الرقم الضريبي *"
-              placeholder="300123456700003"
+              label={`${FIELD_LABELS.taxNumber} *`}
+              placeholder="TAX-SY-100293"
               value={formData.taxNumber}
               onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
               error={formErrors.taxNumber}
             />
             <Input
               type="number"
-              label="الحد الائتماني (ريال)"
+              label={`الحد الائتماني (${LOCALE.currency.symbolAr})`}
               value={formData.creditLimit}
               onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
             />

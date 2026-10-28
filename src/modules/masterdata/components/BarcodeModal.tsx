@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { generateCode128Svg } from '../../../core/utils/barcode';
 import { formatDate } from '../../../core/utils';
 import { useToast } from '../../../components/ui/Toast';
+import { LOCALE } from '../../../config/locale';
 
 export interface BarcodeModalProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
         </head>
         <body>
           <div class="label-card">
-            <div class="title">شركة الخليج للطاقة (Gulf Energy ERP)</div>
+            <div class="title">${LOCALE.brand.nameAr} (${LOCALE.brand.productName})</div>
             <div class="name">${materialName}</div>
             <div class="meta">الرمز: <strong>${materialCode}</strong> | الوحدة: <strong>${unit}</strong></div>
             <div class="barcode">${svgContent}</div>
@@ -100,7 +101,7 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
           className="p-5 bg-white border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center text-center shadow-sm"
         >
           <div className="text-xs font-bold text-navy uppercase tracking-wider mb-1">
-            شركة الخليج للطاقة — نظام إدارة المخازن
+            {LOCALE.brand.nameAr} — نظام إدارة المخازن
           </div>
           <h3 className="text-lg font-bold text-navy mb-1">{materialName}</h3>
           <div className="text-xs text-slate-500 mb-4 flex items-center gap-3">

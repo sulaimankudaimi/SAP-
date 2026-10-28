@@ -7,7 +7,9 @@ import { t } from '../../../i18n/ar';
 import { FinanceService } from '../services/FinanceService';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type { JournalEntry } from '../../../types/models';
-import { Printer, RotateCcw, AlertTriangle, FileText, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney } from '../../../core/utils/format';
+import { Printer, RotateCcw, AlertTriangle, FileText } from 'lucide-react';
 
 interface JournalDetailModalProps {
   entry: JournalEntry | null;
@@ -108,7 +110,7 @@ export const JournalDetailModal: React.FC<JournalDetailModalProps> = ({
           </div>
           <div>
             <span className="text-slate-400 block text-[11px] font-bold">كود الشركة</span>
-            <span className="font-mono text-slate-700">{entry.companyCode} (Gulf Energy)</span>
+            <span className="font-mono text-slate-700">{entry.companyCode} ({LOCALE.brand.nameEn})</span>
           </div>
 
           <div className="col-span-4 pt-2 border-t border-slate-200">
@@ -159,10 +161,10 @@ export const JournalDetailModal: React.FC<JournalDetailModalProps> = ({
                   <td className="py-2 px-3 font-mono font-bold text-blue-900">{l.accountNumber}</td>
                   <td className="py-2 px-3 font-semibold text-slate-800">{l.accountName}</td>
                   <td className="py-2 px-3 font-mono font-bold text-end text-emerald-700">
-                    {l.debit > 0 ? `${l.debit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+                    {l.debit > 0 ? formatMoney(l.debit) : '—'}
                   </td>
                   <td className="py-2 px-3 font-mono font-bold text-end text-blue-700">
-                    {l.credit > 0 ? `${l.credit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+                    {l.credit > 0 ? formatMoney(l.credit) : '—'}
                   </td>
                   <td className="py-2 px-3 font-mono text-slate-600">{l.costCenter || '—'}</td>
                   <td className="py-2 px-3 text-slate-600">{l.lineText || '—'}</td>
@@ -175,13 +177,13 @@ export const JournalDetailModal: React.FC<JournalDetailModalProps> = ({
                   الإجمالي المتطابق (Total Balanced):
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-emerald-800 text-sm">
-                  {entry.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(entry.totalDebit)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-blue-800 text-sm">
-                  {entry.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                  {formatMoney(entry.totalCredit)}
                 </td>
                 <td colSpan={2} className="py-3 px-3 text-center text-emerald-600 font-mono">
-                  متوازن (0.00 ر.س)
+                  متوازن ({formatMoney(0)})
                 </td>
               </tr>
             </tfoot>

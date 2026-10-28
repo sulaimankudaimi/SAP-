@@ -283,7 +283,7 @@ describe('RPC Signatures & SQL Contract Alignment (Unit Test - FS only)', () => 
       await gateway.createDriver({
         code: 'DRV-1',
         name: 'Driver 1',
-        iqamaNumber: '1234567890',
+        nationalId: '01012345678',
         plantCode: '1100',
       });
     }

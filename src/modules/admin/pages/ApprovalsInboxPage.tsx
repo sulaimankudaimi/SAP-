@@ -23,6 +23,7 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
+import { formatMoney } from '../../../core/utils/format';
 import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuthStore } from '../../../core/auth/useAuthStore';
@@ -296,7 +297,7 @@ export const ApprovalsInboxPage: React.FC = () => {
                         <Badge variant="in_progress">{req.documentType}</Badge>
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold text-[#0FA37F]">
-                        {req.amount.toLocaleString()} {req.currency}
+                        {formatMoney(req.amount, req.currency)}
                       </td>
                       <td className="py-3 px-4 text-[#0F172A]">{req.requesterUserName}</td>
                       <td className="py-3 px-4 text-[#64748B] font-mono">
@@ -355,7 +356,7 @@ export const ApprovalsInboxPage: React.FC = () => {
               <div>
                 <span className="text-[#64748B] block">القيمة الإجمالية:</span>
                 <span className="font-mono font-bold text-[#0FA37F]">
-                  {selectedRequest.amount.toLocaleString()} {selectedRequest.currency}
+                  {formatMoney(selectedRequest.amount, selectedRequest.currency)}
                 </span>
               </div>
               <div>

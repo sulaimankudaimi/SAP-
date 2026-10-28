@@ -61,12 +61,12 @@ describe('Fleet Cost & GL Cost Center Reconciliation Test Suite', () => {
     await db.drivers.add({
       id: 'd-recon-1',
       code: 'DRV-301',
-      name: 'عبدالله القحطاني',
-      iqamaNumber: '2334455667',
+      name: 'مازن الحموي',
+      nationalId: '04033445566',
       licenseNumber: 'LIC-334455',
       licenseClass: 'عمومي ثقيل',
       licenseExpiry: '2027-01-01',
-      mobile: '+966509988776',
+      mobile: '+963949988776',
       safetyRating: 5.0,
       status: 'available',
       totalTripsCompleted: 10,
@@ -77,12 +77,12 @@ describe('Fleet Cost & GL Cost Center Reconciliation Test Suite', () => {
   });
 
   it('calculates vehicle cost and cost per km accurately from completed trips, fuel, and maintenance', async () => {
-    // 1. Create and complete trip (500 km, allowance = 175 SAR, fuel cost = 230 SAR)
+    // 1. Create and complete trip (500 km, allowance = 175 SYP, fuel cost = 230 SYP)
     const trip = await FleetService.createTrip({
       vehicleId: 'v-recon-1',
       driverId: 'd-recon-1',
       originPlant: '1100',
-      destinationLocation: 'الدمام',
+      destinationLocation: 'حمص',
       cargoType: 'بنزين 95',
       cargoVolumeLiters: 30000,
       scheduledDeparture: '2026-10-10 08:00',
@@ -97,7 +97,7 @@ describe('Fleet Cost & GL Cost Center Reconciliation Test Suite', () => {
       driverAllowanceCost: 175,
     });
 
-    // 2. Add a fuel log: 400 L * 1.15 = 460 SAR
+    // 2. Add a fuel log: 400 L * 1.15 = 460 SYP
     await FleetService.createFuelLog({
       vehicleId: 'v-recon-1',
       driverId: 'd-recon-1',
@@ -106,10 +106,10 @@ describe('Fleet Cost & GL Cost Center Reconciliation Test Suite', () => {
       quantityLiters: 400,
       costPerLiter: 1.15,
       odometer: 100500,
-      stationName: 'محطة أرامكو المركزية',
+      stationName: 'محطة وقود حمص المركزية (تجريبي)',
     });
 
-    // 3. Add completed maintenance order: 300 SAR parts + 240 SAR labor = 540 SAR
+    // 3. Add completed maintenance order: 300 SYP parts + 240 SYP labor = 540 SYP
     await db.maintenanceOrders.add({
       id: 'mo-recon-1',
       docNumber: 'MO-2026-0005',
@@ -143,7 +143,7 @@ describe('Fleet Cost & GL Cost Center Reconciliation Test Suite', () => {
     expect(costReport.totalDistanceKm).toBe(500);
     expect(costReport.fuelCostTotal).toBe(460); // 400 L * 1.15
     expect(costReport.maintenanceCostTotal).toBe(540); // 300 parts + 240 labor
-    expect(costReport.driverAllowanceTotal).toBe(175); // 175 SAR
+    expect(costReport.driverAllowanceTotal).toBe(175); // 175 SYP
     expect(costReport.grandTotalCost).toBeGreaterThan(1000);
     expect(costReport.costPerKm).toBeGreaterThan(0);
   });

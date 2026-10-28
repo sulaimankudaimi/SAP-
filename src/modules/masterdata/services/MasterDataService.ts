@@ -32,6 +32,8 @@ import type {
   AuditLog,
 } from '../../../types/models';
 import type { ValidationResult } from '../../../core/utils/importExport';
+import { LOCALE } from '../../../config/locale';
+import { validateCommercialRegister, validateTaxNumber } from '../../../core/utils/validators';
 
 export class MasterDataService {
   /**
@@ -506,9 +508,22 @@ export class MasterDataService {
         if (!mappedRecord['baseUnit']) errors.push('وحدة القياس الأساسية مطلوبة');
         const price = Number(mappedRecord['standardPrice'] || 0);
         if (isNaN(price) || price < 0) errors.push('السعر المعياري يجب أن يكون رقماً موجباً');
+        if (!mappedRecord['currency']) mappedRecord['currency'] = LOCALE.currency.code;
       } else if (entityType === 'vendors') {
         if (!mappedRecord['name']) errors.push('اسم المورد مطلوب');
-        if (!mappedRecord['commercialRecord']) errors.push('رقم السجل التجاري مطلوب');
+        const crCheck = validateCommercialRegister(String(mappedRecord['commercialRecord'] || ''));
+        if (!crCheck.valid) errors.push(crCheck.error || 'رقم السجل التجاري مطلوب');
+        if (mappedRecord['taxNumber']) {
+          const taxCheck = validateTaxNumber(String(mappedRecord['taxNumber']));
+          if (!taxCheck.valid) errors.push(taxCheck.error || 'الرقم الضريبي غير صالح');
+        }
+      } else if (entityType === 'customers') {
+        if (mappedRecord['taxNumber']) {
+          const taxCheck = validateTaxNumber(String(mappedRecord['taxNumber']));
+          if (!taxCheck.valid) errors.push(taxCheck.error || 'الرقم الضريبي غير صالح');
+        }
+      } else if (entityType === 'glAccounts') {
+        if (!mappedRecord['currency']) mappedRecord['currency'] = LOCALE.currency.code;
       }
 
       if (errors.length > 0) {

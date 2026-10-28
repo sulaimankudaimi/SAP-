@@ -13,6 +13,7 @@ import { AccountsPayableService, VendorAgingItem, AgingBucket } from '../service
 import { ThreeWayMatchService } from '../services/ThreeWayMatchService';
 import { ThreeWayMatchModal } from '../components/ThreeWayMatchModal';
 import { PaymentProposalModal } from '../components/PaymentProposalModal';
+import { formatMoney } from '../../../core/utils/format';
 import type { VendorInvoice, Vendor } from '../../../types/models';
 import {
   CreditCard,
@@ -129,7 +130,7 @@ export const AccountsPayablePage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الديون المستحقة للموردين"
-          value={`${totalOpenAmount.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalOpenAmount)}
           subtitle={`${openInvoices.length} فاتورة غير مسددة`}
           icon={<CreditCard className="w-5 h-5 text-amber-600" />}
         />
@@ -141,7 +142,7 @@ export const AccountsPayablePage: React.FC = () => {
         />
         <StatCard
           label="ديون متأخرة لأكثر من 60 يوماً"
-          value={`${(agingData.overall.days60To90 + agingData.overall.over90).toLocaleString('en-US')} ر.س`}
+          value={formatMoney(agingData.overall.days60To90 + agingData.overall.over90)}
           subtitle="تتطلب أولوية في مقترح السداد"
           icon={<Clock className="w-5 h-5 text-slate-600" />}
         />
@@ -192,7 +193,7 @@ export const AccountsPayablePage: React.FC = () => {
                     <td className="py-2.5 px-3 font-mono text-slate-600">{inv.poNumber || '—'}</td>
                     <td className="py-2.5 px-3 font-mono text-slate-700">{inv.dueDate}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-slate-900">
-                      {inv.totalAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(inv.totalAmount)}
                     </td>
                     <td className="py-2.5 px-3 text-center">
                       <Badge variant="pending">{inv.paymentStatus}</Badge>
@@ -268,7 +269,7 @@ export const AccountsPayablePage: React.FC = () => {
                       <td className="py-2.5 px-3 font-semibold text-slate-800">{inv.vendorName || inv.vendorCode}</td>
                       <td className="py-2.5 px-3 font-mono text-slate-600">{inv.poNumber || '—'}</td>
                       <td className="py-2.5 px-3 font-mono font-bold text-end text-slate-900">
-                        {inv.totalAmount.toLocaleString('en-US')} ر.س
+                        {formatMoney(inv.totalAmount)}
                       </td>
                       <td className="py-2.5 px-3 text-rose-700 font-semibold">
                         {inv.blockingReasons?.map((r) => (
@@ -328,7 +329,7 @@ export const AccountsPayablePage: React.FC = () => {
               <div>
                 <span className="text-slate-400 font-sans block text-[11px]">الرصيد القائم المستحق:</span>
                 <span className="text-base font-black text-rose-700">
-                  {vendorLedger?.closingBalance.toLocaleString('en-US')} ر.س
+                  {formatMoney(vendorLedger?.closingBalance || 0)}
                 </span>
               </div>
             </div>
@@ -359,13 +360,13 @@ export const AccountsPayablePage: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-3 text-slate-800">{tx.description}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-700">
-                      {tx.debit > 0 ? `${tx.debit.toLocaleString('en-US')} ر.س` : '—'}
+                      {tx.debit > 0 ? formatMoney(tx.debit) : '—'}
                     </td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-slate-900">
-                      {tx.credit > 0 ? `${tx.credit.toLocaleString('en-US')} ر.س` : '—'}
+                      {tx.credit > 0 ? formatMoney(tx.credit) : '—'}
                     </td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-900">
-                      {tx.balance.toLocaleString('en-US')} ر.س
+                      {formatMoney(tx.balance)}
                     </td>
                   </tr>
                 ))}
@@ -398,19 +399,19 @@ export const AccountsPayablePage: React.FC = () => {
                   </td>
                   <td className="py-2.5 px-3 text-center font-mono font-bold">{vi.openInvoiceCount}</td>
                   <td className="py-2.5 px-3 font-mono text-end text-slate-700">
-                    {vi.buckets.current > 0 ? `${vi.buckets.current.toLocaleString('en-US')} ر.س` : '—'}
+                    {vi.buckets.current > 0 ? formatMoney(vi.buckets.current) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-slate-700">
-                    {vi.buckets.days30To60 > 0 ? `${vi.buckets.days30To60.toLocaleString('en-US')} ر.س` : '—'}
+                    {vi.buckets.days30To60 > 0 ? formatMoney(vi.buckets.days30To60) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-amber-700 font-semibold">
-                    {vi.buckets.days60To90 > 0 ? `${vi.buckets.days60To90.toLocaleString('en-US')} ر.س` : '—'}
+                    {vi.buckets.days60To90 > 0 ? formatMoney(vi.buckets.days60To90) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-rose-700 font-bold">
-                    {vi.buckets.over90 > 0 ? `${vi.buckets.over90.toLocaleString('en-US')} ر.س` : '—'}
+                    {vi.buckets.over90 > 0 ? formatMoney(vi.buckets.over90) : '—'}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-900 text-sm">
-                    {vi.buckets.total.toLocaleString('en-US')} ر.س
+                    {formatMoney(vi.buckets.total)}
                   </td>
                 </tr>
               ))}
@@ -420,19 +421,19 @@ export const AccountsPayablePage: React.FC = () => {
                 <td className="py-3 px-3">الإجمالي العام لأعمار الديون</td>
                 <td className="py-3 px-3 text-center">{openInvoices.length}</td>
                 <td className="py-3 px-3 text-end font-mono">
-                  {agingData.overall.current.toLocaleString('en-US')} ر.س
+                  {formatMoney(agingData.overall.current)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono">
-                  {agingData.overall.days30To60.toLocaleString('en-US')} ر.س
+                  {formatMoney(agingData.overall.days30To60)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-amber-800">
-                  {agingData.overall.days60To90.toLocaleString('en-US')} ر.س
+                  {formatMoney(agingData.overall.days60To90)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-rose-800">
-                  {agingData.overall.over90.toLocaleString('en-US')} ر.س
+                  {formatMoney(agingData.overall.over90)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-blue-900 text-sm">
-                  {agingData.overall.total.toLocaleString('en-US')} ر.س
+                  {formatMoney(agingData.overall.total)}
                 </td>
               </tr>
             </tfoot>

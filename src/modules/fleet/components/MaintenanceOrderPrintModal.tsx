@@ -4,6 +4,8 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Printer, Wrench, Boxes, Calendar, Clock, DollarSign, CheckCircle2 } from 'lucide-react';
 import { PrintTemplateService } from '../../admin/services/PrintTemplateService';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import type { MaintenanceOrder, PrintTemplate } from '../../../types/models';
 
 interface MaintenanceOrderPrintModalProps {
@@ -66,14 +68,14 @@ export const MaintenanceOrderPrintModal: React.FC<MaintenanceOrderPrintModalProp
           <div className="flex items-start justify-between border-b-2 border-slate-800 pb-5">
             <div>
               <h1 className="text-lg font-bold text-[#0B2545]">
-                {template?.companyNameArabic || 'شركة الخليج للطاقة والخدمات البترولية'}
+                {template?.companyNameArabic || LOCALE.brand.nameAr}
               </h1>
               <h2 className="text-xs font-semibold text-slate-500 font-sans tracking-wide">
-                {template?.companyNameEnglish || 'Gulf Energy & Petroleum Services Co.'}
+                {template?.companyNameEnglish || LOCALE.brand.nameEn}
               </h2>
               <div className="mt-2 text-[10px] text-slate-600 space-y-0.5">
-                <div>الرقم الضريبي: <span className="font-mono font-bold">{template?.taxNumber || '300192834700003'}</span></div>
-                <div>السجل التجاري: <span className="font-mono font-bold">{template?.commercialRecord || '1010892744'}</span></div>
+                <div>الرقم الضريبي: <span className="font-mono font-bold">{template?.taxNumber || 'SY-TAX-100293'}</span></div>
+                <div>السجل التجاري: <span className="font-mono font-bold">{template?.commercialRecord || 'DAM-CR-88412'}</span></div>
                 <div className="text-slate-500">{template?.headerText}</div>
               </div>
             </div>
@@ -165,9 +167,9 @@ export const MaintenanceOrderPrintModal: React.FC<MaintenanceOrderPrintModalProp
                       <td className="p-2.5 font-semibold text-[#0F172A]">{p.materialName}</td>
                       <td className="p-2.5 text-center font-mono font-bold">{p.quantity}</td>
                       <td className="p-2.5 text-center">{p.unit}</td>
-                      <td className="p-2.5 text-end font-mono">{p.unitPrice?.toLocaleString()} ر.س</td>
+                      <td className="p-2.5 text-end font-mono">{formatMoney(p.unitPrice ?? 0)}</td>
                       <td className="p-2.5 text-end font-mono font-bold text-[#0FA37F]">
-                        {p.totalCost?.toLocaleString()} ر.س
+                        {formatMoney(p.totalCost ?? 0)}
                       </td>
                     </tr>
                   ))}
@@ -194,7 +196,7 @@ export const MaintenanceOrderPrintModal: React.FC<MaintenanceOrderPrintModalProp
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">معدل أجر الفني بالساعة:</span>
-                  <span className="font-mono">120.00 ر.س / ساعة</span>
+                  <span className="font-mono">{formatMoney(120)} / ساعة</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">تاريخ إغلاق الأمر:</span>
@@ -208,15 +210,15 @@ export const MaintenanceOrderPrintModal: React.FC<MaintenanceOrderPrintModalProp
               <div className="text-[11px] space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-500">تكلفة قطع الغيار المصروفة:</span>
-                  <span className="font-mono">{order.partsCost.toLocaleString()} ر.س</span>
+                  <span className="font-mono">{formatMoney(order.partsCost)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">تكلفة أجور الفنيين:</span>
-                  <span className="font-mono">{order.laborCost.toLocaleString()} ر.س</span>
+                  <span className="font-mono">{formatMoney(order.laborCost)}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-slate-300 font-bold text-xs text-[#0FA37F]">
                   <span>التكلفة الفعلية الإجمالية:</span>
-                  <span className="font-mono text-sm">{order.actualCost.toLocaleString()} ر.س</span>
+                  <span className="font-mono text-sm">{formatMoney(order.actualCost)}</span>
                 </div>
               </div>
             </div>

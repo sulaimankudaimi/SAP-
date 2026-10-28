@@ -20,6 +20,7 @@ import {
   WifiOff,
   CloudUpload,
   Inbox,
+  AlertTriangle,
 } from 'lucide-react';
 import { t } from '../../i18n/ar';
 import { useToast } from '../ui/Toast';
@@ -30,6 +31,9 @@ import { TCodeBar } from './TCodeBar';
 import { NotificationService } from '../../core/services/NotificationService';
 import { isRouteImplemented } from '../../app/routeStatus';
 import { useConnectivityStore, isServerMode } from '../../core/gateway/connectivity';
+import { db } from '../../core/db';
+import { LOCALE } from '../../config/locale';
+import { SEED_VERSION, SEED_VERSION_KEY, DatabaseSeeder } from '../../seed';
 import type { Notification } from '../../types/models';
 
 export interface HeaderProps {
@@ -75,6 +79,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [storedSeedVersion, setStoredSeedVersion] = useState<string | null>(SEED_VERSION);
+  const [isDbSeeded, setIsDbSeeded] = useState(false);
+
+  const checkSeedVersion = async () => {
+    try {
+      const seeded = await DatabaseSeeder.isSeeded();
+      setIsDbSeeded(seeded);
+      if (seeded) {
+        const setting =
+          (await db.settings.get('set-seed-version')) ||
+          (await db.settings.where('key').equals(SEED_VERSION_KEY).first());
+        setStoredSeedVersion(setting?.value ?? null);
+      }
+    } catch (e) {
+      DiagnosticLogger.error('Header', 'Failed to check seed version', e);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -88,6 +109,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
 
   useEffect(() => {
     loadNotifications();
+    checkSeedVersion();
   }, [user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -127,17 +149,36 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
     navigate('/login');
   };
 
-  const displayName = user?.fullName || 'م. أحمد الشمري';
+  const displayName = user?.fullName || `م. ${LOCALE.namePools.firstNames[0]} ${LOCALE.namePools.lastNames[0]}`;
   const displayRole = role?.name || 'مدير النظام (Admin)';
   const initials = displayName
     .split(' ')
     .filter((p) => !p.startsWith('م.') && !p.startsWith('أ.'))
     .slice(0, 2)
     .map((p) => p[0])
-    .join('') || 'أ.ش';
+    .join('') || 'ط.ح';
+
+  const isAdminUser = user?.roleCode === 'ADMIN' || role?.code === 'ADMIN';
+  const showSeedVersionNotice = Boolean(
+    isDemoMode && isAdminUser && isDbSeeded && storedSeedVersion !== SEED_VERSION
+  );
 
   return (
     <>
+      {showSeedVersionNotice && (
+        <div
+          role="status"
+          data-testid="seed-version-notice"
+          className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-900 flex items-center justify-between gap-4 z-20"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>تنبيه إصدار البيانات التجريبية:</strong> البيانات التجريبية المخزنة محلياً تعود لإصدار أقدم ({storedSeedVersion ?? 'غير محدد'} بدلاً من {SEED_VERSION}). لإعادة توليد البيانات التجريبية المحدّثة، يرجى مسح بيانات الموقع (Clear site data) من إعدادات المتصفح أو استخدام خيار إعادة الضبط من لوحة فحص المحرك. لن يتم حذف أي بيانات تلقائياً.
+            </span>
+          </div>
+        </div>
+      )}
       <header className="h-16 bg-white border-b border-[#E5EAF2] px-6 flex items-center justify-between sticky top-0 z-20">
         {/* SAP T-Code Box & Command Palette Search */}
         <div className="flex-1 max-w-xl flex items-center gap-3">
@@ -478,9 +519,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
               onChange={(e) => setTempCompany(e.target.value)}
               className="w-full bg-white border border-[#E5EAF2] rounded-xl p-2.5 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0FA37F]/30"
             >
-              <option value="1000">1000 - شركة الخليج للطاقة (المملكة العربية السعودية)</option>
-              <option value="2000">2000 - الخليج للإمدادات البترولية (الإمارات)</option>
-              <option value="3000">3000 - الخليج للخدمات اللوجستية وتوزيع الطاقة (الكويت)</option>
+              <option value="1000">1000 - {LOCALE.brand.nameAr} ({LOCALE.country.nameAr})</option>
             </select>
           </div>
 
@@ -494,9 +533,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenCommandPalette }) => {
               onChange={(e) => setTempPlant(e.target.value)}
               className="w-full bg-white border border-[#E5EAF2] rounded-xl p-2.5 text-xs text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0FA37F]/30"
             >
-              <option value="1100">1100 - مركز الرياض للتوزيع والتخزين (Logistics Hub)</option>
-              <option value="1200">1200 - محطة ينبع البترولية ومستودع الساحل الغربي</option>
-              <option value="1300">1300 - مستودع المنطقة الشرقية (الدمام)</option>
+              {LOCALE.plants.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.code} - {p.nameAr}
+                </option>
+              ))}
             </select>
           </div>
 

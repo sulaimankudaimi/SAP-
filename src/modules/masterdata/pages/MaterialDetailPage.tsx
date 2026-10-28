@@ -44,6 +44,7 @@ import { BarcodeModal } from '../components/BarcodeModal';
 import { AttachmentManager } from '../components/AttachmentManager';
 import { AuditHistoryTab } from '../components/AuditHistoryTab';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 export const MaterialDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -295,12 +296,12 @@ export const MaterialDetailPage: React.FC = () => {
         />
         <StatCard
           label="القيمة الإجمالية للمخزون"
-          value={formatCurrency(totalStockVal, material.currency || 'SAR')}
+          value={formatCurrency(totalStockVal, material.currency || LOCALE.currency.code)}
           icon={<DollarSign className="w-6 h-6 text-blue" />}
         />
         <StatCard
           label="السعر المعياري للوحدة"
-          value={formatCurrency(material.standardPrice, material.currency || 'SAR')}
+          value={formatCurrency(material.standardPrice, material.currency || LOCALE.currency.code)}
           icon={<ShoppingCart className="w-6 h-6 text-amber" />}
         />
         <StatCard
@@ -406,7 +407,7 @@ export const MaterialDetailPage: React.FC = () => {
                 <span>حالة الرقابة والتتبع</span>
               </div>
               <p className="text-slate-500">
-                الصنف مسجل وفق معايير شركة الخليج للطاقة، ويخضع للرقابة المستودعية المباشرة وتدقيق القيود المحاسبية.
+                الصنف مسجل وفق معايير {LOCALE.brand.nameAr}، ويخضع للرقابة المستودعية المباشرة وتدقيق القيود المحاسبية.
               </p>
             </Card>
           </div>
@@ -456,7 +457,7 @@ export const MaterialDetailPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-400 block mb-1">العملة الافتراضية</span>
-                <span className="font-semibold text-navy">{material.currency || 'SAR'}</span>
+                <span className="font-semibold text-navy">{material.currency || LOCALE.currency.code}</span>
               </div>
             </div>
           )}
@@ -554,7 +555,7 @@ export const MaterialDetailPage: React.FC = () => {
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-400 block mb-1">السعر المعياري الحالي</span>
               <span className="text-base font-bold text-emerald-700">
-                {formatCurrency(material.standardPrice, material.currency || 'SAR')}
+                {formatCurrency(material.standardPrice, material.currency || LOCALE.currency.code)}
               </span>
             </div>
           </div>
@@ -611,10 +612,10 @@ export const MaterialDetailPage: React.FC = () => {
                           {formatNumber(b.blockedQty || 0)} {material.baseUnit}
                         </td>
                         <td className="p-3 font-mono">
-                          {formatCurrency(material.standardPrice, 'SAR')}
+                          {formatCurrency(material.standardPrice)}
                         </td>
                         <td className="p-3 font-bold text-navy">
-                          {formatCurrency(lineVal, 'SAR')}
+                          {formatCurrency(lineVal)}
                         </td>
                       </tr>
                     );

@@ -4,6 +4,7 @@ import { AlertTriangle, ShieldAlert, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../core/auth/useAuthStore';
 import { RbacService, SYSTEM_ROLES } from '../../core/services/RbacService';
 import { useIntegrityScheduler } from '../../core/hooks/useIntegrityScheduler';
+import { formatDateTime } from '../../core/utils/format';
 
 export const IntegrityAlertBanner: React.FC = () => {
   const navigate = useNavigate();
@@ -28,12 +29,7 @@ export const IntegrityAlertBanner: React.FC = () => {
   const formatRunTime = (iso?: string) => {
     if (!iso) return 'لم يتم بعد';
     try {
-      return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return formatDateTime(iso);
     } catch {
       return iso;
     }

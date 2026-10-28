@@ -10,7 +10,8 @@ import { t } from '../../../i18n/ar';
 import { db } from '../../../core/db';
 import { ControllingService, CostCenterVarianceItem } from '../services/ControllingService';
 import { CostAllocationModal } from '../components/CostAllocationModal';
-import type { CostAllocationCycle, CostCenter, InternalOrder } from '../../../types/models';
+import { formatMoney } from '../../../core/utils/format';
+import type { CostAllocationCycle, CostCenter } from '../../../types/models';
 import {
   Layers,
   TrendingDown,
@@ -124,25 +125,25 @@ export const ControllingPage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الميزانيات المعتمدة (CO)"
-          value={`${varianceReport.totalBudget.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(varianceReport.totalBudget)}
           subtitle="ميزانية العام المالي 2026"
           icon={<DollarSign className="w-5 h-5 text-[#0B2545]" />}
         />
         <StatCard
           label="إجمالي التكاليف الفعلية المنفقة"
-          value={`${varianceReport.totalActual.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(varianceReport.totalActual)}
           subtitle="حركات أستاذ مسجلة بمراكز التكلفة"
           icon={<TrendingDown className="w-5 h-5 text-red-600" />}
         />
         <StatCard
           label="الارتباطات المفتوحة (Commitments)"
-          value={`${varianceReport.totalCommitments.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(varianceReport.totalCommitments)}
           subtitle="أوامر شراء قيد التنفيذ"
           icon={<FileText className="w-5 h-5 text-amber-600" />}
         />
         <StatCard
           label="صافي الوفر التقديري المتبقي"
-          value={`${varianceReport.totalVariance.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(varianceReport.totalVariance)}
           subtitle={varianceReport.totalVariance >= 0 ? 'وفر إيجابي متاح' : 'تجاوز في الميزانية'}
           icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
         />
@@ -183,20 +184,20 @@ export const ControllingPage: React.FC = () => {
                   <td className="py-2.5 px-3 font-bold text-slate-800">{item.costCenterName}</td>
                   <td className="py-2.5 px-3 text-slate-600">{item.category}</td>
                   <td className="py-2.5 px-3 font-mono text-end font-semibold text-slate-800">
-                    {item.budgetAllocated.toLocaleString('en-US')} ر.س
+                    {formatMoney(item.budgetAllocated)}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-amber-700">
-                    {item.commitments.toLocaleString('en-US')} ر.س
+                    {formatMoney(item.commitments)}
                   </td>
                   <td className="py-2.5 px-3 font-mono font-bold text-end text-slate-900">
-                    {item.actualCost.toLocaleString('en-US')} ر.س
+                    {formatMoney(item.actualCost)}
                   </td>
                   <td
                     className={`py-2.5 px-3 font-mono font-bold text-end ${
                       item.varianceAmount >= 0 ? 'text-emerald-700' : 'text-rose-700'
                     }`}
                   >
-                    {item.varianceAmount.toLocaleString('en-US')} ر.س
+                    {formatMoney(item.varianceAmount)}
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     {item.status === 'critical' ? (
@@ -227,16 +228,16 @@ export const ControllingPage: React.FC = () => {
               <tr>
                 <td colSpan={3} className="py-3 px-3">الإجمالي العام لمراكز التكلفة</td>
                 <td className="py-3 px-3 text-end font-mono">
-                  {varianceReport.totalBudget.toLocaleString('en-US')} ر.س
+                  {formatMoney(varianceReport.totalBudget)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-amber-800">
-                  {varianceReport.totalCommitments.toLocaleString('en-US')} ر.س
+                  {formatMoney(varianceReport.totalCommitments)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-slate-900">
-                  {varianceReport.totalActual.toLocaleString('en-US')} ر.س
+                  {formatMoney(varianceReport.totalActual)}
                 </td>
                 <td className="py-3 px-3 text-end font-mono text-emerald-800 text-sm">
-                  {varianceReport.totalVariance.toLocaleString('en-US')} ر.س
+                  {formatMoney(varianceReport.totalVariance)}
                 </td>
                 <td colSpan={2}></td>
               </tr>
@@ -304,10 +305,10 @@ export const ControllingPage: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate">{line.headerText}</td>
                       <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800">
-                        {line.debit > 0 ? `${line.debit.toLocaleString('en-US')} ر.س` : '—'}
+                        {line.debit > 0 ? formatMoney(line.debit) : '—'}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-end text-blue-800">
-                        {line.credit > 0 ? `${line.credit.toLocaleString('en-US')} ر.س` : '—'}
+                        {line.credit > 0 ? formatMoney(line.credit) : '—'}
                       </td>
                     </tr>
                   ))
@@ -351,7 +352,7 @@ export const ControllingPage: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-3 font-semibold text-slate-700">{cyc.senderCostCenter}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-end text-emerald-800 text-sm">
-                      {cyc.totalAllocatedAmount.toLocaleString('en-US')} ر.س
+                      {formatMoney(cyc.totalAllocatedAmount)}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-blue-900 font-bold">{cyc.jeDocNumber || '—'}</td>
                   </tr>

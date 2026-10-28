@@ -6,6 +6,9 @@
  * Current Provider: MockTelemetrySimulator (Deterministic simulation labeled "محاكاة").
  */
 
+import { formatTime, formatPlate } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
+
 export interface TelemetryNode {
   id: string;
   name: string;
@@ -54,143 +57,152 @@ export interface ITelemetryProvider {
   subscribeToUpdates(callback: (telemetries: VehicleTelemetry[]) => void): () => void;
 }
 
-// Key Saudi Energy Nodes (Map Coordinates on 1000x650 viewport)
+const sDeir = LOCALE.sites[0]; // حقل الفرات – دير الزور
+const sHasakah = LOCALE.sites[1]; // حقل الجزيرة – الحسكة
+const sPalmyra = LOCALE.sites[2]; // حقل البادية – تدمر
+const sHoms = LOCALE.sites[3]; // مصفاة حمص
+const sBaniyas = LOCALE.sites[4]; // مصفاة بانياس
+const sTartus = LOCALE.sites[5]; // مرفأ طرطوس
+const sLatakia = LOCALE.sites[6]; // مرفأ اللاذقية
+const sDamascus = LOCALE.sites[7]; // مستودع دمشق
+
+// Key Syrian Energy Nodes (Map Coordinates on 1000x650 viewport, derived from LOCALE.sites)
 export const SAUDI_ENERGY_NODES: TelemetryNode[] = [
   {
-    id: 'node-riyadh',
+    id: sDamascus.code,
     code: '1100',
-    name: 'مركز الرياض اللوجستي المركزي',
+    name: sDamascus.nameAr,
     type: 'hub',
     x: 485,
     y: 345,
-    description: 'المستودع الرئيسي وتوزيع المنتجات البترولية للقطاع الأوسط',
+    description: 'المستودع الرئيسي وتوزيع المنتجات البترولية في دمشق وريفها',
   },
   {
-    id: 'node-ghawar',
-    code: 'GHW-01',
-    name: 'حقل الغوار النفطي (محطة الضخ 4)',
+    id: sDeir.code,
+    code: 'DEZ-01',
+    name: sDeir.nameAr,
     type: 'oilfield',
     x: 645,
     y: 310,
-    description: 'أكبر حقل نفط بري في العالم - مجمع المعالجة الشمالي',
+    description: 'حقل إنتاج ومعالجة النفط الخام في حوض الفرات',
   },
   {
-    id: 'node-dammam',
-    code: '1300',
-    name: 'مجمع الدمام ورأس تنورة اللوجستي',
+    id: sTartus.code,
+    code: 'TRT-01',
+    name: sTartus.nameAr,
     type: 'terminal',
     x: 670,
     y: 235,
-    description: 'أرصفة التصدير ومحطات الخلط وتزويد الشاحنات بالساحل الشرقي',
+    description: 'مرفأ الشحن البحري ومحطات تزويد الصهاريج على الساحل السوري',
   },
   {
-    id: 'node-yanbu',
+    id: sHoms.code,
     code: '1200',
-    name: 'مصفاة ومحطة ينبع البترولية',
+    name: sHoms.nameAr,
     type: 'refinery',
     x: 185,
     y: 315,
-    description: 'مصفاة التكرير وخطوط أنابيب شرق-غرب على ساحل البحر الأحمر',
+    description: 'مصفاة التكرير المركزية وخطوط الإمداد في المنطقة الوسطى',
   },
   {
-    id: 'node-khurais',
-    code: 'KHR-02',
-    name: 'حقل خريص لمعالجة النفط الخام',
+    id: sPalmyra.code,
+    code: 'PLM-02',
+    name: sPalmyra.nameAr,
     type: 'oilfield',
     x: 555,
     y: 320,
-    description: 'مرافق الإنتاج المركزي لإنتاج الزيت العربي الخفيف',
+    description: 'حقل الغاز والنفط الخام في البادية السورية',
   },
   {
-    id: 'node-jubail',
-    code: 'JBL-05',
-    name: 'مجمع الجبيل الصناعي للبتروكيماويات',
+    id: sBaniyas.code,
+    code: '1300',
+    name: sBaniyas.nameAr,
     type: 'refinery',
     x: 650,
     y: 190,
-    description: 'مدينة التكرير والصناعات البترولية والتحويلية',
+    description: 'مصفاة بانياس الساحلية لتكرير المشتقات النفطية',
   },
   {
-    id: 'node-shaybah',
-    code: 'SHB-09',
-    name: 'حقل شيبة - الربع الخالي',
+    id: sHasakah.code,
+    code: 'HSK-09',
+    name: sHasakah.nameAr,
     type: 'oilfield',
     x: 770,
     y: 490,
-    description: 'منشأة استخراج وتكثيف الغاز وسوائل الغاز الطبيعي',
+    description: 'منشأة استخراج وتجميع النفط والغاز في منطقة الجزيرة',
   },
   {
-    id: 'node-jazan',
-    code: 'JZN-07',
-    name: 'مصفاة وميناء جازان الاقتصادي',
+    id: sLatakia.code,
+    code: 'LTK-07',
+    name: sLatakia.nameAr,
     type: 'terminal',
     x: 290,
     y: 560,
-    description: 'توليد الطاقة وتكرير الديزل الثقيل للقطاع الجنوبي الغربي',
+    description: 'مرفأ اللاذقية البحري ومستودعات الخزن الساحلية',
   },
 ];
 
-// Predefined SVG highway routes connecting Saudi energy facilities
+// Predefined SVG highway routes connecting Syrian energy facilities
 export const SAUDI_ENERGY_ROUTES: TelemetryRoute[] = [
   {
-    id: 'route-riyadh-dammam',
+    id: 'route-damascus-tartus',
     code: 'RT-101',
-    name: 'خط إمداد الرياض - الدمام (طريق 40 السريع)',
-    originNodeId: 'node-riyadh',
-    destinationNodeId: 'node-dammam',
+    name: `خط إمداد ${sDamascus.nameAr} - ${sTartus.nameAr}`,
+    originNodeId: sDamascus.code,
+    destinationNodeId: sTartus.code,
     pathD: 'M 485 345 Q 570 290 670 235',
-    distanceKm: 395,
-    averageTravelHours: 4.5,
+    distanceKm: 255,
+    averageTravelHours: 3.5,
   },
   {
-    id: 'route-riyadh-yanbu',
+    id: 'route-damascus-homs',
     code: 'RT-102',
-    name: 'شريان شرق - غرب (الرياض - ينبع)',
-    originNodeId: 'node-riyadh',
-    destinationNodeId: 'node-yanbu',
+    name: `شريان الجنوب - الوسط (${sDamascus.nameAr} - ${sHoms.nameAr})`,
+    originNodeId: sDamascus.code,
+    destinationNodeId: sHoms.code,
     pathD: 'M 485 345 Q 330 330 185 315',
-    distanceKm: 1050,
-    averageTravelHours: 11.5,
+    distanceKm: 165,
+    averageTravelHours: 2.2,
   },
   {
-    id: 'route-ghawar-dammam',
+    id: 'route-deir-tartus',
     code: 'RT-103',
-    name: 'خط تجميع بقيق (الغوار - الدمام)',
-    originNodeId: 'node-ghawar',
-    destinationNodeId: 'node-dammam',
+    name: `خط تجميع الفرات (${sDeir.nameAr} - ${sTartus.nameAr})`,
+    originNodeId: sDeir.code,
+    destinationNodeId: sTartus.code,
     pathD: 'M 645 310 Q 660 270 670 235',
-    distanceKm: 140,
-    averageTravelHours: 1.8,
+    distanceKm: 420,
+    averageTravelHours: 5.0,
   },
   {
-    id: 'route-khurais-riyadh',
+    id: 'route-palmyra-damascus',
     code: 'RT-104',
-    name: 'خط الغاز والمكثفات (خريص - الرياض)',
-    originNodeId: 'node-khurais',
-    destinationNodeId: 'node-riyadh',
+    name: `خط الغاز والمكثفات (${sPalmyra.nameAr} - ${sDamascus.nameAr})`,
+    originNodeId: sPalmyra.code,
+    destinationNodeId: sDamascus.code,
     pathD: 'M 555 320 Q 520 335 485 345',
-    distanceKm: 160,
-    averageTravelHours: 2.0,
+    distanceKm: 245,
+    averageTravelHours: 3.0,
   },
   {
-    id: 'route-dammam-jubail',
+    id: 'route-tartus-baniyas',
     code: 'RT-105',
-    name: 'الخط الساحلي الصناعي (الدمام - الجبيل)',
-    originNodeId: 'node-dammam',
-    destinationNodeId: 'node-jubail',
+    name: `الخط الساحلي الصناعي (${sTartus.nameAr} - ${sBaniyas.nameAr})`,
+    originNodeId: sTartus.code,
+    destinationNodeId: sBaniyas.code,
     pathD: 'M 670 235 Q 660 210 650 190',
-    distanceKm: 95,
-    averageTravelHours: 1.2,
+    distanceKm: 45,
+    averageTravelHours: 0.8,
   },
   {
-    id: 'route-riyadh-jazan',
+    id: 'route-damascus-latakia',
     code: 'RT-106',
-    name: 'محور الجنوب الغربي (الرياض - جازان)',
-    originNodeId: 'node-riyadh',
-    destinationNodeId: 'node-jazan',
+    name: `محور الساحل الشمالي (${sDamascus.nameAr} - ${sLatakia.nameAr})`,
+    originNodeId: sDamascus.code,
+    destinationNodeId: sLatakia.code,
     pathD: 'M 485 345 Q 380 460 290 560',
-    distanceKm: 980,
-    averageTravelHours: 10.5,
+    distanceKm: 340,
+    averageTravelHours: 4.2,
   },
 ];
 
@@ -222,6 +234,10 @@ function samplePointOnRoute(route: TelemetryRoute, progressFraction: number): { 
   };
 }
 
+const fn = LOCALE.namePools.firstNames;
+const ln = LOCALE.namePools.lastNames;
+const gov = LOCALE.governorates;
+
 /**
  * Deterministic Mock Telemetry Simulator
  * Continuously computes real-time vehicle tracking without external API reliance.
@@ -242,10 +258,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-1',
       vehicleCode: 'TNK-001',
-      vehiclePlate: 'أ ب ج 1101',
-      driverName: 'سلطان المطيري',
+      vehiclePlate: formatPlate(gov[0].nameAr, 110142),
+      driverName: `${fn[0]} ${ln[0]}`,
       cargoType: 'ديزل صناعي - 36,000 لتر',
-      routeId: 'route-riyadh-dammam',
+      routeId: 'route-damascus-tartus',
       speedBase: 78,
       speedVariance: 5,
       initialProgress: 0.42,
@@ -254,10 +270,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-2',
       vehicleCode: 'TNK-002',
-      vehiclePlate: 'د هـ و 2202',
-      driverName: 'خالد العنزي',
+      vehiclePlate: formatPlate(gov[3].nameAr, 220215),
+      driverName: `${fn[1]} ${ln[1]}`,
       cargoType: 'بنزين 95 سوبر - 40,000 لتر',
-      routeId: 'route-riyadh-yanbu',
+      routeId: 'route-damascus-homs',
       speedBase: 84,
       speedVariance: 6,
       initialProgress: 0.68,
@@ -266,10 +282,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-3',
       vehicleCode: 'TNK-003',
-      vehiclePlate: 'ح ط ي 3303',
-      driverName: 'فهد القحطاني',
-      cargoType: 'زيت خام عربي خفيف - 45,000 لتر',
-      routeId: 'route-ghawar-dammam',
+      vehiclePlate: formatPlate(gov[11].nameAr, 330319),
+      driverName: `${fn[2]} ${ln[2]}`,
+      cargoType: 'نفط خام خفيف - 45,000 لتر',
+      routeId: 'route-deir-tartus',
       speedBase: 72,
       speedVariance: 4,
       initialProgress: 0.25,
@@ -278,10 +294,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-4',
       vehicleCode: 'TNK-004',
-      vehiclePlate: 'ك ل م 4404',
-      driverName: 'عبدالله الشمري',
+      vehiclePlate: formatPlate(gov[4].nameAr, 440481),
+      driverName: `${fn[3]} ${ln[3]}`,
       cargoType: 'وقود طائرات Jet A-1 - 38,000 لتر',
-      routeId: 'route-khurais-riyadh',
+      routeId: 'route-palmyra-damascus',
       speedBase: 80,
       speedVariance: 5,
       initialProgress: 0.81,
@@ -290,10 +306,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-5',
       vehicleCode: 'TNK-005',
-      vehiclePlate: 'ن س ع 5505',
-      driverName: 'محمد الدوسري',
+      vehiclePlate: formatPlate(gov[6].nameAr, 550512),
+      driverName: `${fn[4]} ${ln[4]}`,
       cargoType: 'غاز بترولي مسال LPG - 32,000 لتر',
-      routeId: 'route-dammam-jubail',
+      routeId: 'route-tartus-baniyas',
       speedBase: 75,
       speedVariance: 4,
       initialProgress: 0.15,
@@ -302,10 +318,10 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     {
       vehicleId: 'veh-6',
       vehicleCode: 'TNK-006',
-      vehiclePlate: 'ف ص ق 6606',
-      driverName: 'تركي العتيبي',
+      vehiclePlate: formatPlate(gov[5].nameAr, 660674),
+      driverName: `${fn[5]} ${ln[5]}`,
       cargoType: 'ديزل ممتاز نظيف - 36,000 لتر',
-      routeId: 'route-riyadh-jazan',
+      routeId: 'route-damascus-latakia',
       speedBase: 82,
       speedVariance: 7,
       initialProgress: 0.54,
@@ -350,7 +366,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
         fuelLevelPercentage: fuelLevel,
         engineTempC: 86 + Math.round(Math.abs(speedSine) * 4),
         status: speed > 5 ? 'moving' : 'idling',
-        lastPingTime: new Date(now - (idx * 2000)).toLocaleTimeString('ar-SA-u-ca-gregory-nu-latn'),
+        lastPingTime: formatTime(new Date(now - (idx * 2000))),
         isSimulated: true, // Clearly marked per requirement
       };
     });

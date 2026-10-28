@@ -3,6 +3,8 @@ import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { db } from '../../../core/db';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import {
   ResponsiveContainer,
   BarChart,
@@ -80,44 +82,43 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
   ];
 
   // 2. Inventory Data
-  const stockByPlant = [
-    { name: 'محطة الرياض (PL-101)', value: 3850000, plant: 'PL-101' },
-    { name: 'محطة جدة (PL-102)', value: 2900000, plant: 'PL-102' },
-    { name: 'محطة الدمام (PL-103)', value: 2450000, plant: 'PL-103' },
-    { name: 'مصفاة ينبع (PL-104)', value: 4100000, plant: 'PL-104' },
-  ];
+  const stockByPlant = LOCALE.plants.map((pl, idx) => ({
+    name: `${pl.nameAr} (${pl.code})`,
+    value: [3850000, 2900000, 2450000][idx] ?? 2000000,
+    plant: pl.code,
+  }));
 
   const stockTurnoverTrend = [
-    { month: 'مايو', rate: 5.2 },
-    { month: 'يونيو', rate: 5.5 },
-    { month: 'يوليو', rate: 5.7 },
-    { month: 'أغسطس', rate: 5.6 },
-    { month: 'سبتمبر', rate: 6.1 },
+    { month: 'أيار', rate: 5.2 },
+    { month: 'حزيران', rate: 5.5 },
+    { month: 'تموز', rate: 5.7 },
+    { month: 'آب', rate: 5.6 },
+    { month: 'أيلول', rate: 6.1 },
   ];
 
   // 3. Fleet Data
   const fleetCostByVehicle = [
-    { code: 'VH-1001 (أكتروس صهريج)', fuel: 24500, maintenance: 8500, plant: 'PL-101' },
-    { code: 'VH-1002 (أكتروس مقطورة)', fuel: 28900, maintenance: 12400, plant: 'PL-102' },
-    { code: 'VH-1003 (فولفو صهريج)', fuel: 22100, maintenance: 6200, plant: 'PL-103' },
-    { code: 'VH-1004 (مان صهريج)', fuel: 19800, maintenance: 4100, plant: 'PL-101' },
+    { code: 'VH-1001 (أكتروس صهريج)', fuel: 24500, maintenance: 8500, plant: '1100' },
+    { code: 'VH-1002 (أكتروس مقطورة)', fuel: 28900, maintenance: 12400, plant: '1200' },
+    { code: 'VH-1003 (فولفو صهريج)', fuel: 22100, maintenance: 6200, plant: '1300' },
+    { code: 'VH-1004 (مان صهريج)', fuel: 19800, maintenance: 4100, plant: '1100' },
   ];
 
   // 4. Assets Data
   const assetValuesByClass = [
-    { name: 'محطات وخزانات ضخ', value: 8500000, plant: 'PL-101' },
-    { name: 'أسطول شاحنات وصهاريج', value: 6200000, plant: 'PL-102' },
-    { name: 'مباني ومستودعات تخزين', value: 4800000, plant: 'PL-103' },
-    { name: 'معدات فحص وتوزيع', value: 1900000, plant: 'PL-104' },
+    { name: 'محطات وخزانات ضخ', value: 8500000, plant: '1100' },
+    { name: 'أسطول شاحنات وصهاريج', value: 6200000, plant: '1200' },
+    { name: 'مباني ومستودعات تخزين', value: 4800000, plant: '1300' },
+    { name: 'معدات فحص وتوزيع', value: 1900000, plant: '1100' },
   ];
 
   // 5. Finance Data
   const financeRevenueExpenses = [
-    { month: 'مايو', revenue: 3800000, expense: 2900000 },
-    { month: 'يونيو', revenue: 4100000, expense: 3150000 },
-    { month: 'يوليو', revenue: 4600000, expense: 3400000 },
-    { month: 'أغسطس', revenue: 4400000, expense: 3350000 },
-    { month: 'سبتمبر', revenue: 4950000, expense: 3600000 },
+    { month: 'أيار', revenue: 3800000, expense: 2900000 },
+    { month: 'حزيران', revenue: 4100000, expense: 3150000 },
+    { month: 'تموز', revenue: 4600000, expense: 3400000 },
+    { month: 'آب', revenue: 4400000, expense: 3350000 },
+    { month: 'أيلول', revenue: 4950000, expense: 3600000 },
   ];
 
   const handleChartClick = (key: string, value: string) => {
@@ -197,10 +198,11 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                 className="h-8 px-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
               >
                 <option value="all">كافة المنشآت والمحطات</option>
-                <option value="PL-101">محطة الرياض المركزية (PL-101)</option>
-                <option value="PL-102">محطة جدة الساحلية (PL-102)</option>
-                <option value="PL-103">محطة الظهران البترولية (PL-103)</option>
-                <option value="PL-104">مصفاة ينبع (PL-104)</option>
+                {LOCALE.plants.map((pl) => (
+                  <option key={pl.code} value={pl.code}>
+                    {pl.nameAr} ({pl.code})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -215,7 +217,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                 <option value="all">كافة مراكز التكلفة</option>
                 <option value="CC-1001">الإدارة العامة والتشغيل (CC-1001)</option>
                 <option value="CC-1002">إدارة أسطول النقل اللوجستي (CC-1002)</option>
-                <option value="CC-2001">مستودع رابغ المركزي (CC-2001)</option>
+                <option value="CC-2001">مستودع دمشق المركزي (CC-2001)</option>
                 <option value="CC-3001">محطة التوزيع والضخ (CC-3001)</option>
               </select>
             </div>
@@ -277,7 +279,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
+                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -298,8 +300,8 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
-                    <Bar dataKey="amount" name="قيمة المشتريات (ر.س)" fill="#0B2545" radius={[6, 6, 0, 0]} />
+                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
+                    <Bar dataKey="amount" name={`قيمة المشتريات (${LOCALE.currency.symbolAr})`} fill="#0B2545" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -325,7 +327,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
+                    <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
                     <Bar
                       dataKey="value"
                       name="قيمة المخزون"
@@ -378,7 +380,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="code" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
                   <Legend />
                   <Bar dataKey="fuel" name="تكلفة الوقود المعبأ" fill="#2563EB" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="maintenance" name="تكاليف الصيانة وقطع الغيار" fill="#F59E0B" radius={[6, 6, 0, 0]} />
@@ -397,7 +399,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
               <h3 className="text-xs font-bold text-[#0B2545]">
                 القيمة التاريخية للأصول والمعدات الرأسمالية حسب التصنيف
               </h3>
-              <span className="text-[10px] text-slate-400">إجمالي 21.4M ر.س</span>
+              <span className="text-[10px] text-slate-400">إجمالي 21.4M {LOCALE.currency.symbolAr}</span>
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -405,7 +407,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                   <XAxis type="number" tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={140} />
-                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
                   <Bar dataKey="value" name="القيمة الرأسمالية" fill="#0B2545" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -430,7 +432,7 @@ export const DepartmentDashboardsView: React.FC<DepartmentDashboardsViewProps> =
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => `${Number(v || 0).toLocaleString('en-US')} ر.س`} />
+                  <Tooltip formatter={(v: number | string | readonly (number | string)[] | undefined) => formatMoney(Number(v || 0))} />
                   <Legend />
                   <Bar dataKey="revenue" name="إيرادات مبيعات الطاقة" fill="#0FA37F" radius={[6, 6, 0, 0]} />
                   <Bar dataKey="expense" name="المصروفات والتكاليف" fill="#EF4444" radius={[6, 6, 0, 0]} />

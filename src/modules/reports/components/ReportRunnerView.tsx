@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
 import { ReportCatalogService } from '../services/ReportCatalogService';
 import { ExportService } from '../services/ExportService';
+import { formatMoney, formatNumber, formatDateTime } from '../../../core/utils/format';
 import type { ReportDefinition } from '../../../types/models';
 import { currentActorId } from '../../../core/security/SessionContext';
 import { useToast } from '../../../components/ui/Toast';
@@ -357,12 +358,12 @@ export const ReportRunnerView: React.FC<ReportRunnerViewProps> = ({
                           {col.type === 'currency' ? (
                             <span className="font-mono font-bold text-slate-800">
                               {typeof val === 'number'
-                                ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`
+                                ? formatMoney(val)
                                 : '—'}
                             </span>
                           ) : col.type === 'number' ? (
                             <span className="font-mono font-bold text-slate-700">
-                              {typeof val === 'number' ? val.toLocaleString('en-US') : String(val ?? '—')}
+                              {typeof val === 'number' ? formatNumber(val) : String(val ?? '—')}
                             </span>
                           ) : col.type === 'percentage' ? (
                             <span className="font-mono font-bold text-emerald-700">
@@ -407,9 +408,9 @@ export const ReportRunnerView: React.FC<ReportRunnerViewProps> = ({
                         }`}
                       >
                         {totalVal !== undefined && col.type === 'currency'
-                          ? `${Number(totalVal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`
+                          ? formatMoney(Number(totalVal))
                           : totalVal !== undefined && col.type === 'number'
-                          ? Number(totalVal).toLocaleString('en-US')
+                          ? formatNumber(Number(totalVal))
                           : ''}
                       </td>
                     );
@@ -469,7 +470,7 @@ export const ReportRunnerView: React.FC<ReportRunnerViewProps> = ({
               <div className="p-3 bg-slate-50 rounded-xl space-y-1 font-mono text-slate-700">
                 <div>التقرير: <span className="font-bold">{report.title}</span> ({report.code})</div>
                 <div>عدد السجلات: <span className="font-bold">{sortedRows.length}</span> سجل</div>
-                <div>التاريخ: <span className="font-bold">{new Date().toLocaleString('ar-SA-u-ca-gregory-nu-latn')}</span></div>
+                <div>التاريخ: <span className="font-bold">{formatDateTime(new Date())}</span></div>
               </div>
 
               <div className="space-y-1">

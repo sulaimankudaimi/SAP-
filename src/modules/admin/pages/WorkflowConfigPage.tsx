@@ -23,6 +23,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { WorkflowService } from '../services/WorkflowService';
 import { SYSTEM_ROLES } from '../../../core/services/RbacService';
+import { formatNumber } from '../../../core/utils/format';
 import type {
   ApprovalRule,
   ApprovalRuleStep,
@@ -176,7 +177,7 @@ export const WorkflowConfigPage: React.FC = () => {
       maxAmount: modalMaxAmount,
       steps: updatedSteps,
       isActive: true,
-      description: modalDescription || `اعتماد من ${modalMinAmount.toLocaleString()} إلى ${modalMaxAmount.toLocaleString()} ريال`,
+      description: modalDescription || `اعتماد من ${formatNumber(modalMinAmount)} إلى ${formatNumber(modalMaxAmount)} ل.س`,
       createdAt: editingRuleIndex !== null ? rules[editingRuleIndex].createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       isDeleted: false,
@@ -411,8 +412,8 @@ export const WorkflowConfigPage: React.FC = () => {
                         {rule.description || `الشريحة المالية رقم ${idx + 1}`}
                       </h4>
                       <div className="text-[11px] font-mono text-[#0FA37F] font-semibold mt-0.5">
-                        من {rule.minAmount.toLocaleString()} ريال إلى{' '}
-                        {rule.maxAmount >= 999999999 ? 'ما فوق (بلا حد)' : `${rule.maxAmount.toLocaleString()} ريال`}
+                        من {formatNumber(rule.minAmount)} ل.س إلى{' '}
+                        {rule.maxAmount >= 999999999 ? 'ما فوق (بلا حد)' : `${formatNumber(rule.maxAmount)} ل.س`}
                       </div>
                     </div>
                   </div>
@@ -470,14 +471,14 @@ export const WorkflowConfigPage: React.FC = () => {
             <Input
               value={modalDescription}
               onChange={(e) => setModalDescription(e.target.value)}
-              placeholder="مثال: أوامر الشراء حتى 50,000 ريال (اعتماد مدير المشتريات)..."
+              placeholder="مثال: أوامر الشراء حتى 22,500,000 ل.س (اعتماد مدير المشتريات)..."
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[#0F172A] mb-1">
-                الحد الأدنى للمبلغ (ريال) <span className="text-red-500">*</span>
+                الحد الأدنى للمبلغ (ل.س) <span className="text-red-500">*</span>
               </label>
               <Input
                 type="number"
@@ -489,7 +490,7 @@ export const WorkflowConfigPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#0F172A] mb-1">
-                الحد الأقصى للمبلغ (ريال) <span className="text-red-500">*</span>
+                الحد الأقصى للمبلغ (ل.س) <span className="text-red-500">*</span>
               </label>
               <Input
                 type="number"

@@ -11,6 +11,8 @@ import { t } from '../../../i18n/ar';
 import { db } from '../../../core/db';
 import { BudgetService, BudgetAvailabilityCheckResult } from '../services/BudgetService';
 import { BudgetModal } from '../components/BudgetModal';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { Budget, CostCenter } from '../../../types/models';
 import {
   TrendingUp,
@@ -106,25 +108,25 @@ export const BudgetControlPage: React.FC = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الميزانيات المعتمدة (2026)"
-          value={`${totalAllocated.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalAllocated)}
           subtitle="سقف الإنفاق السنوي المعتمد"
           icon={<DollarSign className="w-5 h-5 text-[#0B2545]" />}
         />
         <StatCard
           label="الارتباطات المفتوحة (Commitments)"
-          value={`${totalCommitted.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalCommitted)}
           subtitle="أوامر شراء معتمدة قيد التوريد"
           icon={<FileCheck className="w-5 h-5 text-amber-600" />}
         />
         <StatCard
           label="المصروفات الفعلية المنفذة"
-          value={`${totalActual.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalActual)}
           subtitle="مشتريات مستلمة ومصروفة فعلياً"
           icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
         />
         <StatCard
           label="صافي الميزانية المتاحة للصرف"
-          value={`${totalAvailable.toLocaleString('en-US')} ر.س`}
+          value={formatMoney(totalAvailable)}
           subtitle="رصيد متاح لإصدار أوامر جديدة"
           icon={<ShieldCheck className="w-5 h-5 text-emerald-600" />}
         />
@@ -165,7 +167,7 @@ export const BudgetControlPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="text-slate-600 font-bold text-xs block mb-1">المبلغ المطلوب اعتماده (ر.س):</label>
+            <label className="text-slate-600 font-bold text-xs block mb-1">المبلغ المطلوب اعتماده ({LOCALE.currency.symbolAr}):</label>
             <Input
               type="number"
               value={simAmount}
@@ -204,7 +206,7 @@ export const BudgetControlPage: React.FC = () => {
                 <p className="text-[11px] opacity-80 mt-0.5">
                   مركز التكلفة: {simResult.costCenterName} ({simResult.costCenter}) | المتبقي بعد العملية:{' '}
                   <span className="font-mono font-bold">
-                    {simResult.remainingAfterRequest.toLocaleString('en-US')} ر.س
+                    {formatMoney(simResult.remainingAfterRequest)}
                   </span>
                 </p>
                 {simResult.warning && <p className="text-[11px] font-bold mt-1 text-amber-800">{simResult.warning}</p>}
@@ -214,7 +216,7 @@ export const BudgetControlPage: React.FC = () => {
             <div className="flex items-center gap-4 font-mono text-end">
               <div>
                 <span className="text-[10px] block opacity-70">المتاح حالياً:</span>
-                <span className="font-bold">{simResult.availableAmount.toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold">{formatMoney(simResult.availableAmount)}</span>
               </div>
               <div>
                 <span className="text-[10px] block opacity-70">نسبة الاستهلاك:</span>
@@ -256,26 +258,26 @@ export const BudgetControlPage: React.FC = () => {
                   <td className="py-2.5 px-3 font-mono font-bold text-blue-900">{b.costCenter}</td>
                   <td className="py-2.5 px-3 font-bold text-slate-800">{b.costCenterName || b.costCenter}</td>
                   <td className="py-2.5 px-3 font-mono text-end font-semibold">
-                    {b.allocatedAmount.toLocaleString('en-US')} ر.س
+                    {formatMoney(b.allocatedAmount)}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-amber-700 font-semibold">
-                    {b.committedAmount.toLocaleString('en-US')} ر.س
+                    {formatMoney(b.committedAmount)}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-end text-slate-900 font-bold">
-                    {b.actualAmount.toLocaleString('en-US')} ر.س
+                    {formatMoney(b.actualAmount)}
                   </td>
                   <td
                     className={`py-2.5 px-3 font-mono text-end font-black text-sm ${
                       available >= 0 ? 'text-emerald-700' : 'text-rose-700'
                     }`}
                   >
-                    {available.toLocaleString('en-US')} ر.س
+                    {formatMoney(available)}
                   </td>
                   <td className="py-2.5 px-3">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-[10px] font-mono">
                         <span>{pct}% مستهلك</span>
-                        <span>{available.toLocaleString('en-US')} متبقي</span>
+                        <span>{formatNumber(available)} متبقي</span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                         <div

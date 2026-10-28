@@ -8,6 +8,8 @@ import { Badge } from '../../../components/ui/Badge';
 import { Drawer } from '../../../components/ui/Drawer';
 import { useToast } from '../../../components/ui/Toast';
 import { exportToCsv } from '../../../core/utils/importExport';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import {
   Activity,
   Search,
@@ -123,12 +125,12 @@ export const MaterialMovementsPage: React.FC = () => {
       'المستودع': e.storageLocation,
       'الكمية': e.quantity,
       'الوحدة': e.unit,
-      'القيمة الإجمالية (SAR)': e.amount,
+      [`القيمة الإجمالية (${LOCALE.currency.code})`]: e.amount,
       'المستند المرجعي': e.referenceDocNumber,
       'تاريخ الترحيل': e.postingDate,
       'المستخدم': e.createdBy,
     }));
-    exportToCsv(data, `Gulf_Energy_Movements_${new Date().toISOString().split('T')[0]}`);
+    exportToCsv(data, `Sham_Energy_Movements_${new Date().toISOString().split('T')[0]}`);
     success('تم التصدير بنجاح', 'تم تنزيل سجل حركات المواد.');
   };
 
@@ -191,9 +193,7 @@ export const MaterialMovementsPage: React.FC = () => {
             onChange={(e) => setSelectedPlant(e.target.value)}
             options={[
               { label: 'كافة المحطات (الكل)', value: 'ALL' },
-              { label: '1100 - مركز الرياض اللوجستي', value: '1100' },
-              { label: '1200 - محطة ينبع البترولية', value: '1200' },
-              { label: '1300 - مجمع الدمام التشغيلي', value: '1300' },
+              ...LOCALE.plants.map((p) => ({ label: `${p.code} - ${p.nameAr}`, value: p.code })),
             ]}
           />
         </div>
@@ -228,12 +228,12 @@ export const MaterialMovementsPage: React.FC = () => {
                     </td>
                     <td className="p-3 text-center font-mono font-bold">
                       <span className={e.quantity > 0 ? 'text-[#0FA37F]' : 'text-[#EF4444]'}>
-                        {e.quantity > 0 ? `+${new Intl.NumberFormat('en-US').format(e.quantity)}` : new Intl.NumberFormat('en-US').format(e.quantity)}{' '}
+                        {e.quantity > 0 ? `+${formatNumber(e.quantity)}` : formatNumber(e.quantity)}{' '}
                         {e.unit}
                       </span>
                     </td>
                     <td className="p-3 text-end font-mono font-bold text-[#0B2545]">
-                      {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(Math.abs(e.amount))} ر.س
+                      {formatMoney(Math.abs(e.amount))}
                     </td>
                     <td className="p-3 font-mono text-[#64748B]">{e.referenceDocNumber || '-'}</td>
                     <td className="p-3 font-mono text-[#64748B]">{e.postingDate}</td>

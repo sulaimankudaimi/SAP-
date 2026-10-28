@@ -19,6 +19,9 @@ import {
   FileText,
 } from 'lucide-react';
 import type { Vehicle, Driver, VehicleType } from '../../../types/models';
+import { validateNationalNumber, FIELD_LABELS } from '../../../core/utils/validators';
+import { LOCALE } from '../../../config/locale';
+import { formatPlate } from '../../../core/utils/format';
 
 interface FleetExcelImportModalProps {
   isOpen: boolean;
@@ -94,20 +97,25 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
   // Sample data templates for quick verification
   const loadSampleData = () => {
     if (activeTab === 'vehicles') {
+      const p1 = formatPlate(LOCALE.governorates[0].nameAr, 348801);
+      const p2 = formatPlate(LOCALE.governorates[3].nameAr, 528802);
+      const p3 = formatPlate(LOCALE.governorates[6].nameAr, 718803);
       setInputText(
         `كود_الشاحنة,رقم_اللوحة,رقم_الهيكل,نوع_المركبة,نوع_الوقود,السعة_لتر,الصانع_والموديل,السنة,العداد_كم,المحطة,انتهاء_التأمين,انتهاء_الاستمارة\n` +
-          `TNK-801,أ ب ج 8801,SA-VIN-99881122,Tanker,Diesel,38000,مرسيدس أكتروس Actros 3340,2024,42000,1100,2027-08-15,2027-10-30\n` +
-          `TNK-802,د هـ و 8802,SA-VIN-99881123,Tanker,Diesel,36000,فولفو FH 460 صهريج وقود,2023,89000,1200,2027-05-20,2027-09-15\n` +
-          `TRK-803,ز ح ط 8803,SA-VIN-99881124,HeavyTruck,Diesel,25000,مان MAN TGS شاحنة ثقيلة,2024,31000,1300,2027-11-10,2028-01-25\n` +
-          `ERR-804,,SA-VIN-99881125,InvalidType,Diesel,-500,شاحنة عشوائية,2020,12000,1100,2024-01-01,2025-01-01`
+          `TNK-801,${p1},SY-VIN-99881122,Tanker,Diesel,38000,مرسيدس أكتروس Actros 3340,2024,42000,1100,2027-08-15,2027-10-30\n` +
+          `TNK-802,${p2},SY-VIN-99881123,Tanker,Diesel,36000,فولفو FH 460 صهريج وقود,2023,89000,1200,2027-05-20,2027-09-15\n` +
+          `TRK-803,${p3},SY-VIN-99881124,HeavyTruck,Diesel,25000,مان MAN TGS شاحنة ثقيلة,2024,31000,1300,2027-11-10,2028-01-25\n` +
+          `ERR-804,,SY-VIN-99881125,InvalidType,Diesel,-500,شاحنة عشوائية,2020,12000,1100,2024-01-01,2025-01-01`
       );
     } else {
+      const fn = LOCALE.namePools.firstNames;
+      const ln = LOCALE.namePools.lastNames;
       setInputText(
-        `كود_السائق,الاسم_الكامل,رقم_الهوية,رقم_الرخصة,فئة_الرخصة,انتهاء_الرخصة,رقم_الجوال,المحطة\n` +
-          `DRV-701,خالد بن منصور العتيبي,1089274612,DL-994401,نقل مواد خطرة (HazMat),2028-06-30,0551122334,1100\n` +
-          `DRV-702,ماجد سالم الدوسري,1078443918,DL-994402,عمومي ثقيل,2027-11-15,0552233445,1200\n` +
-          `DRV-703,فهد ناصر القحطاني,1099384726,DL-994403,نقل مواد خطرة (HazMat),2028-09-20,0553344556,1300\n` +
-          `ERR-704,سائق بدون رخصة,,DL-994404,عمومي ثقيل,2023-01-01,1234,1100`
+        `كود_السائق,الاسم_الكامل,الرقم_الوطني,رقم_الرخصة,فئة_الرخصة,انتهاء_الرخصة,رقم_الجوال,المحطة\n` +
+          `DRV-701,${fn[0]} ${ln[0]},01089274612,SY-DL-994401,نقل مواد خطرة (HazMat),2028-06-30,+963944112233,1100\n` +
+          `DRV-702,${fn[1]} ${ln[1]},04078443918,SY-DL-994402,عمومي ثقيل,2027-11-15,+963944223344,1200\n` +
+          `DRV-703,${fn[2]} ${ln[2]},06099384726,SY-DL-994403,نقل مواد خطرة (HazMat),2028-09-20,+963944334455,1300\n` +
+          `ERR-704,سائق بدون رخصة,,SY-DL-994404,عمومي ثقيل,2023-01-01,1234,1100`
       );
     }
     setIsDryRunDone(false);
@@ -274,11 +282,11 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
       // Drivers Import Validation
       const existingDrivers = await FleetService.getDrivers();
       const existingCodes = new Set(existingDrivers.map((d) => d.code.toUpperCase()));
-      const existingIqamas = new Set(existingDrivers.map((d) => d.iqamaNumber));
+      const existingNationalIds = new Set(existingDrivers.map((d) => d.nationalId));
 
       const parsed: ParsedDriverRow[] = [];
       const seenFileCodes = new Set<string>();
-      const seenFileIqamas = new Set<string>();
+      const seenFileNationalIds = new Set<string>();
 
       dataLines.forEach((line, idx) => {
         const rowNumber = hasHeader ? idx + 2 : idx + 1;
@@ -301,7 +309,7 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
         const licenseNumber = cols[3] || `DL-${rowNumber}`;
         const licenseClass = (cols[4] || 'نقل مواد خطرة (HazMat)') as ParsedDriverRow['licenseClass'];
         const licenseExpiry = cols[5] || '2028-12-31';
-        const mobile = cols[6] || '0550000000';
+        const mobile = cols[6] || '+963944000000';
         const assignedPlant = cols[7] || '1100';
 
         if (!name) {
@@ -315,24 +323,25 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
           return;
         }
 
-        if (!nationalId || nationalId.length < 10) {
+        const natValidation = validateNationalNumber(nationalId || '');
+        if (!natValidation.valid) {
           errors.push({
             rowNumber,
             identifier: code,
-            field: 'رقم الهوية / الإقامة',
+            field: FIELD_LABELS.nationalNumber,
             value: nationalId || '',
-            reason: 'رقم الهوية الوطنية أو الإقامة يجب ألا يقل عن 10 أرقام',
+            reason: natValidation.error || 'الرقم الوطني غير صالح',
           });
           return;
         }
 
-        if (existingIqamas.has(nationalId) || seenFileIqamas.has(nationalId)) {
+        if (existingNationalIds.has(nationalId) || seenFileNationalIds.has(nationalId)) {
           errors.push({
             rowNumber,
             identifier: code,
-            field: 'رقم الهوية / الإقامة',
+            field: FIELD_LABELS.nationalNumber,
             value: nationalId,
-            reason: 'رقم الهوية مسجل مسبقاً في النظام لسائق آخر',
+            reason: 'الرقم الوطني مسجل مسبقاً في النظام لسائق آخر',
           });
           return;
         }
@@ -360,7 +369,7 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
         }
 
         seenFileCodes.add(code.toUpperCase());
-        seenFileIqamas.add(nationalId);
+        seenFileNationalIds.add(nationalId);
 
         parsed.push({
           code,
@@ -409,7 +418,7 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
           await FleetService.createDriver({
             code: d.code,
             name: d.name,
-            iqamaNumber: d.nationalId,
+            nationalId: d.nationalId,
             licenseNumber: d.licenseNumber,
             licenseClass: d.licenseClass,
             licenseExpiry: d.licenseExpiry,
@@ -476,7 +485,7 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
             <span className="font-bold text-[#0B2545] block">
               {activeTab === 'vehicles'
                 ? 'الأعمدة المطلوبة: كود الشاحنة، اللوحة، الهيكل، النوع، الوقود، السعة، الموديل، السنة، العداد، المحطة'
-                : 'الأعمدة المطلوبة: كود السائق، الاسم، الهوية، رقم الرخصة، الفئة، انتهاء الرخصة، الجوال، المحطة'}
+                : 'الأعمدة المطلوبة: كود السائق، الاسم، الرقم الوطني، رقم الرخصة، الفئة، انتهاء الرخصة، الجوال، المحطة'}
             </span>
             <span className="text-[11px] text-[#64748B]">
               الصق البيانات مفصولة بفواصل (CSV) أو مسافات جدولة من ملف إكسل مباشرة.
@@ -506,8 +515,8 @@ export const FleetExcelImportModal: React.FC<FleetExcelImportModalProps> = ({
             }}
             placeholder={
               activeTab === 'vehicles'
-                ? 'TNK-801,أ ب ج 8801,VIN123,Tanker,Diesel,38000,مرسيدس أكتروس,2024,45000,1100,2027-08-15,2027-10-30'
-                : 'DRV-701,خالد بن منصور العتيبي,1089274612,DL-994401,نقل مواد خطرة (HazMat),2028-06-30,0551122334,1100'
+                ? 'TNK-801,دمشق 348801,SY-VIN-123,Tanker,Diesel,38000,مرسيدس أكتروس,2024,45000,1100,2027-08-15,2027-10-30'
+                : 'DRV-701,سامر محمود الحلبي,01089274612,SY-DL-994401,نقل مواد خطرة (HazMat),2028-06-30,+963944112233,1100'
             }
             className="w-full font-mono text-xs p-3 rounded-xl border border-[#E5EAF2] focus:outline-none focus:ring-2 focus:ring-[#0FA37F] bg-white resize-none"
             dir="ltr"

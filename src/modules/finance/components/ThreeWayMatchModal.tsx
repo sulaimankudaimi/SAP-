@@ -6,6 +6,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { db } from '../../../core/db';
 import { ThreeWayMatchService, MatchResult } from '../services/ThreeWayMatchService';
 import type { VendorInvoice, PurchaseOrder, GoodsReceipt } from '../../../types/models';
+import { formatMoney } from '../../../core/utils/format';
 import { CheckCircle2, AlertTriangle, Unlock, ArrowRightLeft, FileCheck, Layers } from 'lucide-react';
 import { currentActorId } from '../../../core/security/SessionContext';
 
@@ -153,7 +154,7 @@ export const ThreeWayMatchModal: React.FC<ThreeWayMatchModalProps> = ({
             </div>
             <p className="font-mono font-bold text-blue-900 text-sm">{invoice.poNumber || 'بدون أمر شراء'}</p>
             <div className="text-[11px] space-y-1 text-slate-600">
-              <div>إجمالي الأمر: <span className="font-mono font-bold">{po ? `${po.totalAmount.toLocaleString('en-US')} ر.س` : '—'}</span></div>
+              <div>إجمالي الأمر: <span className="font-mono font-bold">{po ? formatMoney(po.totalAmount) : '—'}</span></div>
               <div>شروط الدفع: <span className="font-semibold">{po?.paymentTerms || 'Net 30'}</span></div>
             </div>
           </div>
@@ -181,7 +182,7 @@ export const ThreeWayMatchModal: React.FC<ThreeWayMatchModalProps> = ({
             </div>
             <p className="font-mono font-bold text-purple-900 text-sm">{invoice.vendorInvoiceNumber}</p>
             <div className="text-[11px] space-y-1 text-slate-600">
-              <div>إجمالي الفاتورة: <span className="font-mono font-bold">{invoice.totalAmount.toLocaleString('en-US')} ر.س</span></div>
+              <div>إجمالي الفاتورة: <span className="font-mono font-bold">{formatMoney(invoice.totalAmount)}</span></div>
               <div>الكمية المفوترة: <span className="font-mono font-bold">{matchResult.details.invoiceQuantityTotal}</span></div>
             </div>
           </div>

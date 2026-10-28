@@ -10,6 +10,8 @@ import { FleetService } from '../services/FleetService';
 import { useSaveWithConflict } from '../../../core/hooks/useSaveWithConflict';
 import { DiagnosticLogger } from '../../../core/services/DiagnosticLogger';
 import { getErrorMessage } from '../../../core/utils';
+import { formatMoney } from '../../../core/utils/format';
+import { LOCALE } from '../../../config/locale';
 import { currentActorId } from '../../../core/security/SessionContext';
 import type {
   Vehicle,
@@ -270,7 +272,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
 
       success(
         'تم إغلاق أمر الصيانة بنجاح',
-        `تم اعتماد اكتمال الصيانة ${completed.docNumber} وإعادة المركبة للخدمة (التكلفة: ${completed.actualCost.toLocaleString()} ر.س)`
+        `تم اعتماد اكتمال الصيانة ${completed.docNumber} وإعادة المركبة للخدمة (التكلفة: ${formatMoney(completed.actualCost)})`
       );
       onSuccess();
       onClose();
@@ -382,7 +384,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
-              label="التكلفة التقديرية (ر.س):"
+              label={`التكلفة التقديرية (${LOCALE.currency.symbolAr}):`}
               type="number"
               value={estimatedCost}
               onChange={(e) => setEstimatedCost(parseFloat(e.target.value) || 0)}
@@ -445,7 +447,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
                     value={selectedMaterialCode}
                     onChange={(e) => setSelectedMaterialCode(e.target.value)}
                     options={availableMaterials.map((m) => ({
-                      label: `${m.materialCode} - ${m.name} (${m.standardPrice} ر.س / ${m.baseUnit})`,
+                      label: `${m.materialCode} - ${m.name} (${formatMoney(m.standardPrice)} / ${m.baseUnit})`,
                       value: m.materialCode,
                     }))}
                   />
@@ -481,7 +483,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
               <div className="p-2.5 bg-emerald-100/60 font-bold text-xs text-[#0FA37F] flex justify-between items-center">
                 <span>قطع غيار جديدة مجهزة للصرف (بانتظار تأكيد حركة 261):</span>
                 <span>
-                  الإجمالي: {partsToIssue.reduce((a, b) => a + b.totalCost, 0).toLocaleString()} ر.س
+                  الإجمالي: {formatMoney(partsToIssue.reduce((a, b) => a + b.totalCost, 0))}
                 </span>
               </div>
               <table className="w-full text-xs text-start">
@@ -503,9 +505,9 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
                       <td className="p-2 text-center font-bold">
                         {p.quantity} {p.unit}
                       </td>
-                      <td className="p-2 text-end font-mono">{p.unitPrice} ر.س</td>
+                      <td className="p-2 text-end font-mono">{formatMoney(p.unitPrice)}</td>
                       <td className="p-2 text-end font-mono font-bold text-[#0FA37F]">
-                        {p.totalCost.toLocaleString()} ر.س
+                        {formatMoney(p.totalCost)}
                       </td>
                       <td className="p-2 text-center">
                         <button
@@ -540,7 +542,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
             <div className="p-2.5 bg-[#F8FAFC] font-bold text-xs text-[#0F172A] flex justify-between items-center">
               <span>سجل القطع المصروفة مسبقاً لهذا الأمر:</span>
               <span className="font-mono text-[#0FA37F]">
-                تكلفة القطع: {existingOrder.partsCost.toLocaleString()} ر.س
+                تكلفة القطع: {formatMoney(existingOrder.partsCost)}
               </span>
             </div>
 
@@ -566,9 +568,9 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
                       <td className="p-2 text-center font-bold">
                         {p.quantity} {p.unit}
                       </td>
-                      <td className="p-2 text-end font-mono">{p.unitPrice} ر.س</td>
+                      <td className="p-2 text-end font-mono">{formatMoney(p.unitPrice)}</td>
                       <td className="p-2 text-end font-mono font-bold text-[#0FA37F]">
-                        {p.totalCost.toLocaleString()} ر.س
+                        {formatMoney(p.totalCost)}
                       </td>
                     </tr>
                   ))}
@@ -597,7 +599,7 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
               required
             />
             <Input
-              label="أجر ساعة الفني (ر.س / ساعة):"
+              label={`أجر ساعة الفني (${LOCALE.currency.symbolAr} / ساعة):`}
               type="number"
               value={laborRate}
               onChange={(e) => setLaborRate(parseFloat(e.target.value) || 0)}
@@ -628,19 +630,19 @@ export const MaintenanceOrderModal: React.FC<MaintenanceOrderModalProps> = ({
             <div className="flex justify-between text-[#64748B]">
               <span>تكلفة قطع الغيار المصروفة (261):</span>
               <span className="font-mono font-bold text-[#0F172A]">
-                {existingOrder.partsCost.toLocaleString()} ر.س
+                {formatMoney(existingOrder.partsCost)}
               </span>
             </div>
             <div className="flex justify-between text-[#64748B]">
-              <span>أجور العمالة المباشرة ({laborHours} ساعة × {laborRate} ر.س):</span>
+              <span>أجور العمالة المباشرة ({laborHours} ساعة × {formatMoney(laborRate)}):</span>
               <span className="font-mono font-bold text-[#0F172A]">
-                {(laborHours * laborRate).toLocaleString()} ر.س
+                {formatMoney(laborHours * laborRate)}
               </span>
             </div>
             <div className="flex justify-between text-sm font-bold text-[#0FA37F] pt-2 border-t border-[#E5EAF2]">
               <span>إجمالي تكلفة أمر الصيانة الفعلي:</span>
               <span className="font-mono">
-                {(existingOrder.partsCost + laborHours * laborRate).toLocaleString()} ر.س
+                {formatMoney(existingOrder.partsCost + laborHours * laborRate)}
               </span>
             </div>
           </div>

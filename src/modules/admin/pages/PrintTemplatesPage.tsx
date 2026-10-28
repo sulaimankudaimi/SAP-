@@ -20,6 +20,8 @@ import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
 import { useToast } from '../../../components/ui/Toast';
 import { PrintTemplateService } from '../services/PrintTemplateService';
+import { LOCALE } from '../../../config/locale';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type { PrintTemplate, PrintDocumentType } from '../../../types/models';
 
 interface DocTypeMeta {
@@ -37,8 +39,8 @@ const TEMPLATE_DOC_TYPES: DocTypeMeta[] = [
     sapTCode: 'ME21N / ME23N',
     sampleDocNumber: 'PO-2026-000084',
     sampleItems: [
-      { code: 'DSL-EURO5', desc: 'وقود ديزل منخفض الكبريت Euro 5 - محطة ينبع', qty: 45000, unit: 'LTR', price: 0.95 },
-      { code: 'FLT-OIL-HYD', desc: 'فلاتر زيت هيدروليكي لمضخات الصهاريج', qty: 12, unit: 'EA', price: 340.0 },
+      { code: 'DSL-EURO5', desc: `وقود ديزل منخفض الكبريت Euro 5 - محطة حمص (${LOCALE.demoFx.label})`, qty: 45000, unit: 'LTR', price: 520.0 },
+      { code: 'FLT-OIL-HYD', desc: 'فلاتر زيت هيدروليكي لمضخات الصهاريج', qty: 12, unit: 'EA', price: 153000.0 },
     ],
   },
   {
@@ -47,8 +49,8 @@ const TEMPLATE_DOC_TYPES: DocTypeMeta[] = [
     sapTCode: 'MIGO (101)',
     sampleDocNumber: 'MIGO-2026-001249',
     sampleItems: [
-      { code: 'VLV-GATE-4IN', desc: 'صمام بوابة عالي الضغط 4 بوصة ANSI 600', qty: 6, unit: 'EA', price: 2150.0 },
-      { code: 'GSK-FLG-4IN', desc: 'جوانات إحكام فلانجات حلزونية 4 بوصة', qty: 24, unit: 'EA', price: 45.0 },
+      { code: 'VLV-GATE-4IN', desc: 'صمام بوابة عالي الضغط 4 بوصة ANSI 600', qty: 6, unit: 'EA', price: 968000.0 },
+      { code: 'GSK-FLG-4IN', desc: 'جوانات إحكام فلانجات حلزونية 4 بوصة', qty: 24, unit: 'EA', price: 20250.0 },
     ],
   },
   {
@@ -57,7 +59,7 @@ const TEMPLATE_DOC_TYPES: DocTypeMeta[] = [
     sapTCode: 'FB60 / MIRO',
     sampleDocNumber: 'INV-2026-000432',
     sampleItems: [
-      { code: 'SRV-FLT-MAINT', desc: 'خدمات صيانة وقائية وعمرة محركات صهاريج الديزل', qty: 1, unit: 'JOB', price: 28500.0 },
+      { code: 'SRV-FLT-MAINT', desc: 'خدمات صيانة وقائية وعمرة محركات صهاريج الديزل', qty: 1, unit: 'JOB', price: 12825000.0 },
     ],
   },
   {
@@ -66,7 +68,7 @@ const TEMPLATE_DOC_TYPES: DocTypeMeta[] = [
     sapTCode: 'F110 / F-53',
     sampleDocNumber: 'VCH-2026-000198',
     sampleItems: [
-      { code: 'PAY-VEND-SETTLE', desc: 'سداد مستحقات شركة أرامكو السعودية لتوزيع الوقود', qty: 1, unit: 'ACT', price: 185400.0 },
+      { code: 'PAY-VEND-SETTLE', desc: `سداد مستحقات ${LOCALE.vendorNamePool[0]}`, qty: 1, unit: 'ACT', price: 83430000.0 },
     ],
   },
 ];
@@ -125,7 +127,7 @@ export const PrintTemplatesPage: React.FC = () => {
   const currentMeta = TEMPLATE_DOC_TYPES.find((d) => d.type === activeDocType) || TEMPLATE_DOC_TYPES[0];
 
   const subtotal = currentMeta.sampleItems.reduce((acc, item) => acc + item.qty * item.price, 0);
-  const vat = subtotal * 0.15;
+  const vat = subtotal * LOCALE.tax.defaultRate;
   const grandTotal = subtotal + vat;
 
   return (
@@ -218,7 +220,7 @@ export const PrintTemplatesPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-[#0F172A] mb-1">
-                      الرقم الضريبي (ZATCA)
+                      الرقم الضريبي
                     </label>
                     <Input
                       value={template.taxNumber}
@@ -321,13 +323,13 @@ export const PrintTemplatesPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-0.5 text-start">
                     <h2 className="text-sm font-bold text-[#0B2545]">
-                      {template?.companyNameArabic || 'شركة الخليج للطاقة والخدمات البترولية'}
+                      {template?.companyNameArabic || LOCALE.brand.nameAr}
                     </h2>
                     <h3 className="text-xs font-serif text-[#64748B]">
-                      {template?.companyNameEnglish || 'Gulf Energy & Petroleum Services Co.'}
+                      {template?.companyNameEnglish || LOCALE.brand.nameEn}
                     </h3>
                     <div className="text-[10px] text-slate-500 font-mono pt-1">
-                      الرقم الضريبي: {template?.taxNumber || '300192834700003'} | س.ت: {template?.commercialRecord || '1010892744'}
+                      الرقم الضريبي: {template?.taxNumber || 'SY-TAX-100200'} | س.ت: {template?.commercialRecord || 'DAM-CR-10984'}
                     </div>
                   </div>
 
@@ -381,11 +383,11 @@ export const PrintTemplatesPage: React.FC = () => {
                         <td className="py-2 px-3 font-mono font-semibold">{item.code}</td>
                         <td className="py-2 px-3">{item.desc}</td>
                         <td className="py-2 px-3 text-center font-mono">
-                          {item.qty.toLocaleString()} {item.unit}
+                          {formatNumber(item.qty)} {item.unit}
                         </td>
                         <td className="py-2 px-3 text-end font-mono">{item.price.toFixed(2)}</td>
                         <td className="py-2 px-3 text-end font-mono font-semibold">
-                          {(item.qty * item.price).toLocaleString()}
+                          {formatNumber(item.qty * item.price)}
                         </td>
                       </tr>
                     ))}
@@ -398,15 +400,15 @@ export const PrintTemplatesPage: React.FC = () => {
                 <div className="w-56 space-y-1.5 p-2.5 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl">
                   <div className="flex justify-between text-[#64748B]">
                     <span>المجموع قبل الضريبة:</span>
-                    <span className="font-mono">{subtotal.toLocaleString()} ريال</span>
+                    <span className="font-mono">{formatMoney(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-[#64748B]">
-                    <span>ضريبة القيمة المضافة (15%):</span>
-                    <span className="font-mono">{vat.toLocaleString()} ريال</span>
+                    <span>ضريبة:</span>
+                    <span className="font-mono">{formatMoney(vat)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-[#0B2545] pt-1 border-t border-[#E5EAF2]">
                     <span>الإجمالي المستحق:</span>
-                    <span className="font-mono text-[#0FA37F]">{grandTotal.toLocaleString()} ريال</span>
+                    <span className="font-mono text-[#0FA37F]">{formatMoney(grandTotal)}</span>
                   </div>
                 </div>
               </div>

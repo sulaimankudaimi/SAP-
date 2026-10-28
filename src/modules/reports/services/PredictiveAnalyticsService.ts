@@ -1,4 +1,5 @@
 import { db } from '../../../core/db';
+import { formatMoney, formatNumber } from '../../../core/utils/format';
 import type {
   ForecastResult,
   ForecastPoint,
@@ -253,7 +254,7 @@ export class PredictiveAnalyticsService {
     const safetyStock = Math.round(1.96 * residualStdDev * Math.sqrt(leadTimeDays / 30));
     const suggestedReorderPoint = Math.round(avgDailyDemand * leadTimeDays + safetyStock);
 
-    // Economic Order Quantity (EOQ): S = Ordering Cost (500 SAR), H = Holding Cost (5 SAR/unit)
+    // Economic Order Quantity (EOQ): S = Ordering Cost (500 SYP), H = Holding Cost (5 SYP/unit)
     const annualDemand = points[points.length - 1].forecast * 12;
     const economicOrderQuantity = Math.round(Math.sqrt((2 * annualDemand * 500) / 5));
 
@@ -266,11 +267,9 @@ export class PredictiveAnalyticsService {
 
     const explanationArabic = `تم اختيار نموذج ${modelNameArabic} تلقائياً لتحقيقه أدنى معدل خطأ نسبي MAPE (${modelMape.toFixed(
       1
-    )}%) بدقة تنبؤ تبلغ ${(100 - modelMape).toFixed(1)}%. تشير التقديرات إلى طلب مستقبلي قدره ${points[
-      points.length - 1
-    ].forecast.toLocaleString(
-      'en-US'
-    )} وحدة، ونقطة إعادة طلب مقترحة ${suggestedReorderPoint.toLocaleString('en-US')} وحدة مع هامش أمان بنسبة 95%.`;
+    )}%) بدقة تنبؤ تبلغ ${(100 - modelMape).toFixed(1)}%. تشير التقديرات إلى طلب مستقبلي قدره ${formatNumber(
+      points[points.length - 1].forecast
+    )} وحدة، ونقطة إعادة طلب مقترحة ${formatNumber(suggestedReorderPoint)} وحدة مع هامش أمان بنسبة 95%.`;
 
     return {
       seriesName: `التنبؤ بالطلب: ${matName} (${materialCode})`,
@@ -341,9 +340,9 @@ export class PredictiveAnalyticsService {
 
     const explanationArabic = `توقع التكاليف التشغيلية بناءً على الانحدار الخطي والموسمية بمعدل خطأ ${mape.toFixed(
       1
-    )}%. يتوقع استقرار الصرف عند ${points[points.length - 1].forecast.toLocaleString(
-      'en-US'
-    )} ر.س بنهاية الربع الرابع مع نسبة ثقة 95%.`;
+    )}%. يتوقع استقرار الصرف عند ${formatMoney(
+      points[points.length - 1].forecast
+    )} بنهاية الربع الرابع مع نسبة ثقة 95%.`;
 
     return {
       seriesName,
@@ -390,7 +389,7 @@ export class PredictiveAnalyticsService {
             severity: Math.abs(z) > 2.8 ? 'high' : 'medium',
             explanationArabic: `انحراف في قيمة أمر الشراء بمعدل Z-Score=${z.toFixed(
               2
-            )} مقارنة بمتوسط أوامر الشراء (${Math.round(mean).toLocaleString('en-US')} ر.س).`,
+            )} مقارنة بمتوسط أوامر الشراء (${formatMoney(Math.round(mean))}).`,
           });
         }
       });
@@ -455,9 +454,9 @@ export class PredictiveAnalyticsService {
             zScore: Number(z.toFixed(2)),
             date: m.postingDate,
             severity: qty > q3 + 3 * iqr ? 'high' : 'medium',
-            explanationArabic: `كمية حركة استثنائية (${qty.toLocaleString(
-              'en-US'
-            )} وحدة) تتجاوز المدى الربيعي IQR الأقصى (${Math.round(upperThreshold).toLocaleString('en-US')}).`,
+            explanationArabic: `كمية حركة استثنائية (${formatNumber(
+              qty
+            )} وحدة) تتجاوز المدى الربيعي IQR الأقصى (${formatNumber(Math.round(upperThreshold))}).`,
           });
         }
       });
