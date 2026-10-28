@@ -646,7 +646,7 @@ export const IntegrityPage: React.FC = () => {
       <div className="hidden print:block pt-8 border-t border-slate-300 text-xs text-slate-600">
         <div className="flex justify-between items-center">
           <div>
-            <strong>شركة الخليج للطاقة — نظام Gulf Energy ERP</strong>
+            <strong>شركة الشام للطاقة — نظام Sham Energy ERP</strong>
             <div>تقرير الفحص الآلي لسلامة البيانات ومحددات ADR</div>
           </div>
           <div className="text-end">

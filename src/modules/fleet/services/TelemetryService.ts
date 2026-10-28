@@ -8,14 +8,18 @@
 
 import { formatTime, formatPlate } from '../../../core/utils/format';
 import { LOCALE } from '../../../config/locale';
+import { projectLatLon } from '../../../components/maps/syriaOutline';
 
 export interface TelemetryNode {
   id: string;
   name: string;
   code: string;
+  city: string;
   type: 'hub' | 'refinery' | 'oilfield' | 'terminal';
   x: number; // SVG ViewBox coordinates (0-1000, 0-650)
   y: number;
+  lat: number;
+  lon: number;
   description: string;
 }
 
@@ -48,7 +52,7 @@ export interface VehicleTelemetry {
   engineTempC: number;
   status: 'moving' | 'idling' | 'stopped';
   lastPingTime: string;
-  isSimulated: boolean; // Always true for simulator, explicitly labeled in UI
+  isSimulated: boolean; // Always true for simulator, explicitly labeled "محاكاة"
 }
 
 export interface ITelemetryProvider {
@@ -66,143 +70,183 @@ const sTartus = LOCALE.sites[5]; // مرفأ طرطوس
 const sLatakia = LOCALE.sites[6]; // مرفأ اللاذقية
 const sDamascus = LOCALE.sites[7]; // مستودع دمشق
 
+// Project lat/lon to 1000x650 viewport
+const pDam = projectLatLon(sDamascus.latitude, sDamascus.longitude, 1000, 650, 60);
+const pDeir = projectLatLon(sDeir.latitude, sDeir.longitude, 1000, 650, 60);
+const pHas = projectLatLon(sHasakah.latitude, sHasakah.longitude, 1000, 650, 60);
+const pPal = projectLatLon(sPalmyra.latitude, sPalmyra.longitude, 1000, 650, 60);
+const pHms = projectLatLon(sHoms.latitude, sHoms.longitude, 1000, 650, 60);
+const pBan = projectLatLon(sBaniyas.latitude, sBaniyas.longitude, 1000, 650, 60);
+const pTar = projectLatLon(sTartus.latitude, sTartus.longitude, 1000, 650, 60);
+const pLat = projectLatLon(sLatakia.latitude, sLatakia.longitude, 1000, 650, 60);
+
 // Key Syrian Energy Nodes (Map Coordinates on 1000x650 viewport, derived from LOCALE.sites)
-export const SAUDI_ENERGY_NODES: TelemetryNode[] = [
+export const SYRIAN_ENERGY_NODES: TelemetryNode[] = [
   {
     id: sDamascus.code,
     code: '1100',
     name: sDamascus.nameAr,
+    city: sDamascus.city,
     type: 'hub',
-    x: 485,
-    y: 345,
-    description: 'المستودع الرئيسي وتوزيع المنتجات البترولية في دمشق وريفها',
-  },
-  {
-    id: sDeir.code,
-    code: 'DEZ-01',
-    name: sDeir.nameAr,
-    type: 'oilfield',
-    x: 645,
-    y: 310,
-    description: 'حقل إنتاج ومعالجة النفط الخام في حوض الفرات',
-  },
-  {
-    id: sTartus.code,
-    code: 'TRT-01',
-    name: sTartus.nameAr,
-    type: 'terminal',
-    x: 670,
-    y: 235,
-    description: 'مرفأ الشحن البحري ومحطات تزويد الصهاريج على الساحل السوري',
+    x: pDam.x,
+    y: pDam.y,
+    lat: sDamascus.latitude,
+    lon: sDamascus.longitude,
+    description: 'المستودع الرئيسي وتوزيع المشتقات النفطية في دمشق وريفها',
   },
   {
     id: sHoms.code,
     code: '1200',
     name: sHoms.nameAr,
+    city: sHoms.city,
     type: 'refinery',
-    x: 185,
-    y: 315,
-    description: 'مصفاة التكرير المركزية وخطوط الإمداد في المنطقة الوسطى',
-  },
-  {
-    id: sPalmyra.code,
-    code: 'PLM-02',
-    name: sPalmyra.nameAr,
-    type: 'oilfield',
-    x: 555,
-    y: 320,
-    description: 'حقل الغاز والنفط الخام في البادية السورية',
+    x: pHms.x,
+    y: pHms.y,
+    lat: sHoms.latitude,
+    lon: sHoms.longitude,
+    description: 'مصفاة حمص ومجمع التكرير والتوزيع في المنطقة الوسطى',
   },
   {
     id: sBaniyas.code,
     code: '1300',
     name: sBaniyas.nameAr,
+    city: sBaniyas.city,
     type: 'refinery',
-    x: 650,
-    y: 190,
-    description: 'مصفاة بانياس الساحلية لتكرير المشتقات النفطية',
+    x: pBan.x,
+    y: pBan.y,
+    lat: sBaniyas.latitude,
+    lon: sBaniyas.longitude,
+    description: 'مصفاة ومصب بانياس البحري لتكرير وتصدير النفط',
   },
   {
-    id: sHasakah.code,
-    code: 'HSK-09',
-    name: sHasakah.nameAr,
-    type: 'oilfield',
-    x: 770,
-    y: 490,
-    description: 'منشأة استخراج وتجميع النفط والغاز في منطقة الجزيرة',
+    id: sTartus.code,
+    code: 'SITE-TAR-PRT',
+    name: sTartus.nameAr,
+    city: sTartus.city,
+    type: 'terminal',
+    x: pTar.x,
+    y: pTar.y,
+    lat: sTartus.latitude,
+    lon: sTartus.longitude,
+    description: 'مرفأ طرطوس البحري ومستودعات التوريدات البحرية',
   },
   {
     id: sLatakia.code,
-    code: 'LTK-07',
+    code: 'SITE-LAT-PRT',
     name: sLatakia.nameAr,
+    city: sLatakia.city,
     type: 'terminal',
-    x: 290,
-    y: 560,
-    description: 'مرفأ اللاذقية البحري ومستودعات الخزن الساحلية',
+    x: pLat.x,
+    y: pLat.y,
+    lat: sLatakia.latitude,
+    lon: sLatakia.longitude,
+    description: 'مرفأ اللاذقية ومحطة تفريغ وتزويد المشتقات النفطية',
+  },
+  {
+    id: sPalmyra.code,
+    code: 'SITE-PAL',
+    name: sPalmyra.nameAr,
+    city: sPalmyra.city,
+    type: 'oilfield',
+    x: pPal.x,
+    y: pPal.y,
+    lat: sPalmyra.latitude,
+    lon: sPalmyra.longitude,
+    description: 'حقل غاز ونفط البادية – تدمر ومعامل معالجة الغاز',
+  },
+  {
+    id: sDeir.code,
+    code: 'SITE-DEZ',
+    name: sDeir.nameAr,
+    city: sDeir.city,
+    type: 'oilfield',
+    x: pDeir.x,
+    y: pDeir.y,
+    lat: sDeir.latitude,
+    lon: sDeir.longitude,
+    description: 'حقل الفرات النفطي – دير الزور ومحطات الضخ الرئيسية',
+  },
+  {
+    id: sHasakah.code,
+    code: 'SITE-HAS',
+    name: sHasakah.nameAr,
+    city: sHasakah.city,
+    type: 'oilfield',
+    x: pHas.x,
+    y: pHas.y,
+    lat: sHasakah.latitude,
+    lon: sHasakah.longitude,
+    description: 'حقول نفط وغاز الجزيرة – الحسكة',
   },
 ];
 
-// Predefined SVG highway routes connecting Syrian energy facilities
-export const SAUDI_ENERGY_ROUTES: TelemetryRoute[] = [
+// Predefined SVG highway routes connecting Syrian energy facilities along plausible corridors
+export const SYRIAN_ENERGY_ROUTES: TelemetryRoute[] = [
+  // 1. Fields in the east to Homs (Deir ez-Zor -> Palmyra -> Homs)
   {
-    id: 'route-damascus-tartus',
-    code: 'RT-101',
-    name: `خط إمداد ${sDamascus.nameAr} - ${sTartus.nameAr}`,
-    originNodeId: sDamascus.code,
-    destinationNodeId: sTartus.code,
-    pathD: 'M 485 345 Q 570 290 670 235',
-    distanceKm: 255,
-    averageTravelHours: 3.5,
-  },
-  {
-    id: 'route-damascus-homs',
-    code: 'RT-102',
-    name: `شريان الجنوب - الوسط (${sDamascus.nameAr} - ${sHoms.nameAr})`,
-    originNodeId: sDamascus.code,
-    destinationNodeId: sHoms.code,
-    pathD: 'M 485 345 Q 330 330 185 315',
-    distanceKm: 165,
-    averageTravelHours: 2.2,
-  },
-  {
-    id: 'route-deir-tartus',
-    code: 'RT-103',
-    name: `خط تجميع الفرات (${sDeir.nameAr} - ${sTartus.nameAr})`,
+    id: 'route-deir-homs',
+    code: 'COR-01',
+    name: `محور الفرات - حمص (${sDeir.nameAr} - ${sHoms.nameAr})`,
     originNodeId: sDeir.code,
-    destinationNodeId: sTartus.code,
-    pathD: 'M 645 310 Q 660 270 670 235',
-    distanceKm: 420,
-    averageTravelHours: 5.0,
-  },
-  {
-    id: 'route-palmyra-damascus',
-    code: 'RT-104',
-    name: `خط الغاز والمكثفات (${sPalmyra.nameAr} - ${sDamascus.nameAr})`,
-    originNodeId: sPalmyra.code,
-    destinationNodeId: sDamascus.code,
-    pathD: 'M 555 320 Q 520 335 485 345',
-    distanceKm: 245,
-    averageTravelHours: 3.0,
-  },
-  {
-    id: 'route-tartus-baniyas',
-    code: 'RT-105',
-    name: `الخط الساحلي الصناعي (${sTartus.nameAr} - ${sBaniyas.nameAr})`,
-    originNodeId: sTartus.code,
-    destinationNodeId: sBaniyas.code,
-    pathD: 'M 670 235 Q 660 210 650 190',
-    distanceKm: 45,
-    averageTravelHours: 0.8,
-  },
-  {
-    id: 'route-damascus-latakia',
-    code: 'RT-106',
-    name: `محور الساحل الشمالي (${sDamascus.nameAr} - ${sLatakia.nameAr})`,
-    originNodeId: sDamascus.code,
-    destinationNodeId: sLatakia.code,
-    pathD: 'M 485 345 Q 380 460 290 560',
+    destinationNodeId: sHoms.code,
+    pathD: `M ${pDeir.x} ${pDeir.y} Q ${pPal.x} ${pPal.y} ${pHms.x} ${pHms.y}`,
     distanceKm: 340,
-    averageTravelHours: 4.2,
+    averageTravelHours: 4.5,
+  },
+  // 2. Palmyra field to Homs
+  {
+    id: 'route-palmyra-homs',
+    code: 'COR-02',
+    name: `خط غاز البادية (${sPalmyra.nameAr} - ${sHoms.nameAr})`,
+    originNodeId: sPalmyra.code,
+    destinationNodeId: sHoms.code,
+    pathD: `M ${pPal.x} ${pPal.y} Q ${(pPal.x + pHms.x) / 2} ${(pPal.y + pHms.y) / 2 - 15} ${pHms.x} ${pHms.y}`,
+    distanceKm: 155,
+    averageTravelHours: 2.0,
+  },
+  // 3. Homs to Baniyas
+  {
+    id: 'route-homs-baniyas',
+    code: 'COR-03',
+    name: `خط الأنابيب والصهاريج (${sHoms.nameAr} - ${sBaniyas.nameAr})`,
+    originNodeId: sHoms.code,
+    destinationNodeId: sBaniyas.code,
+    pathD: `M ${pHms.x} ${pHms.y} Q ${(pHms.x + pBan.x) / 2} ${(pHms.y + pBan.y) / 2 - 10} ${pBan.x} ${pBan.y}`,
+    distanceKm: 85,
+    averageTravelHours: 1.2,
+  },
+  // 4. Homs to Tartus
+  {
+    id: 'route-homs-tartus',
+    code: 'COR-04',
+    name: `شريان الساحل الأوسط (${sHoms.nameAr} - ${sTartus.nameAr})`,
+    originNodeId: sHoms.code,
+    destinationNodeId: sTartus.code,
+    pathD: `M ${pHms.x} ${pHms.y} Q ${(pHms.x + pTar.x) / 2 + 10} ${(pHms.y + pTar.y) / 2} ${pTar.x} ${pTar.y}`,
+    distanceKm: 95,
+    averageTravelHours: 1.3,
+  },
+  // 5. Homs to Damascus
+  {
+    id: 'route-homs-damascus',
+    code: 'COR-05',
+    name: `أوتوستراد حمص - دمشق الدولي (${sHoms.nameAr} - ${sDamascus.nameAr})`,
+    originNodeId: sHoms.code,
+    destinationNodeId: sDamascus.code,
+    pathD: `M ${pHms.x} ${pHms.y} Q ${(pHms.x + pDam.x) / 2 - 15} ${(pHms.y + pDam.y) / 2} ${pDam.x} ${pDam.y}`,
+    distanceKm: 165,
+    averageTravelHours: 2.1,
+  },
+  // 6. Latakia to Baniyas
+  {
+    id: 'route-latakia-baniyas',
+    code: 'COR-06',
+    name: `المحور الساحلي السريع (${sLatakia.nameAr} - ${sBaniyas.nameAr})`,
+    originNodeId: sLatakia.code,
+    destinationNodeId: sBaniyas.code,
+    pathD: `M ${pLat.x} ${pLat.y} Q ${(pLat.x + pBan.x) / 2 - 10} ${(pLat.y + pBan.y) / 2} ${pBan.x} ${pBan.y}`,
+    distanceKm: 55,
+    averageTravelHours: 0.8,
   },
 ];
 
@@ -210,8 +254,8 @@ export const SAUDI_ENERGY_ROUTES: TelemetryRoute[] = [
  * Deterministic helper to sample points along an SVG quadratic curve or line
  */
 function samplePointOnRoute(route: TelemetryRoute, progressFraction: number): { x: number; y: number } {
-  const origin = SAUDI_ENERGY_NODES.find((n) => n.id === route.originNodeId) || { x: 485, y: 345 };
-  const dest = SAUDI_ENERGY_NODES.find((n) => n.id === route.destinationNodeId) || { x: 670, y: 235 };
+  const origin = SYRIAN_ENERGY_NODES.find((n) => n.id === route.originNodeId) || { x: pDam.x, y: pDam.y };
+  const dest = SYRIAN_ENERGY_NODES.find((n) => n.id === route.destinationNodeId) || { x: pHms.x, y: pHms.y };
 
   // Parse control point if quadratic curve Q cx cy dx dy
   const qMatch = route.pathD.match(/Q\s+([\d.]+)\s+([\d.]+)/);
@@ -241,6 +285,7 @@ const gov = LOCALE.governorates;
 /**
  * Deterministic Mock Telemetry Simulator
  * Continuously computes real-time vehicle tracking without external API reliance.
+ * Explicitly labeled "محاكاة".
  */
 class MockTelemetrySimulator implements ITelemetryProvider {
   private activeSimulatedVehicles: Array<{
@@ -261,7 +306,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[0].nameAr, 110142),
       driverName: `${fn[0]} ${ln[0]}`,
       cargoType: 'ديزل صناعي - 36,000 لتر',
-      routeId: 'route-damascus-tartus',
+      routeId: 'route-homs-damascus',
       speedBase: 78,
       speedVariance: 5,
       initialProgress: 0.42,
@@ -273,7 +318,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[3].nameAr, 220215),
       driverName: `${fn[1]} ${ln[1]}`,
       cargoType: 'بنزين 95 سوبر - 40,000 لتر',
-      routeId: 'route-damascus-homs',
+      routeId: 'route-deir-homs',
       speedBase: 84,
       speedVariance: 6,
       initialProgress: 0.68,
@@ -285,7 +330,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[11].nameAr, 330319),
       driverName: `${fn[2]} ${ln[2]}`,
       cargoType: 'نفط خام خفيف - 45,000 لتر',
-      routeId: 'route-deir-tartus',
+      routeId: 'route-palmyra-homs',
       speedBase: 72,
       speedVariance: 4,
       initialProgress: 0.25,
@@ -297,7 +342,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[4].nameAr, 440481),
       driverName: `${fn[3]} ${ln[3]}`,
       cargoType: 'وقود طائرات Jet A-1 - 38,000 لتر',
-      routeId: 'route-palmyra-damascus',
+      routeId: 'route-homs-baniyas',
       speedBase: 80,
       speedVariance: 5,
       initialProgress: 0.81,
@@ -309,7 +354,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[6].nameAr, 550512),
       driverName: `${fn[4]} ${ln[4]}`,
       cargoType: 'غاز بترولي مسال LPG - 32,000 لتر',
-      routeId: 'route-tartus-baniyas',
+      routeId: 'route-homs-tartus',
       speedBase: 75,
       speedVariance: 4,
       initialProgress: 0.15,
@@ -321,7 +366,7 @@ class MockTelemetrySimulator implements ITelemetryProvider {
       vehiclePlate: formatPlate(gov[5].nameAr, 660674),
       driverName: `${fn[5]} ${ln[5]}`,
       cargoType: 'ديزل ممتاز نظيف - 36,000 لتر',
-      routeId: 'route-damascus-latakia',
+      routeId: 'route-latakia-baniyas',
       speedBase: 82,
       speedVariance: 7,
       initialProgress: 0.54,
@@ -333,9 +378,9 @@ class MockTelemetrySimulator implements ITelemetryProvider {
     const now = Date.now();
 
     return this.activeSimulatedVehicles.map((cfg, idx) => {
-      const route = SAUDI_ENERGY_ROUTES.find((r) => r.id === cfg.routeId) || SAUDI_ENERGY_ROUTES[0];
-      const originNode = SAUDI_ENERGY_NODES.find((n) => n.id === route.originNodeId)!;
-      const destNode = SAUDI_ENERGY_NODES.find((n) => n.id === route.destinationNodeId)!;
+      const route = SYRIAN_ENERGY_ROUTES.find((r) => r.id === cfg.routeId) || SYRIAN_ENERGY_ROUTES[0];
+      const originNode = SYRIAN_ENERGY_NODES.find((n) => n.id === route.originNodeId)!;
+      const destNode = SYRIAN_ENERGY_NODES.find((n) => n.id === route.destinationNodeId)!;
 
       // Time-based smooth continuous progress
       const elapsedSeconds = (now / 1000) % cfg.cycleDurationSeconds;

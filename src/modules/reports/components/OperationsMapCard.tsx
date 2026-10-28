@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { MapPin, Building2, Truck, AlertTriangle, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import type { PlantLocationStatus } from '../services/dashboardService';
+import { SyriaMap } from '../../../components/maps/SyriaMap';
+import { LOCALE } from '../../../config/locale';
 
 export interface OperationsMapCardProps {
   locations: PlantLocationStatus[];
@@ -47,103 +49,38 @@ export const OperationsMapCard: React.FC<OperationsMapCardProps> = ({ locations 
         </div>
       </div>
 
-      {/* Stylized Offline SVG Map of Arabian Peninsula */}
-      <div className="relative w-full h-56 bg-gradient-to-b from-[#0B2545] to-[#13315C] rounded-2xl overflow-hidden border border-[#13315C] p-2 flex items-center justify-center">
-        {/* Subtle Map Grid lines */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-15"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <pattern id="mapGrid" width="24" height="24" patternUnits="userSpaceOnUse">
-              <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#FFFFFF" strokeWidth="0.75" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#mapGrid)" />
-        </svg>
-
-        {/* Vector Contour of the Arabian Peninsula */}
-        <svg
-          viewBox="0 0 100 100"
-          className="w-full h-full max-h-48 drop-shadow-md select-none"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {/* Landmass representation */}
-          <path
-            d="M 18,22 Q 28,18 42,20 Q 55,22 68,26 Q 78,32 82,42 Q 88,52 80,68 Q 72,78 60,86 Q 48,90 38,82 Q 26,75 22,58 Q 16,40 18,22 Z"
-            fill="#1E3A63"
-            stroke="#2A4D7E"
-            strokeWidth="1.2"
-          />
-
-          {/* Red Sea shoreline */}
-          <path
-            d="M 18,26 Q 22,45 28,62 Q 35,76 40,84"
-            fill="none"
-            stroke="#0FA37F"
-            strokeWidth="0.8"
-            strokeDasharray="2,2"
-            opacity="0.6"
-          />
-
-          {/* Arabian Gulf shoreline */}
-          <path
-            d="M 68,26 Q 74,38 78,48 Q 84,56 82,66"
-            fill="none"
-            stroke="#2563EB"
-            strokeWidth="0.8"
-            strokeDasharray="2,2"
-            opacity="0.6"
-          />
-
-          {/* Location Pins */}
-          {locations.map((loc) => {
-            const isSelected = selectedPlant?.code === loc.code;
-            const isMaintenance = loc.status === 'maintenance';
-            return (
-              <g
-                key={loc.code}
-                className="cursor-pointer group"
-                onClick={() => setSelectedPlant(loc)}
-              >
-                {/* Outer Pulse ring */}
-                <circle
-                  cx={loc.coords.x}
-                  cy={loc.coords.y}
-                  r={isSelected ? 6 : 4}
-                  fill={isMaintenance ? '#F59E0B' : '#0FA37F'}
-                  opacity={isSelected ? 0.4 : 0.2}
-                  className="animate-ping"
-                />
-                {/* Core Pin */}
-                <circle
-                  cx={loc.coords.x}
-                  cy={loc.coords.y}
-                  r={isSelected ? 3.5 : 2.5}
-                  fill={isMaintenance ? '#F59E0B' : '#0FA37F'}
-                  stroke="#FFFFFF"
-                  strokeWidth="1"
-                />
-                {/* Plant Label on Map */}
-                <text
-                  x={loc.coords.x}
-                  y={loc.coords.y - 4.5}
-                  textAnchor="middle"
-                  fill="#FFFFFF"
-                  fontSize="3.2"
-                  fontWeight="bold"
-                  fontFamily="sans-serif"
-                >
-                  {loc.city}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+      {/* Stylized Offline SVG Syria Map */}
+      <div className="relative w-full h-64 rounded-2xl overflow-hidden border border-[#13315C] shadow-inner">
+        <SyriaMap
+          theme="dark"
+          width={800}
+          height={560}
+          selectedPinId={selectedPlant?.code}
+          onSelectPin={(pin) => {
+            const matched = locations.find((l) => l.code === pin.code);
+            if (matched) {
+              setSelectedPlant(matched);
+            } else {
+              // Find matching plant by city if site
+              const plantForCity = locations.find((l) => l.city === pin.city) || locations[0];
+              setSelectedPlant({
+                id: pin.id,
+                code: pin.code,
+                name: pin.name,
+                city: pin.city,
+                activeOrders: 12,
+                activeVehicles: 8,
+                status: 'active',
+                coords: { x: 50, y: 50 },
+              });
+            }
+          }}
+          className="w-full h-full"
+        />
 
         {/* Mini Selected Plant Overlay Info Badge */}
         {selectedPlant && (
-          <div className="absolute bottom-2 start-2 end-2 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-white/40 shadow-lg text-start flex items-center justify-between text-xs">
+          <div className="absolute bottom-2 start-2 end-2 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-white/40 shadow-lg text-start flex items-center justify-between text-xs z-20">
             <div className="flex items-center gap-2 overflow-hidden">
               <div
                 className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${

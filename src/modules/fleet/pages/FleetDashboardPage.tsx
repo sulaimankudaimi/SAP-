@@ -246,7 +246,7 @@ export const FleetDashboardPage: React.FC = () => {
               />
               <SpeedGauge
                 speed={topSpeedTelemetry?.speedKmH || 88}
-                vehiclePlate={topSpeedTelemetry?.vehiclePlate || 'أ ب ج 1101'}
+                vehiclePlate={topSpeedTelemetry?.vehiclePlate || 'دمشق 110101'}
                 label="أعلى سرعة مسجلة"
                 size={140}
               />

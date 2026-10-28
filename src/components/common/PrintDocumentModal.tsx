@@ -286,7 +286,7 @@ export const PrintDocumentModal: React.FC<PrintDocumentModalProps> = ({
               {/* Footer text from Template */}
               <div className="pt-4 border-t border-slate-200 text-center text-[9px] text-[#64748B]">
                 {template.footerText ||
-                  'وثيقة رسمية صادرة آلياً من نظام الخليج لإدارة الموارد (Gulf Energy ERP).'}
+                  'وثيقة رسمية صادرة آلياً من نظام شركة الشام للطاقة (Sham Energy ERP).'}
               </div>
             </div>
           </div>

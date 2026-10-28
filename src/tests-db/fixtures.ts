@@ -87,7 +87,7 @@ export async function seedReferenceData(client: PoolClient): Promise<SeededFixtu
     END $$;
   `);
 
-  // 6. Materials (Rescaled by SAR_TO_SYP_FACTOR = 450)
+  // 6. Materials (Rescaled by factor 450)
   await client.query(`
     INSERT INTO public.materials (code, name, material_type, material_group, base_unit, moving_average_price, is_active) VALUES
     ('MAT-FUEL-DIESEL', 'وقود ديزل نقل ثقيل (Euro 5 Diesel - تجريبي)', 'HAWA', 'FUEL', 'L', 520.00, true),

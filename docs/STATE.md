@@ -1,4 +1,4 @@
-# Gulf Energy ERP — Implementation State Report
+# Sham Energy ERP — Implementation State Report
 
 Generated automatically by `scripts/state-report.mjs` based on `src/app/routeStatus.ts` and `src/app/routes.tsx`.
 
@@ -33,6 +33,7 @@ Generated automatically by `scripts/state-report.mjs` based on `src/app/routeSta
 | `/admin/workflow` | `WorkflowConfigPage` | ✅ **IMPLEMENTED** |
 | `/admin/backup` | `BackupRestorePage` | ✅ **IMPLEMENTED** |
 | `/admin/print-templates` | `PrintTemplatesPage` | ✅ **IMPLEMENTED** |
+| `/admin/integrity` | `IntegrityPage` | ✅ **IMPLEMENTED** |
 
 ### Procurement (MM-PUR)
 
@@ -64,6 +65,7 @@ Generated automatically by `scripts/state-report.mjs` based on `src/app/routeSta
 | `/fleet/trips` | `TripsListPage` | ✅ **IMPLEMENTED** |
 | `/fleet/fuel` | `FuelManagementPage` | ✅ **IMPLEMENTED** |
 | `/fleet/maintenance` | `FleetMaintenancePage` | ✅ **IMPLEMENTED** |
+| `/fleet/outbox` | `FleetOutboxPage` | ✅ **IMPLEMENTED** |
 
 ### Asset Management (FI-AA)
 
@@ -122,8 +124,8 @@ Generated automatically by `scripts/state-report.mjs` based on `src/app/routeSta
 
 ### Summary
 
-- **Total Registered Routes**: 64
-- **Implemented Routes**: 54
+- **Total Registered Routes**: 66
+- **Implemented Routes**: 56
 - **Placeholder Routes**: 10
 
 ---

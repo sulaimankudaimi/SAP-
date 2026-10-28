@@ -1,4 +1,4 @@
-# ADR 0001: Multi-User Server-Authoritative Architecture for Gulf Energy ERP
+# ADR 0001: Multi-User Server-Authoritative Architecture for Sham Energy ERP
 
 - **Status**: Accepted
 - **Date**: 2026-10-11
@@ -20,12 +20,12 @@ OFFLINE_FIELD_ENTRY   = yes
 
 ## 1. Context
 
-Today, Gulf Energy ERP runs exclusively as single-tenant client-side installations with data persisted in browser-local IndexedDB via Dexie. Every workstation or mobile terminal acts as an isolated data island. Master data, transaction documents, inventory movements, and journal entries created on one device cannot be seen, validated, or consolidated in real time by other users.
+Today, Sham Energy ERP runs exclusively as single-tenant client-side installations with data persisted in browser-local IndexedDB via Dexie. Every workstation or mobile terminal acts as an isolated data island. Master data, transaction documents, inventory movements, and journal entries created on one device cannot be seen, validated, or consolidated in real time by other users.
 
-The organization operates across three distinct operational sites in Saudi Arabia:
-1. **Al-Khobar Headquarters** (Executive governance, procurement approvals, corporate accounting, financial closing).
-2. **Yanbu Distribution Hub** (Bulk fuel dispatching, fleet terminal, regional fuel sales).
-3. **Jubail Industrial Logistics Depot** (Chemicals logistics, vehicle maintenance workshops, spare parts warehousing).
+The organization operates across three distinct operational sites in Syria:
+1. **Damascus Headquarters** (Executive governance, procurement approvals, corporate accounting, financial closing).
+2. **Homs Industrial Complex** (Bulk fuel dispatching, fleet terminal, regional fuel sales).
+3. **Baniyas Coastal Terminal** (Chemicals logistics, vehicle maintenance workshops, spare parts warehousing).
 
 Under normal operational peaks, up to 15 concurrent users interact simultaneously with the ERP across administrative desks, warehouse counters, maintenance bays, and dispatch offices. Furthermore, field logistics staff and tanker drivers must record fuel distribution logs, odometer readings, and routine safety inspections in industrial loading areas where local Wi-Fi or cellular connectivity is frequently interrupted (`OFFLINE_FIELD_ENTRY = yes`).
 

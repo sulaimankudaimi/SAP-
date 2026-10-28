@@ -1,6 +1,6 @@
 {
-  "name": "Gulf Energy ERP",
-  "description": "نظام طاقة الخليج المتكامل لإدارة موارد المؤسسات والمشاريع والمالية والمخزون",
+  "name": "Sham Energy ERP",
+  "description": "نظام شركة الشام للطاقة المتكامل لإدارة موارد المؤسسات والمشاريع والمالية والمخزون",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

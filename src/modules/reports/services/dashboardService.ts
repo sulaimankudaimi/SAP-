@@ -290,9 +290,9 @@ export class DashboardService {
     const allVehicles = await vehicleRepository.list();
 
     const plantCoords: Record<string, { x: number; y: number }> = {
-      '1100': { x: 52, y: 48 }, // Riyadh (Central)
-      '1200': { x: 28, y: 52 }, // Yanbu (West Coast / Red Sea)
-      '1300': { x: 74, y: 44 }, // Dammam (East Coast / Arabian Gulf)
+      '1100': { x: 52, y: 48 }, // Damascus (Capital / HQ)
+      '1200': { x: 28, y: 52 }, // Homs (Central Distribution Hub)
+      '1300': { x: 74, y: 44 }, // Baniyas (Coastal Refinery Terminal)
     };
 
     return allPlants.map((plant) => {

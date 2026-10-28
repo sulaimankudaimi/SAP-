@@ -735,63 +735,79 @@ describe('Database Client-Server Contract & Schema Invariants', () => {
       expect(driverCols).toContain(c);
     }
 
-    // 3. trips table
+    // 3. trips table (operational document: immutable, NO is_deleted column)
     const tripCols = await getColumns('trips');
     const expectedTripCols = [
       'id', 'doc_number', 'status', 'vehicle_id', 'driver_id', 'origin_plant',
       'destination_location', 'cargo_type', 'cargo_volume_liters', 'scheduled_departure',
-      'scheduled_arrival', 'start_odometer', 'end_odometer', 'distance_km',
-      'fuel_liters_consumed', 'fuel_cost', 'total_trip_cost', 'je_doc_number', 'version', 'is_deleted'
+      'scheduled_arrival', 'actual_departure', 'actual_arrival', 'start_odometer',
+      'end_odometer', 'distance_km', 'fuel_liters_consumed', 'fuel_cost',
+      'driver_allowance_cost', 'total_trip_cost', 'cost_per_km', 'is_delayed',
+      'delay_minutes', 'je_doc_number', 'cancelled_by_document', 'cancellation_reason',
+      'created_by', 'created_at', 'updated_at', 'version'
     ];
     for (const c of expectedTripCols) {
       expect(tripCols).toContain(c);
     }
+    expect(tripCols).not.toContain('is_deleted');
 
-    // 4. fuel_logs table
+    // 4. fuel_logs table (operational document: immutable, NO is_deleted column)
     const fuelCols = await getColumns('fuel_logs');
     const expectedFuelCols = [
       'id', 'doc_number', 'vehicle_id', 'driver_id', 'fuel_type', 'liters',
-      'unit_price', 'total_cost', 'odometer', 'station_name', 'plant_code', 'version', 'is_deleted'
+      'unit_price', 'total_cost', 'odometer', 'station_name', 'invoice_number',
+      'plant_code', 'logged_at', 'is_anomaly', 'anomaly_reason', 'je_doc_number',
+      'created_by', 'created_at', 'updated_at', 'version'
     ];
     for (const c of expectedFuelCols) {
       expect(fuelCols).toContain(c);
     }
+    expect(fuelCols).not.toContain('is_deleted');
 
-    // 5. maintenance_orders table
+    // 5. maintenance_orders table (operational document: immutable, NO is_deleted column)
     const moCols = await getColumns('maintenance_orders');
     const expectedMoCols = [
-      'id', 'doc_number', 'vehicle_id', 'order_type', 'description',
-      'estimated_cost', 'actual_cost', 'parts_cost', 'labor_cost', 'labor_hours',
-      'start_date', 'completion_date', 'status', 'version', 'is_deleted'
+      'id', 'doc_number', 'status', 'vehicle_id', 'vehicle_plate', 'order_type',
+      'description', 'fault_reported', 'estimated_cost', 'parts_cost', 'labor_hours',
+      'labor_cost', 'actual_cost', 'downtime_hours', 'start_date', 'completion_date',
+      'preventive_schedule_id', 'je_doc_number', 'cancelled_by_document',
+      'cancellation_reason', 'created_by', 'created_at', 'updated_at', 'version'
     ];
     for (const c of expectedMoCols) {
       expect(moCols).toContain(c);
     }
+    expect(moCols).not.toContain('is_deleted');
 
-    // 6. preventive_schedules table
+    // 6. preventive_schedules table (status column; NO is_active column)
     const psCols = await getColumns('preventive_schedules');
     const expectedPsCols = [
-      'id', 'vehicle_id', 'service_name', 'interval_km', 'interval_days',
-      'last_done_odometer', 'last_done_date', 'next_due_odometer', 'next_due_date', 'is_active'
+      'id', 'vehicle_id', 'title', 'interval_km', 'interval_days',
+      'last_performed_date', 'last_performed_odometer', 'next_due_date',
+      'next_due_odometer', 'status', 'created_by', 'created_at', 'updated_at', 'version'
     ];
     for (const c of expectedPsCols) {
       expect(psCols).toContain(c);
     }
+    expect(psCols).not.toContain('is_active');
 
-    // 7. fuel_anomaly_alerts table
+    // 7. fuel_anomaly_alerts table (status, resolved_notes/at/by, version; NO is_resolved column)
     const alertCols = await getColumns('fuel_anomaly_alerts');
     const expectedAlertCols = [
-      'id', 'vehicle_id', 'fuel_log_id', 'liters', 'recorded_consumption',
-      'baseline_consumption', 'deviation_percentage', 'severity', 'status', 'is_resolved'
+      'id', 'vehicle_id', 'vehicle_plate', 'fuel_log_id', 'date', 'liters',
+      'recorded_l_per_100km', 'average_l_per_100km', 'deviation_percentage',
+      'severity', 'reason_summary', 'status', 'resolved_notes', 'resolved_at',
+      'resolved_by', 'updated_at', 'version', 'is_deleted', 'created_at'
     ];
     for (const c of expectedAlertCols) {
       expect(alertCols).toContain(c);
     }
+    expect(alertCols).not.toContain('is_resolved');
 
     // 8. v_cost_center_fleet_reconciliation view
     const reconCols = await getColumns('v_cost_center_fleet_reconciliation');
     const expectedReconCols = [
-      'cost_center', 'total_fleet_cost', 'total_gl_cost', 'variance'
+      'cost_center', 'total_fuel', 'total_maintenance', 'total_allowance',
+      'operational_total_cost', 'journal_total_debit', 'variance'
     ];
     for (const c of expectedReconCols) {
       expect(reconCols).toContain(c);

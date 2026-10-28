@@ -463,10 +463,10 @@ export class FinanceService {
 
   /**
    * Seeds realistic SAP FI/CO dataset if journal entries are not yet populated.
-   * All amounts rescaled by 450 (SAR -> SYP).
+   * All amounts rescaled by 450 (historical base -> SYP).
    */
   static async seedFinanceIfEmpty(): Promise<void> {
-    const F = 450; // SAR_TO_USD (3.75) * DEMO_FX_SYP_PER_USD (120) = 450
+    const F = 450; // Rescale factor (3.75 * 120 = 450)
     await this.initFiscalPeriods('2026');
 
     // Import AutomaticPostingEngine dynamically or assume initialized

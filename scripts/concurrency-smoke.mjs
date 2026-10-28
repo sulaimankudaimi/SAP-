@@ -39,7 +39,7 @@ const testEmail = process.env.TEST_USER_EMAIL || 'admin@gulfenergy.sa';
 const testPassword = process.env.TEST_USER_PASSWORD || 'Admin@123';
 
 console.log('====================================================================');
-console.log('Gulf Energy ERP - Server-Authoritative Concurrency Smoke Suite');
+console.log('Sham Energy ERP - Server-Authoritative Concurrency Smoke Suite');
 console.log(`Server Origin: ${supabaseUrl}`);
 console.log('====================================================================\n');
 
@@ -161,9 +161,9 @@ async function runSmokeTests() {
       p_driver_id: crypto.randomUUID(),
       p_fuel_type: 'Diesel',
       p_liters: 250.000,
-      p_unit_price: 1.15,
+      p_unit_price: 520.00,
       p_odometer: 75200.00,
-      p_station_name: 'محطة أرامكو الدائري الشمالي',
+      p_station_name: 'محطة الشام لتوزيع المحروقات - دمشق',
       p_invoice_number: 'INV-STATION-8812',
       p_plant_code: '1100'
     };

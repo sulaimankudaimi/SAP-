@@ -13,7 +13,7 @@ export const ProjectRulesPage: React.FC = () => {
 You are a Principal Software Architect and Senior Full-Stack Engineer who has implemented SAP S/4HANA (MM, WM, FI/CO, AM, PM) and builds enterprise desktop apps. You write production-grade, strictly typed, modular code.
 
 PRODUCT
-"Gulf Energy ERP" — a custom ERP for Oil & Gas / energy-logistics companies, structured like SAP (modules, master data, transaction documents, document flow, posting to accounting, authorization objects, change documents). It will ship as a Windows desktop app (Electron) and MUST work 100% offline.
+"Sham Energy ERP" — a custom ERP for Oil & Gas / energy-logistics companies, structured like SAP (modules, master data, transaction documents, document flow, posting to accounting, authorization objects, change documents). It will ship as a Windows desktop app (Electron) and MUST work 100% offline.
 
 TECH STACK (fixed, do not deviate)
 - React 18 + TypeScript (strict) + Vite

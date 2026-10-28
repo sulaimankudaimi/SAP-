@@ -16,7 +16,7 @@ export const FIELD_LABELS = {
 /**
  * Syrian phone validator:
  * Accepts "+963" or a leading "0" followed by 8 to 9 digits (spaces/hyphens allowed).
- * Does not accept other country codes (such as +966).
+ * Does not accept foreign non-Syrian country codes.
  */
 export function validateSyrianPhone(value: string): ValidationResult {
   const normalized = toWesternDigits(value || '').trim();

@@ -1,4 +1,4 @@
-# Gulf Energy ERP | شركة الخليج للطاقة
+# Sham Energy ERP | شركة الشام للطاقة
 
 An enterprise-grade SAP S/4HANA-inspired ERP desktop solution for Oil & Gas and energy logistics operations. Built with React 19, TypeScript (strict), Vite, Dexie (IndexedDB), Tailwind CSS, and full offline-first capabilities.
 
@@ -6,7 +6,7 @@ An enterprise-grade SAP S/4HANA-inspired ERP desktop solution for Oil & Gas and 
 
 ## Security Model
 
-Gulf Energy ERP enforces an SAP-grade, defense-in-depth security architecture with zero tolerance for implicit defaults, pseudo-users, or unauthenticated writes.
+Sham Energy ERP enforces an SAP-grade, defense-in-depth security architecture with zero tolerance for implicit defaults, pseudo-users, or unauthenticated writes.
 
 ### 1. Actors & Active Session Context
 - **Zero Auto-Sessions**: The application boots in an unauthenticated state. No default or automatic administrator sessions exist.

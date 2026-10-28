@@ -2,7 +2,16 @@ import { create } from 'zustand';
 import { db } from '../db';
 import { DiagnosticLogger } from '../services/DiagnosticLogger';
 
+let operatingModeOverride: 'server' | 'local' | null = null;
+
+export function setOperatingMode(mode: 'server' | 'local'): void {
+  operatingModeOverride = mode;
+}
+
 export function isServerMode(): boolean {
+  if (operatingModeOverride !== null) {
+    return operatingModeOverride === 'server';
+  }
   return import.meta.env.VITE_SERVER_MODE === 'true';
 }
 

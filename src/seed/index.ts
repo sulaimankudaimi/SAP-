@@ -1,12 +1,10 @@
 /**
  * Syria Localization & Monetary Rescale (Prompt 2)
  * ------------------------------------------------
- * All historical demo amounts were originally authored in SAR.
- * Every monetary amount, unit price, budget, asset cost, PO/invoice amount,
- * fuel price per liter, maintenance cost, and approval threshold in this seed
- * has been converted to new Syrian Pounds (SYP) using the single rescale factor:
+ * All historical demo amounts were converted to new Syrian Pounds (SYP)
+ * using the single rescale factor:
  *
- *   SAR_TO_USD (3.75) * DEMO_FX_SYP_PER_USD (120) = 450
+ *   3.75 * DEMO_FX_SYP_PER_USD (120) = 450
  *
  * Large values are rounded to the nearest 1,000 SYP; small values (such as
  * demo fuel prices per liter) are rounded to the nearest 10 SYP so relative

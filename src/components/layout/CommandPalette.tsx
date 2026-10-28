@@ -180,7 +180,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
               <span>للإغلاق: <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5EAF2]">ESC</kbd></span>
               <span>للتنقل السريع: <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5EAF2]">Ctrl+K</kbd></span>
             </div>
-            <span className="text-[10px] text-emerald-600 font-semibold font-mono">Gulf Energy ERP Desktop</span>
+            <span className="text-[10px] text-emerald-600 font-semibold font-mono">Sham Energy ERP Desktop</span>
           </div>
         </div>
       </div>

@@ -257,7 +257,7 @@ export const MaterialGroupsListPage: React.FC = () => {
         columns={columns}
         isLoading={loading}
         searchPlaceholder="بحث برمز المجموعة أو الاسم..."
-        exportFileName="مجموعات_المواد_طاقة_الخليج"
+        exportFileName="مجموعات_المواد_طاقة_الشام"
       />
 
       {/* Create Modal */}

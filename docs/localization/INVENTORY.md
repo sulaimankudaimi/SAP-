@@ -7,18 +7,18 @@
 | الفئة (Category) | عدد المواضع المرصودة (Hits) |
 |---|---|
 | **currency** | 2 |
-| **places** | 3 |
+| **places** | 0 |
 | **people names** | 0 |
 | **ID/legal formats** | 4 |
 | **locale/timezone** | 0 |
 | **tax** | 0 |
 | **phone/IBAN validators** | 1 |
-| **map/visuals** | 6 |
+| **map/visuals** | 5 |
 | **brand** | 44 |
 | **SQL** | 0 |
 | **tests** | 11 |
 | **docs** | 57 |
-| **الإجمالي الكلي (Total)** | **128** |
+| **الإجمالي الكلي (Total)** | **124** |
 
 ---
 
@@ -31,13 +31,9 @@
 | `src/modules/finance/services/FinanceService.ts:466` | `SAR` | `* All amounts rescaled by 450 (SAR -> SYP).` | SYP (أو LOCALE.currency.code / formatMoney) |
 | `src/seed/index.ts:4` | `SAR` | `* All historical demo amounts were originally authored in SAR.` | SYP (أو LOCALE.currency.code / formatMoney) |
 
-### فئة: `places` (3 موضع)
+### فئة: `places` (0 موضع)
 
-| الملف والسطر (`file:line`) | الرمز (`Token`) | المقتطف (`Snippet`) | البديل المقترح (`Proposed Replacement`) |
-|---|---|---|---|
-| `src/modules/reports/services/dashboardService.ts:293` | `Riyadh` | `'1100': { x: 52, y: 48 }, // Riyadh (Central)` | Damascus |
-| `src/modules/reports/services/dashboardService.ts:294` | `Yanbu` | `'1200': { x: 28, y: 52 }, // Yanbu (West Coast / Red Sea)` | Homs |
-| `src/modules/reports/services/dashboardService.ts:295` | `Dammam` | `'1300': { x: 74, y: 44 }, // Dammam (East Coast / Arabian Gulf)` | Homs / Deir ez-Zor |
+_لا توجد مواضع متبقية في هذه الفئة._
 
 ### فئة: `people names` (0 موضع)
 
@@ -66,7 +62,7 @@ _لا توجد مواضع متبقية في هذه الفئة._
 |---|---|---|---|
 | `src/core/utils/validators.ts:19` | `+966` | `* Does not accept other country codes (such as +966).` | +963 (LOCALE.phone.countryCode) |
 
-### فئة: `map/visuals` (6 موضع)
+### فئة: `map/visuals` (5 موضع)
 
 | الملف والسطر (`file:line`) | الرمز (`Token`) | المقتطف (`Snippet`) | البديل المقترح (`Proposed Replacement`) |
 |---|---|---|---|
@@ -75,7 +71,6 @@ _لا توجد مواضع متبقية في هذه الفئة._
 | `src/modules/fleet/components/FleetMapView.tsx:180` | `الخليج العربي` | `الخليج العربي (Arabian Gulf)` | الجمهورية العربية السورية / البحر الأبيض المتوسط |
 | `src/modules/fleet/components/FleetMapView.tsx:180` | `Arabian Gulf` | `الخليج العربي (Arabian Gulf)` | Syria / Eastern Mediterranean |
 | `src/modules/reports/components/OperationsMapCard.tsx:89` | `Arabian Gulf` | `{/* Arabian Gulf shoreline */}` | Syria / Eastern Mediterranean |
-| `src/modules/reports/services/dashboardService.ts:295` | `Arabian Gulf` | `'1300': { x: 74, y: 44 }, // Dammam (East Coast / Arabian Gulf)` | Syria / Eastern Mediterranean |
 
 ### فئة: `brand` (44 موضع)
 

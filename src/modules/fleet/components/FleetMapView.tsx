@@ -1,24 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   telemetryService,
-  SAUDI_ENERGY_NODES,
-  SAUDI_ENERGY_ROUTES,
+  SYRIAN_ENERGY_NODES,
+  SYRIAN_ENERGY_ROUTES,
   VehicleTelemetry,
   TelemetryNode,
 } from '../services/TelemetryService';
 import { Badge } from '../../../components/ui/Badge';
-import { Button } from '../../../components/ui/Button';
+import { LOCALE } from '../../../config/locale';
+import { getSyriaSvgPath, projectLatLon } from '../../../components/maps/syriaOutline';
 import {
   Truck,
-  MapPin,
   Radio,
-  Flame,
   Layers,
-  Compass,
-  Gauge,
   Droplet,
-  Info,
-  Maximize2,
+  Flame,
+  CloudSun,
   Navigation,
 } from 'lucide-react';
 
@@ -37,6 +34,9 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
   const [showRoutes, setShowRoutes] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
 
+  // Weather widget state based on HQ City from Locale Pack
+  const hqPlant = LOCALE.plants.find((p) => p.isHQ) || LOCALE.plants[0];
+
   useEffect(() => {
     // Subscribe to live telemetry stream from provider (Simulated GPS Heartbeat)
     const unsubscribe = telemetryService.subscribeToUpdates((data) => {
@@ -45,6 +45,17 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
 
     return () => unsubscribe();
   }, []);
+
+  const width = 1000;
+  const height = 650;
+
+  const silhouettePath = useMemo(() => {
+    return getSyriaSvgPath(width, height, 60);
+  }, [width, height]);
+
+  const medSeaPos = useMemo(() => {
+    return projectLatLon(35.35, 35.35, width, height, 60);
+  }, [width, height]);
 
   return (
     <div className="relative bg-[#0B2545] rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl text-white select-none">
@@ -57,20 +68,32 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-white tracking-wide">
-                خريطة التتبع الفعلي لأسطول النقل البترولي
+                خريطة التتبع الفعلي لأسطول النقل واللوجستيات
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/40">
                 محاكاة GPS مباشرة
               </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                مخطط توضيحي
+              </span>
             </div>
             <p className="text-[11px] text-slate-300">
-              تتبع مسارات صهاريج نقل الوقود بين المحطات المركزية وحقول الإنتاج
+              تتبع مسارات صهاريج نقل الوقود والمشتقات بين المصافي والمرافئ ومحطات التوزيع
             </p>
           </div>
         </div>
 
-        {/* View Controls */}
+        {/* View Controls & Regional Weather Indicator Widget */}
         <div className="flex items-center gap-2">
+          {/* Weather Widget */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs">
+            <CloudSun className="w-4 h-4 text-amber-400" />
+            <div className="text-start leading-tight">
+              <span className="text-[10px] text-slate-400 block">{hqPlant.city} (المقر الرئيسي)</span>
+              <span className="font-bold text-white text-[11px]">24°C مشمس / رياح 12 كم/س</span>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowRoutes(!showRoutes)}
@@ -102,13 +125,13 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
       {/* SVG Map Canvas */}
       <div className="w-full aspect-[16/10] min-h-[480px] max-h-[620px] relative overflow-hidden bg-gradient-to-b from-[#091D36] via-[#0B2545] to-[#0A1A2F]">
         <svg
-          viewBox="0 0 1000 650"
+          viewBox={`0 0 ${width} ${height}`}
           className="w-full h-full"
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
             {/* Grid Pattern */}
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <pattern id="fleetGrid" width="40" height="40" patternUnits="userSpaceOnUse">
               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
             </pattern>
 
@@ -137,52 +160,38 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
           </defs>
 
           {/* Background Grid */}
-          <rect width="1000" height="650" fill="url(#grid)" />
+          <rect width={width} height={height} fill="url(#fleetGrid)" />
 
-          {/* Stylized Saudi Arabian Geographic Contour (Silhouette Backdrop) */}
+          {/* Stylized Syrian Geographic Contour (Silhouette Backdrop) */}
           <path
-            d="M 120 180 
-               Q 240 140 380 120 
-               Q 520 100 680 110 
-               Q 790 140 850 200 
-               Q 880 320 860 450 
-               Q 810 570 700 590 
-               Q 560 610 380 590 
-               Q 240 570 190 480 
-               Q 140 380 120 280 Z"
+            d={silhouettePath}
             fill="#0F2B4D"
-            opacity="0.35"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-          />
-
-          {/* Red Sea & Arabian Gulf shoreline indications */}
-          <path
-            d="M 110 200 Q 160 340 270 570"
-            fill="none"
+            opacity="0.5"
             stroke="#2563EB"
-            strokeWidth="2.5"
-            opacity="0.25"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
           />
-          <text x="140" y="440" fill="#64748B" fontSize="11" opacity="0.4" transform="rotate(-65 140 440)">
-            البحر الأحمر (Red Sea)
-          </text>
 
-          <path
-            d="M 640 160 Q 690 230 730 330"
-            fill="none"
-            stroke="#0FA37F"
-            strokeWidth="2.5"
-            opacity="0.25"
-          />
-          <text x="700" y="220" fill="#64748B" fontSize="11" opacity="0.4" transform="rotate(45 700 220)">
-            الخليج العربي (Arabian Gulf)
-          </text>
+          {/* Mediterranean Sea Coast Label */}
+          <g>
+            <text
+              x={medSeaPos.x}
+              y={medSeaPos.y}
+              fill="#60A5FA"
+              fontSize="13"
+              fontWeight="bold"
+              opacity="0.6"
+              textAnchor="middle"
+              transform={`rotate(-75 ${medSeaPos.x} ${medSeaPos.y})`}
+              style={{ letterSpacing: '3px' }}
+            >
+              البحر المتوسط
+            </text>
+          </g>
 
-          {/* 1. Highway Route Paths */}
+          {/* 1. Predefined Highway Route Paths (Corridors) */}
           {showRoutes &&
-            SAUDI_ENERGY_ROUTES.map((route, i) => (
+            SYRIAN_ENERGY_ROUTES.map((route, i) => (
               <g key={route.id} className="transition-all duration-300">
                 {/* Outer Glow Path */}
                 <path
@@ -214,8 +223,8 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
               </g>
             ))}
 
-          {/* 2. Facility Nodes (Oil fields, Refineries, Logistics Hubs) */}
-          {SAUDI_ENERGY_NODES.map((node) => {
+          {/* 2. Facility Nodes (Oil fields, Refineries, Logistics Hubs, Ports) */}
+          {SYRIAN_ENERGY_NODES.map((node) => {
             const isHovered = hoveredNode?.id === node.id;
             const nodeColor =
               node.type === 'hub'
@@ -224,7 +233,7 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
                 ? '#2563EB'
                 : node.type === 'oilfield'
                 ? '#F59E0B'
-                : '#8B5CF6';
+                : '#06B6D4';
 
             return (
               <g
@@ -332,9 +341,9 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
                 {/* Vehicle Plate Callout */}
                 <g>
                   <rect
-                    x={v.currentPosition.x - 35}
+                    x={v.currentPosition.x - 45}
                     y={v.currentPosition.y - 25}
-                    width="70"
+                    width="90"
                     height="17"
                     rx="5"
                     fill={isSelected ? '#0FA37F' : '#0F172A'}
@@ -364,8 +373,8 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
           <div
             className="absolute z-30 p-3 bg-[#0F172A]/95 text-white text-xs rounded-xl border border-slate-600/70 shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-150 space-y-1.5"
             style={{
-              top: `${Math.min(75, Math.max(15, (hoveredVehicle.currentPosition.y / 650) * 100))}%`,
-              left: `${Math.min(80, Math.max(10, (hoveredVehicle.currentPosition.x / 1000) * 100))}%`,
+              top: `${Math.min(75, Math.max(15, (hoveredVehicle.currentPosition.y / height) * 100))}%`,
+              left: `${Math.min(80, Math.max(10, (hoveredVehicle.currentPosition.x / width) * 100))}%`,
               transform: 'translate(-50%, -105%)',
               minWidth: '220px',
             }}
@@ -404,8 +413,8 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
           <div
             className="absolute z-30 p-2.5 bg-[#0F172A]/95 text-white text-xs rounded-xl border border-slate-600/70 shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-150"
             style={{
-              top: `${Math.min(75, Math.max(15, (hoveredNode.y / 650) * 100))}%`,
-              left: `${Math.min(80, Math.max(10, (hoveredNode.x / 1000) * 100))}%`,
+              top: `${Math.min(75, Math.max(15, (hoveredNode.y / height) * 100))}%`,
+              left: `${Math.min(80, Math.max(10, (hoveredNode.x / width) * 100))}%`,
               transform: 'translate(-50%, -105%)',
               minWidth: '200px',
             }}
@@ -425,7 +434,7 @@ export const FleetMapView: React.FC<FleetMapViewProps> = ({
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0FA37F]" />
-            <span>مراكز لوجستية رئيسية</span>
+            <span>مراكز ومستودعات رئيسية</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />

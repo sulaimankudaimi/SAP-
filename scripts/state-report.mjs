@@ -141,7 +141,7 @@ for (const r of foundRoutes) {
 }
 
 // Build Markdown
-let md = `# Gulf Energy ERP — Implementation State Report
+let md = `# Sham Energy ERP — Implementation State Report
 
 Generated automatically by \`scripts/state-report.mjs\` based on \`src/app/routeStatus.ts\` and \`src/app/routes.tsx\`.
 

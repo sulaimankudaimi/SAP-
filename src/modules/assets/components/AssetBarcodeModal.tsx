@@ -5,6 +5,7 @@ import { generateCode128Svg } from '../../../core/utils/barcode';
 import type { Asset } from '../../../types/models';
 import { Printer, ShieldCheck, Tag } from 'lucide-react';
 import { t } from '../../../i18n/ar';
+import { LOCALE } from '../../../config/locale';
 
 interface AssetBarcodeModalProps {
   isOpen: boolean;
@@ -83,7 +84,7 @@ export const AssetBarcodeModal: React.FC<AssetBarcodeModalProps> = ({
         </head>
         <body onload="window.print(); window.close();">
           <div class="label-card">
-            <div class="header">شركة الخليج للطاقة | Gulf Energy ERP</div>
+            <div class="header">${LOCALE.brand.nameAr} | ${LOCALE.brand.productName}</div>
             <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">${asset.name}</div>
             <div style="font-size: 11px; color: #64748B; margin-bottom: 8px;">رقم الأصل: ${asset.assetNumber}</div>
             <div class="barcode-svg">${barcodeSvg}</div>
@@ -116,8 +117,8 @@ export const AssetBarcodeModal: React.FC<AssetBarcodeModalProps> = ({
                 <Tag className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">شركة الخليج للطاقة</p>
-                <p className="text-[10px] text-slate-500 font-mono">Gulf Energy Assets</p>
+                <p className="text-xs font-bold text-slate-800">{LOCALE.brand.nameAr}</p>
+                <p className="text-[10px] text-slate-500 font-mono">{LOCALE.brand.nameEn} Assets</p>
               </div>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">

@@ -94,7 +94,7 @@ class DiagnosticLoggerService {
     return JSON.stringify(
       {
         exportedAt: new Date().toISOString(),
-        system: 'Gulf Energy ERP (Offline Desktop / Web)',
+        system: 'Sham Energy ERP (Offline Desktop / Web)',
         version: 'v2.4.0',
         totalLogs: this.logs.length,
         logs: this.logs,

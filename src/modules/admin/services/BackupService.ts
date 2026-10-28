@@ -222,7 +222,7 @@ export class BackupService {
     // 6. Save via Universal File Downloader
     const backupJsonString = JSON.stringify(container, null, 2);
     await saveFileUniversal(targetFilename, backupJsonString, [
-      { name: 'Gulf Energy ERP Encrypted Backup', extensions: ['gerp', 'bak', 'json'] },
+      { name: 'Sham Energy ERP Encrypted Backup', extensions: ['gerp', 'bak', 'json'] },
     ]);
 
     // 7. Update last backup timestamp setting

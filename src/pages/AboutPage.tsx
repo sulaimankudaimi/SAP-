@@ -91,7 +91,7 @@ export const AboutPage: React.FC = () => {
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-[#0F172A] flex items-center gap-2.5">
               <Info className="w-6 h-6 text-[#0FA37F]" />
-              عن نظام طاقة الخليج (About Gulf Energy ERP)
+              عن نظام شركة الشام للطاقة (About Sham Energy ERP)
             </h1>
             <p className="text-xs text-[#64748B] mt-1">
               نظام تخطيط موارد المؤسسات لقطاع الطاقة واللوجستيات البترولية — الإصدار المؤسسي المكتبي v2.4.0.
